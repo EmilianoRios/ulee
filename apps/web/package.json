@@ -1,0 +1,14 @@
+{
+  "name": "@canchero/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@canchero/tsconfig": "workspace:*"
+  }
+}

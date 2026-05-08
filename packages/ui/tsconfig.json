@@ -1,0 +1,6 @@
+{
+  "extends": "@canchero/tsconfig/react",
+  "compilerOptions": { "baseUrl": "." },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
