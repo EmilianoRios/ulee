@@ -8,6 +8,10 @@
     "lint": "eslint .",
     "type-check": "tsc --noEmit"
   },
+  "dependencies": {
+    "tamagui": "^1.0.0",
+    "@tamagui/config": "^1.0.0"
+  },
   "devDependencies": {
     "@canchero/tsconfig": "workspace:*"
   }

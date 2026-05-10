@@ -1,0 +1,53 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection,
+*::selection {
+  background-color: oklch(76% 0.10 155);
+  color: oklch(18% 0.018 200);
+}
+
+.sidebar-root *::selection,
+.sidebar-root ::selection {
+  background-color: oklch(76% 0.10 155) !important;
+  color: oklch(18% 0.018 200) !important;
+}
+
+.sidebar-nav-link:focus-visible {
+  outline: 2px solid oklch(48% 0.19 155);
+  outline-offset: 2px;
+  border-radius: 7px;
+}
+
+.table-row:hover td {
+  background-color: oklch(94% 0.013 222);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background-color: oklch(89% 0.020 224);
+  color: oklch(16% 0.014 222);
+}
+
+.pagination-btn:focus-visible {
+  outline: 2px solid oklch(48% 0.19 155);
+  outline-offset: 2px;
+  border-radius: 7px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

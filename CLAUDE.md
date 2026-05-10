@@ -61,6 +61,14 @@ convex/
 
 ---
 
+## Tamagui + Next.js App Router
+
+- Todo componente que use Tamagui requiere `'use client'`. Los RSC no tienen React Context ni DOM.
+- Las páginas (`app/` route segments) son RSC: fetchean datos y se los pasan a componentes client.
+- Todos los atoms, molecules y organisms de `packages/ui` llevan `'use client'` en la primera línea.
+
+---
+
 ## Convenciones de código
 
 - Siempre TypeScript strict. `any` es un error de lint.

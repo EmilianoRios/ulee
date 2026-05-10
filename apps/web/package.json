@@ -8,7 +8,20 @@
     "lint": "eslint .",
     "type-check": "tsc --noEmit"
   },
+  "dependencies": {
+    "@canchero/ui": "workspace:*",
+    "@tamagui/config": "^1.0.0",
+    "@tamagui/next-plugin": "^1.0.0",
+    "lucide-react": "^1.14.0",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tamagui": "^1.0.0"
+  },
   "devDependencies": {
-    "@canchero/tsconfig": "workspace:*"
+    "@canchero/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
   }
 }
