@@ -68,25 +68,18 @@ export function ReservationsTable({ rows, page, totalPages, onPageChange, action
       display:         'flex',
       flexDirection:   'column',
     }}>
-      <div style={{
-        padding:        '10px 16px',
-        borderBottom:   `1px solid ${t.bordeNeutral.val}`,
-        flexShrink:     0,
-        display:        'flex',
-        alignItems:     'center',
-        justifyContent: 'space-between',
-      }}>
-        <span style={{
-          fontSize:      15,
-          fontWeight:    600,
-          color:         t.textoNav.val,
-          letterSpacing: '-0.01em',
-          lineHeight:    1.3,
+      {action && (
+        <div style={{
+          padding:        '10px 16px',
+          borderBottom:   `1px solid ${t.bordeNeutral.val}`,
+          flexShrink:     0,
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'flex-end',
         }}>
-          Reservas recientes
-        </span>
-        {action}
-      </div>
+          {action}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div style={{

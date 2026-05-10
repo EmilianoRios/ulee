@@ -3,23 +3,16 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { KpiCard } from '@/components/molecules/kpi-card'
 import { ReservationsTable, type Reservation } from '@/components/organisms/reservations-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
 
-const COMPARISON_LABEL = 'semana anterior'
+// ─── Mock data ────────────────────────────────────────────────────────────────
 
-type Trend = 'up' | 'down' | 'neutral'
-
-type KpiConfig =
-  | { label: string; value: string; subtitle: string; delta?: never; trend?: never }
-  | { label: string; value: string; subtitle?: never; delta: number; trend: Trend }
-
-const KPIS: KpiConfig[] = [
-  { label: 'Reservas de hoy',  value: '14',       delta: 16.7, trend: 'up'   },
-  { label: 'Ingreso semanal',  value: '$142.500',  delta: 8.3,  trend: 'up'   },
-  { label: 'Pagos pendientes', value: '3',         delta: -25,  trend: 'up'   },
-  { label: 'Canchas activas',  value: '4 de 6',    subtitle: 'canchas habilitadas' },
+const STATS = [
+  { value: '14',       label: 'hoy'        },
+  { value: '$142.500', label: 'sem.'       },
+  { value: '3',        label: 'pendientes' },
+  { value: '4 de 6',   label: 'canchas'   },
 ]
 
 const ALL_ROWS: Reservation[] = [
@@ -39,57 +32,84 @@ const ALL_ROWS: Reservation[] = [
   { id: '14', cliente: 'Emilia Vega',       cancha: 'La Principal', horario: 'Mar 08:00 – 09:00', estado: 'pagado',         total: 12000 },
 ]
 
-const strip = (
-  <div style={{ display: 'flex', gap: 16, padding: '14px 32px' }}>
-    {KPIS.map((kpi) =>
-      kpi.subtitle !== undefined ? (
-        <KpiCard key={kpi.label} label={kpi.label} value={kpi.value} subtitle={kpi.subtitle} />
-      ) : (
-        <KpiCard
-          key={kpi.label}
-          label={kpi.label}
-          value={kpi.value}
-          comparisonLabel={COMPARISON_LABEL}
-          delta={kpi.delta}
-          trend={kpi.trend}
-        />
-      )
-    )}
-  </div>
-)
-
 const PAGE_SIZE = 8
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function ReservasPage() {
-  const t                  = useTheme()
-  const [page, setPage]    = useState(1)
+  const t    = useTheme()
+  const [page, setPage] = useState(1)
 
   const totalPages = Math.ceil(ALL_ROWS.length / PAGE_SIZE)
   const rows       = ALL_ROWS.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const action = (
-    <button
-      style={{
-        display:         'flex',
-        alignItems:      'center',
-        gap:             6,
-        padding:         '6px 14px',
-        borderRadius:    7,
-        border:          'none',
-        backgroundColor: t.verdeCancha.val,
-        color:           'oklch(98% 0.004 155)',
-        fontSize:        12,
-        fontWeight:      500,
-        cursor:          'pointer',
-        lineHeight:      1,
-        fontFamily:      'inherit',
-      }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
-    >
-      <Plus size={13} strokeWidth={2.5} />
-      Nueva reserva
-    </button>
+  const strip = (
+    <div style={{
+      height:          56,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'space-between',
+      padding:         '0 32px',
+      backgroundColor: t.cabeceraOscura.val,
+      flexShrink:      0,
+    }}>
+
+      {/* Left: title + inline stats */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <span style={{
+          fontSize:      15,
+          fontWeight:    600,
+          color:         'oklch(97% 0.006 220)',
+          letterSpacing: '-0.01em',
+          lineHeight:    1,
+          userSelect:    'none',
+        }}>
+          Reservas
+        </span>
+
+        <div style={{ width: 1, height: 14, backgroundColor: 'oklch(38% 0.016 228)', flexShrink: 0 }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          {STATS.map((stat) => (
+            <span
+              key={stat.label}
+              style={{ display: 'flex', alignItems: 'baseline', gap: 5, lineHeight: 1, userSelect: 'none' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'oklch(88% 0.008 225)', fontVariantNumeric: 'tabular-nums' }}>
+                {stat.value}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 400, color: 'oklch(50% 0.012 228)' }}>
+                {stat.label}
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: primary action */}
+      <button
+        style={{
+          display:         'flex',
+          alignItems:      'center',
+          gap:             6,
+          padding:         '6px 14px',
+          borderRadius:    7,
+          border:          'none',
+          backgroundColor: t.verdeCancha.val,
+          color:           'oklch(98% 0.004 155)',
+          fontSize:        12,
+          fontWeight:      500,
+          cursor:          'pointer',
+          lineHeight:      1,
+          fontFamily:      'inherit',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
+      >
+        <Plus size={13} strokeWidth={2.5} />
+        Nueva reserva
+      </button>
+    </div>
   )
 
   return (
@@ -106,7 +126,6 @@ export default function ReservasPage() {
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}
-          action={action}
         />
       </div>
     </ModuleLayout>

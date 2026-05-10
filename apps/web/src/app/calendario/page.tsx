@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
 
 import { CalendarDayView }  from '@/components/organisms/calendar-day-view'
-import { CalendarHeader }   from '@/components/molecules/calendar-header'
 import { ModuleLayout }     from '@/components/templates/module-layout'
 import type { CalendarViewMode } from '@/components/molecules/calendar-header'
 import type { Court, CalendarReservation } from '@/components/atoms/reservation-card'
@@ -32,6 +31,36 @@ const RESERVATIONS: CalendarReservation[] = [
   { id: '10', clientName: 'Nicolás García',                            startTime: '21:00', endTime: '22:30', state: 'señado',   amount: 5400, courtId: '2' },
 ]
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
+  { id: 'dia',    label: 'Día'    },
+  { id: 'semana', label: 'Semana' },
+  { id: 'mes',    label: 'Mes'    },
+]
+
+function formatHeaderDate(date: Date): string {
+  const raw = date.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day:     'numeric',
+    month:   'long',
+    year:    'numeric',
+  })
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
+// ─── Dark header tokens ───────────────────────────────────────────────────────
+
+const D = {
+  text:       'oklch(97% 0.006 220)',
+  textMuted:  'oklch(50% 0.012 228)',
+  border:     'oklch(35% 0.018 228)',
+  hover:      'oklch(30% 0.020 228)',
+  toggleBg:   'oklch(16% 0.020 228)',
+  toggleOn:   'oklch(32% 0.022 228)',
+  toggleOff:  'oklch(40% 0.012 228)',
+} as const
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CalendarioPage() {
@@ -48,41 +77,155 @@ export default function CalendarioPage() {
   }, [])
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
 
-  const action = (
-    <button
-      style={{
-        display:         'flex',
-        alignItems:      'center',
-        gap:             6,
-        padding:         '6px 14px',
-        borderRadius:    7,
-        border:          'none',
-        backgroundColor: t.verdeCancha.val,
-        color:           'oklch(98% 0.004 155)',
-        fontSize:        12,
-        fontWeight:      500,
-        cursor:          'pointer',
-        lineHeight:      1,
-        fontFamily:      'inherit',
-      }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
-    >
-      <Plus size={13} strokeWidth={2.5} />
-      Nueva reserva
-    </button>
-  )
+  const isToday = new Date().toDateString() === currentDate.toDateString()
+
+  const navBtn: React.CSSProperties = {
+    width:           30,
+    height:          30,
+    borderRadius:    6,
+    border:          `1px solid ${D.border}`,
+    backgroundColor: 'transparent',
+    cursor:          'pointer',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    color:           D.textMuted,
+    flexShrink:      0,
+  }
 
   const strip = (
-    <CalendarHeader
-      currentDate={currentDate}
-      viewMode={viewMode}
-      onPrevDay={prevDay}
-      onNextDay={nextDay}
-      onToday={goToday}
-      onViewModeChange={setViewMode}
-      action={action}
-    />
+    <div style={{
+      height:          56,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'space-between',
+      padding:         '0 32px',
+      backgroundColor: t.cabeceraOscura.val,
+      flexShrink:      0,
+    }}>
+
+      {/* Left: date navigation */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={prevDay}
+          aria-label="Día anterior"
+          style={navBtn}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = D.hover }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
+        >
+          <ChevronLeft size={15} strokeWidth={2} />
+        </button>
+
+        <span style={{
+          fontSize:      15,
+          fontWeight:    600,
+          color:         D.text,
+          letterSpacing: '-0.01em',
+          lineHeight:    1.2,
+          userSelect:    'none',
+          minWidth:      248,
+          textAlign:     'center',
+        }}>
+          {formatHeaderDate(currentDate)}
+        </span>
+
+        <button
+          onClick={nextDay}
+          aria-label="Día siguiente"
+          style={navBtn}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = D.hover }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
+        >
+          <ChevronRight size={15} strokeWidth={2} />
+        </button>
+
+        {!isToday && (
+          <button
+            onClick={goToday}
+            style={{
+              padding:         '5px 12px',
+              borderRadius:    6,
+              border:          `1px solid ${D.border}`,
+              backgroundColor: 'transparent',
+              cursor:          'pointer',
+              fontSize:        12,
+              fontWeight:      500,
+              color:           D.textMuted,
+              lineHeight:      1,
+              fontFamily:      'inherit',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = D.hover }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
+          >
+            Hoy
+          </button>
+        )}
+      </div>
+
+      {/* Right: action + view toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          style={{
+            display:         'flex',
+            alignItems:      'center',
+            gap:             6,
+            padding:         '6px 14px',
+            borderRadius:    7,
+            border:          'none',
+            backgroundColor: t.verdeCancha.val,
+            color:           'oklch(98% 0.004 155)',
+            fontSize:        12,
+            fontWeight:      500,
+            cursor:          'pointer',
+            lineHeight:      1,
+            fontFamily:      'inherit',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
+        >
+          <Plus size={13} strokeWidth={2.5} />
+          Nueva reserva
+        </button>
+
+        {/* View toggle */}
+        <div style={{
+          display:         'flex',
+          backgroundColor: D.toggleBg,
+          borderRadius:    8,
+          padding:         3,
+          gap:             2,
+          border:          `1px solid ${D.border}`,
+        }}>
+          {VIEW_OPTIONS.map(({ id, label }) => {
+            const isActive   = viewMode === id
+            const isDisabled = id !== 'dia'
+            return (
+              <button
+                key={id}
+                onClick={() => !isDisabled && setViewMode(id)}
+                style={{
+                  padding:         '5px 14px',
+                  borderRadius:    6,
+                  border:          'none',
+                  cursor:          isDisabled ? 'not-allowed' : 'pointer',
+                  fontSize:        12,
+                  fontWeight:      isActive ? 600 : 400,
+                  backgroundColor: isActive ? D.toggleOn : 'transparent',
+                  color:           isActive ? D.text : D.toggleOff,
+                  opacity:         isDisabled && !isActive ? 0.4 : 1,
+                  transition:      'background-color 120ms ease-out',
+                  userSelect:      'none',
+                  lineHeight:      1,
+                  fontFamily:      'inherit',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 
   return (
