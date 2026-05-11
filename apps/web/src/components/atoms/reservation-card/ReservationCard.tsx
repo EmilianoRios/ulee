@@ -2,7 +2,7 @@
 
 import { useTheme } from 'tamagui'
 
-export type CalendarReservationState = 'señado' | 'en-cancha' | 'ausente' | 'pagado' | 'mantenimiento' | 'recurrente'
+export type CalendarReservationState = 'señado' | 'en-cancha' | 'ausente' | 'pagado' | 'mantenimiento' | 'recurrente' | 'jugado' | 'evento'
 
 export interface Court {
   id: string
@@ -28,6 +28,8 @@ const STATE_LABEL: Record<CalendarReservationState, string> = {
   pagado:        'Pagado',
   mantenimiento: 'Mantenimiento',
   recurrente:    'Recurrente',
+  jugado:        'Jugado',
+  evento:        'Evento',
 }
 
 interface ReservationCardProps {
@@ -93,6 +95,18 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
       text:   'oklch(28% 0.08 275)',
       label:  'oklch(44% 0.12 275)',
     },
+    jugado: {
+      bg:     'oklch(91% 0.012 220)',
+      border: 'oklch(76% 0.018 222)',
+      text:   'oklch(38% 0.014 222)',
+      label:  'oklch(52% 0.17 58)',
+    },
+    evento: {
+      bg:     'oklch(93% 0.04 200)',
+      border: 'oklch(68% 0.10 200)',
+      text:   'oklch(30% 0.08 200)',
+      label:  'oklch(44% 0.11 200)',
+    },
   }[reservation.state]
 
   const isCompact = heightPx < 72
@@ -128,6 +142,19 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
         boxSizing:       'border-box',
       }}
     >
+      {reservation.state === 'jugado' && (
+        <div style={{
+          position:        'absolute',
+          top:             5,
+          right:           5,
+          width:           7,
+          height:          7,
+          borderRadius:    '50%',
+          backgroundColor: 'oklch(72% 0.17 58)',
+          boxShadow:       '0 0 0 2px oklch(91% 0.012 220)',
+          flexShrink:      0,
+        }} />
+      )}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, overflow: 'hidden' }}>
         <span style={{
           fontSize:      12,

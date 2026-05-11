@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState, Fragment } from 'react'
+import { useRef, useEffect, useState, useMemo, Fragment } from 'react'
 import { useTheme } from 'tamagui'
 import { Plus } from 'lucide-react'
 
@@ -21,6 +21,11 @@ const TOTAL_SLOTS = (DAY_END - DAY_START) * 2  // 30 slots
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function parseMins(time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + m
+}
+
 function timeToRowStart(time: string): number {
   const [h, m] = time.split(':').map(Number)
   return 2 + (h - DAY_START) * 2 + Math.floor(m / SLOT_MINUTES)
@@ -40,25 +45,32 @@ const TIME_LABELS = generateTimeLabels()
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface CalendarDayViewProps {
-  courts:       Court[]
-  reservations: CalendarReservation[]
+  courts:        Court[]
+  reservations:  CalendarReservation[]
+  onSlotClick?:  (courtId: string, time: string) => void
+  mockNow?:      Date
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, onSlotClick, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const [now,         setNow]         = useState(() => new Date())
+  const [realNow,     setRealNow]     = useState(() => new Date())
   const [selected,    setSelected]    = useState<CalendarReservation | null>(null)
   const [hoveredSlot, setHoveredSlot] = useState<string | null>(null)
 
-  // Tick every minute for the time indicator
+  // If mockNow is provided, use it directly on every render — no stale state
+  const now = useMemo(() => mockNow ?? realNow, [mockNow, realNow])
+
+  // Tick every minute — skip when using a fixed mock time
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000)
+    if (mockNow) return
+    const id = setInterval(() => setRealNow(new Date()), 60_000)
     return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-scroll to current time on mount
@@ -72,6 +84,15 @@ export function CalendarDayView({ courts, reservations }: CalendarDayViewProps) 
     el.scrollTop = Math.max(0, pixelFromSlotStart - visibleSlotHeight * 0.25)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ── Effective reservations (auto-transition señado/en-cancha → jugado when past end) ──
+  const nowTotalMins = now.getHours() * 60 + now.getMinutes()
+  const effectiveReservations = reservations.map((r) => {
+    if (nowTotalMins > parseMins(r.endTime) && (r.state === 'señado' || r.state === 'en-cancha')) {
+      return { ...r, state: 'jugado' as const }
+    }
+    return r
+  })
 
   // ── Current time line ───────────────────────────────────────────────────────
   const nowH = now.getHours()
@@ -217,9 +238,7 @@ export function CalendarDayView({ courts, reservations }: CalendarDayViewProps) 
                       key={`slot-${rowIdx}-${colIdx}`}
                       onMouseEnter={() => setHoveredSlot(slotKey)}
                       onMouseLeave={() => setHoveredSlot(null)}
-                      onClick={() => {
-                        // Future: open new reservation form for this slot + court
-                      }}
+                      onClick={() => onSlotClick?.(court.id, TIME_LABELS[rowIdx])}
                       style={{
                         gridRow,
                         gridColumn:      colIdx + 2,
@@ -242,7 +261,7 @@ export function CalendarDayView({ courts, reservations }: CalendarDayViewProps) 
           })}
 
           {/* ── Reservation cards ────────────────────────────────────────────── */}
-          {reservations.map((res) => {
+          {effectiveReservations.map((res) => {
             const courtIdx   = courts.findIndex((c) => c.id === res.courtId)
             if (courtIdx === -1) return null
 
@@ -308,6 +327,8 @@ export function CalendarDayView({ courts, reservations }: CalendarDayViewProps) 
       <ReservationSlideOver
         reservation={selected}
         courts={courts}
+        reservations={effectiveReservations}
+        now={now}
         onClose={() => setSelected(null)}
       />
     </div>

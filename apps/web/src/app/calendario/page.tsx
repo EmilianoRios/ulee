@@ -4,12 +4,17 @@ import { useState, useCallback } from 'react'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
 
-import { CalendarDayView }  from '@/components/organisms/calendar-day-view'
-import { ModuleLayout }     from '@/components/templates/module-layout'
-import type { CalendarViewMode } from '@/components/molecules/calendar-header'
+import { CalendarDayView }    from '@/components/organisms/calendar-day-view'
+import { ModuleLayout }       from '@/components/templates/module-layout'
+import { NewEntrySlideOver }  from '@/components/organisms/new-entry-slide-over'
+import type { EntryType }     from '@/components/organisms/new-entry-slide-over'
+import type { CalendarViewMode }           from '@/components/molecules/calendar-header'
 import type { Court, CalendarReservation } from '@/components/atoms/reservation-card'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
+
+// Simulated current time: 12:00 noon (2026). The indicator and transitions use this.
+const MOCK_NOW = (() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d })()
 
 const COURTS: Court[] = [
   { id: '1', name: 'Cancha 1' },
@@ -18,20 +23,63 @@ const COURTS: Court[] = [
   { id: '4', name: 'Pádel Sur' },
 ]
 
-const RESERVATIONS: CalendarReservation[] = [
-  { id: '1',  clientName: 'Lucas Martínez',     phone: '11 4523-8891', startTime: '09:00', endTime: '10:30', state: 'pagado',   amount: 4500, courtId: '1' },
-  { id: '2',  clientName: 'Sofía González',     phone: '11 6712-3344', startTime: '09:00', endTime: '10:00', state: 'en-cancha',amount: 3600, courtId: '2', notes: 'Viene con seña pagada desde la app.' },
-  { id: '3',  clientName: 'Martín Rodríguez',                          startTime: '11:00', endTime: '12:30', state: 'señado',   amount: 5400, courtId: '1', notes: 'Llama antes de venir.' },
-  { id: '4',  clientName: 'Club Deportivo Norte',phone: '11 2233-4455',startTime: '12:00', endTime: '14:00', state: 'señado',   amount: 8000, courtId: '3' },
-  { id: '5',  clientName: 'Pedro Fernández',                           startTime: '09:00', endTime: '10:30', state: 'ausente',  amount: 3000, courtId: '3' },
-  { id: '6',  clientName: 'Valentina López',    phone: '11 9988-7766', startTime: '14:00', endTime: '15:30', state: 'pagado',   amount: 5400, courtId: '2' },
-  { id: '7',  clientName: 'Juan Méndez',                               startTime: '15:00', endTime: '16:30', state: 'señado',   amount: 4200, courtId: '4' },
-  { id: '8',  clientName: 'Equipo Rivadavia',   phone: '11 1122-3344', startTime: '18:00', endTime: '20:00', state: 'señado',   amount: 9600, courtId: '1' },
-  { id: '9',  clientName: 'Ana Torres',                                startTime: '20:00', endTime: '21:30', state: 'pagado',   amount: 6000, courtId: '4' },
-  { id: '10', clientName: 'Nicolás García',                            startTime: '21:00', endTime: '22:30', state: 'señado',        amount: 5400, courtId: '2' },
-  { id: '11', clientName: 'Limpieza y pintura',                        startTime: '16:00', endTime: '18:00', state: 'mantenimiento',  amount: 0,    courtId: '2' },
-  { id: '12', clientName: 'Prof. Herrera — Clínica pádel',            startTime: '10:00', endTime: '12:00', state: 'recurrente',     amount: 7200, courtId: '4' },
-]
+function buildMockReservations(): CalendarReservation[] {
+  // MOCK_NOW = 12:00. Offsets in minutes from noon.
+  // -180=09:00  -120=10:00  -60=11:00  0=12:00  60=13:00  120=14:00
+  //  180=15:00   240=16:00  300=17:00  360=18:00 420=19:00  480=20:00
+  //  540=21:00   600=22:00  660=23:00
+  const base = 12 * 60
+
+  function t(offset: number): string {
+    const m   = base + offset
+    const h   = Math.floor(m / 60) % 24
+    const min = m % 60
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+  }
+
+  return [
+    // ── Cancha 1 — pagado 9:00, en-cancha cruzando las 12:00, señados tarde y noche
+    { id: '1',  clientName: 'Lucas Martínez',          phone: '11 4523-8891', startTime: t(-180), endTime: t(-90),  state: 'jugado',        amount: 4500, courtId: '1' },
+    { id: '2',  clientName: 'Equipo Rivadavia',        phone: '11 1122-3344', startTime: t(-60),  endTime: t(60),   state: 'en-cancha',     amount: 9600, courtId: '1' },
+    { id: '3',  clientName: 'Nicolás García',                                 startTime: t(120),  endTime: t(210),  state: 'pagado',        amount: 5400, courtId: '1' },
+    { id: '4',  clientName: 'Familias Fernández',                             startTime: t(300),  endTime: t(390),  state: 'señado',        amount: 6000, courtId: '1' },
+    { id: '5',  clientName: 'Torneo Sub-18',                                  startTime: t(540),  endTime: t(660),  state: 'señado',        amount: 7200, courtId: '1' },
+
+    // ── La Principal — señado → auto-jugado (cobro pendiente), señado, recurrente, mantenimiento
+    { id: '6',  clientName: 'Sofía González',          phone: '11 6712-3344', startTime: t(-150), endTime: t(-30),  state: 'señado',        amount: 3600, courtId: '2', notes: 'Viene con seña pagada desde la app.' },
+    { id: '7',  clientName: 'Ana Torres',              phone: '11 5544-3322', startTime: t(60),   endTime: t(150),  state: 'pagado',        amount: 4800, courtId: '2' },
+    { id: '8',  clientName: 'Prof. Herrera — Clínica', phone: '11 1155-2233', startTime: t(240),  endTime: t(360),  state: 'recurrente',    amount: 7200, courtId: '2' },
+    { id: '9',  clientName: 'Limpieza y pintura',                             startTime: t(480),  endTime: t(570),  state: 'mantenimiento', amount: 0,    courtId: '2' },
+
+    // ── Pádel Norte — ausente 10:00, recurrente cruzando las 12:00, señado, evento noche
+    { id: '10', clientName: 'Pedro Fernández',                                startTime: t(-120), endTime: t(-60),  state: 'ausente',       amount: 3000, courtId: '3' },
+    { id: '11', clientName: 'Clínica Técnica Herrera',                        startTime: t(-30),  endTime: t(90),   state: 'recurrente',    amount: 5400, courtId: '3' },
+    { id: '12', clientName: 'Valentina López',         phone: '11 9988-7766', startTime: t(180),  endTime: t(300),  state: 'señado',        amount: 5400, courtId: '3' },
+    { id: '13', clientName: 'Torneo Verano 2026',                             startTime: t(420),  endTime: t(570),  state: 'evento',        amount: 0,    courtId: '3', notes: 'Torneo interno. Acceso libre para socios.' },
+
+    // ── Pádel Sur — señado → auto-jugado, en-cancha cruzando las 12:00, señados tarde y noche
+    { id: '14', clientName: 'Martín Rodríguez',                               startTime: t(-180), endTime: t(-60),  state: 'señado',        amount: 4200, courtId: '4' },
+    { id: '15', clientName: 'Club Deportivo Norte',    phone: '11 2233-4455', startTime: t(-60),  endTime: t(30),   state: 'en-cancha',     amount: 8000, courtId: '4' },
+    { id: '16', clientName: 'Juan Méndez',                                    startTime: t(90),   endTime: t(210),  state: 'pagado',        amount: 4200, courtId: '4' },
+    { id: '17', clientName: 'Constanza Ríos',                                 startTime: t(330),  endTime: t(450),  state: 'señado',        amount: 5600, courtId: '4' },
+    { id: '18', clientName: 'Familia González',                               startTime: t(480),  endTime: t(630),  state: 'señado',        amount: 6800, courtId: '4' },
+  ]
+}
+
+const RESERVATIONS = buildMockReservations()
+
+function parseMins(time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + m
+}
+
+const MOCK_NOW_MINS = MOCK_NOW.getHours() * 60 + MOCK_NOW.getMinutes()
+
+const PENDING_COBROS = RESERVATIONS.filter((r) => {
+  if (r.state === 'jugado') return true
+  if ((r.state === 'señado' || r.state === 'en-cancha') && MOCK_NOW_MINS > parseMins(r.endTime)) return true
+  return false
+}).length
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -40,8 +88,10 @@ const LEGEND: { label: string; color: string }[] = [
   { label: 'En cancha',     color: 'oklch(68% 0.13 155)'  },
   { label: 'Señado',        color: 'oklch(78% 0.09 42)'   },
   { label: 'Ausente',       color: 'oklch(60% 0.010 224)' },
+  { label: 'Jugado',        color: 'oklch(76% 0.018 222)' },
   { label: 'Mantenimiento', color: 'oklch(76% 0.13 88)'   },
   { label: 'Recurrente',    color: 'oklch(70% 0.09 275)'  },
+  { label: 'Evento',        color: 'oklch(68% 0.10 200)'  },
 ]
 
 const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
@@ -49,6 +99,7 @@ const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
   { id: 'semana', label: 'Semana' },
   { id: 'mes',    label: 'Mes'    },
 ]
+
 
 function formatHeaderDate(date: Date): string {
   const raw = date.toLocaleDateString('es-AR', {
@@ -77,8 +128,12 @@ const D = {
 export default function CalendarioPage() {
   const t = useTheme()
 
-  const [currentDate, setCurrentDate] = useState(() => new Date())
-  const [viewMode,    setViewMode]    = useState<CalendarViewMode>('dia')
+  const [currentDate,      setCurrentDate]      = useState(() => new Date())
+  const [viewMode,         setViewMode]         = useState<CalendarViewMode>('dia')
+  const [slideOverOpen,    setSlideOverOpen]    = useState(false)
+  const [defaultType,      setDefaultType]      = useState<EntryType>('reserva')
+  const [initialSlotTime,  setInitialSlotTime]  = useState<string | undefined>(undefined)
+  const [initialSlotCourt, setInitialSlotCourt] = useState<string | undefined>(undefined)
 
   const prevDay = useCallback(() => {
     setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })
@@ -190,6 +245,12 @@ export default function CalendarioPage() {
       {/* Right: action + view toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
+          onClick={() => {
+            setDefaultType('reserva')
+            setInitialSlotTime(undefined)
+            setInitialSlotCourt(undefined)
+            setSlideOverOpen(true)
+          }}
           style={{
             display:         'flex',
             alignItems:      'center',
@@ -204,6 +265,7 @@ export default function CalendarioPage() {
             cursor:          'pointer',
             lineHeight:      1,
             fontFamily:      'inherit',
+            transition:      'background-color 120ms ease-out',
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
@@ -252,7 +314,7 @@ export default function CalendarioPage() {
       </div>
     </div>
 
-    {/* Info strip: state legend on light background */}
+    {/* Info strip: state legend + pending payments alert */}
     <div style={{
       height:       36,
       display:      'flex',
@@ -267,29 +329,71 @@ export default function CalendarioPage() {
           <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
         </span>
       ))}
+
+      {PENDING_COBROS > 0 && (
+        <span style={{
+          marginLeft:      'auto',
+          display:         'flex',
+          alignItems:      'center',
+          gap:             6,
+          padding:         '3px 10px',
+          borderRadius:    9999,
+          backgroundColor: 'oklch(95% 0.06 58)',
+          border:          '1px solid oklch(82% 0.12 58)',
+          userSelect:      'none',
+          flexShrink:      0,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'oklch(60% 0.18 58)', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: 'oklch(38% 0.14 58)', lineHeight: 1 }}>
+            {PENDING_COBROS} cobro{PENDING_COBROS !== 1 ? 's' : ''} pendiente{PENDING_COBROS !== 1 ? 's' : ''}
+          </span>
+        </span>
+      )}
     </div>
     </>
   )
 
   return (
-    <ModuleLayout strip={strip}>
-      <div style={{
-        height:        '100%',
-        padding:       '12px 32px',
-        boxSizing:     'border-box',
-        display:       'flex',
-        flexDirection: 'column',
-      }}>
+    <>
+      <ModuleLayout strip={strip}>
         <div style={{
-          flex:         1,
-          minHeight:    0,
-          borderRadius: 7,
-          border:       `1px solid ${t.bordeNeutral.val}`,
-          overflow:     'hidden',
+          height:        '100%',
+          padding:       '12px 32px',
+          boxSizing:     'border-box',
+          display:       'flex',
+          flexDirection: 'column',
         }}>
-          <CalendarDayView courts={COURTS} reservations={RESERVATIONS} />
+          <div style={{
+            flex:         1,
+            minHeight:    0,
+            borderRadius: 7,
+            border:       `1px solid ${t.bordeNeutral.val}`,
+            overflow:     'hidden',
+          }}>
+            <CalendarDayView
+            courts={COURTS}
+            reservations={RESERVATIONS}
+            mockNow={MOCK_NOW}
+            onSlotClick={(courtId, time) => {
+              setDefaultType('reserva')
+              setInitialSlotTime(time)
+              setInitialSlotCourt(courtId)
+              setSlideOverOpen(true)
+            }}
+          />
+          </div>
         </div>
-      </div>
-    </ModuleLayout>
+      </ModuleLayout>
+
+      <NewEntrySlideOver
+        open={slideOverOpen}
+        defaultType={defaultType}
+        initialTime={initialSlotTime}
+        initialCourtId={initialSlotCourt}
+        courts={COURTS}
+        initialDate={currentDate}
+        onClose={() => setSlideOverOpen(false)}
+      />
+    </>
   )
 }
