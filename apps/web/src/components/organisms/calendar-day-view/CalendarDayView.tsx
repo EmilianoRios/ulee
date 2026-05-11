@@ -109,6 +109,7 @@ export function CalendarDayView({ courts, reservations }: CalendarDayViewProps) 
       {/* ── Scroll container ─────────────────────────────────────────────────── */}
       <div
         ref={scrollRef}
+        className="calendar-scroll"
         style={{ flex: 1, overflow: 'auto', backgroundColor: C.bg }}
       >
         {/* ── CSS Grid ──────────────────────────────────────────────────────── */}

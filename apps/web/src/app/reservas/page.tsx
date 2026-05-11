@@ -8,11 +8,11 @@ import { ModuleLayout } from '@/components/templates/module-layout'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-const STATS = [
-  { value: '14',       label: 'hoy'        },
-  { value: '$142.500', label: 'sem.'       },
-  { value: '3',        label: 'pendientes' },
-  { value: '4 de 6',   label: 'canchas'   },
+const STATS: { value: string; label: string; delta?: string; positive?: boolean }[] = [
+  { value: '14',       label: 'reservas hoy',    delta: '↑ 16.7%', positive: true },
+  { value: '$142.500', label: 'esta semana',      delta: '↑ 8.3%',  positive: true },
+  { value: '3',        label: 'pagos pendientes'                                   },
+  { value: '4 de 6',   label: 'canchas activas'                                   },
 ]
 
 const ALL_ROWS: Reservation[] = [
@@ -89,28 +89,46 @@ export default function ReservasPage() {
         </button>
       </div>
 
-      {/* Info strip: contextual stats on light background */}
+      {/* Info strip: stat row on light background */}
       <div style={{
-        height:       36,
+        height:       52,
         display:      'flex',
         alignItems:   'center',
         padding:      '0 32px',
         borderBottom: `1px solid ${t.divisor.val}`,
-        gap:          0,
       }}>
         {STATS.map((stat, i) => (
           <div key={stat.label} style={{ display: 'flex', alignItems: 'center' }}>
             {i > 0 && (
-              <span style={{ fontSize: 14, color: t.textoInactivo.val, padding: '0 10px', lineHeight: 1, userSelect: 'none' }}>
-                ·
-              </span>
+              <div style={{ width: 1, height: 32, backgroundColor: t.divisor.val, margin: '0 28px', flexShrink: 0 }} />
             )}
-            <span style={{ fontSize: 13, color: t.textoMuted.val, lineHeight: 1, userSelect: 'none' }}>
-              <span style={{ fontWeight: 600, color: t.textoPrimario.val, marginRight: 4, fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, userSelect: 'none' }}>
+              <span style={{
+                fontSize:           20,
+                fontWeight:         700,
+                color:              t.textoPrimario.val,
+                lineHeight:         1,
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing:      '-0.01em',
+              }}>
                 {stat.value}
               </span>
-              {stat.label}
-            </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 11, color: t.textoMuted.val, lineHeight: 1 }}>
+                  {stat.label}
+                </span>
+                {stat.delta && (
+                  <span style={{
+                    fontSize:   11,
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    color:      stat.positive ? t.verdeCancha.val : 'oklch(55% 0.20 25)',
+                  }}>
+                    {stat.delta}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         ))}
       </div>

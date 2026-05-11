@@ -2,7 +2,7 @@
 
 import { useTheme } from 'tamagui'
 
-export type CalendarReservationState = 'señado' | 'en-cancha' | 'ausente' | 'pagado'
+export type CalendarReservationState = 'señado' | 'en-cancha' | 'ausente' | 'pagado' | 'mantenimiento' | 'recurrente'
 
 export interface Court {
   id: string
@@ -22,10 +22,12 @@ export interface CalendarReservation {
 }
 
 const STATE_LABEL: Record<CalendarReservationState, string> = {
-  señado:      'Señado',
-  'en-cancha': 'En cancha',
-  ausente:     'Ausente',
-  pagado:      'Pagado',
+  señado:        'Señado',
+  'en-cancha':   'En cancha',
+  ausente:       'Ausente',
+  pagado:        'Pagado',
+  mantenimiento: 'Mantenimiento',
+  recurrente:    'Recurrente',
 }
 
 interface ReservationCardProps {
@@ -78,6 +80,18 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
       border: t.bordeNeutral.val,
       text:   t.textoPrimario.val,
       label:  t.verdeCanchaProfundo.val,
+    },
+    mantenimiento: {
+      bg:     'oklch(94% 0.06 88)',
+      border: 'oklch(76% 0.13 88)',
+      text:   'oklch(32% 0.10 85)',
+      label:  'oklch(46% 0.15 85)',
+    },
+    recurrente: {
+      bg:     'oklch(92% 0.04 275)',
+      border: 'oklch(70% 0.09 275)',
+      text:   'oklch(28% 0.08 275)',
+      label:  'oklch(44% 0.12 275)',
     },
   }[reservation.state]
 
