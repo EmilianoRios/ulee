@@ -110,7 +110,7 @@ export function CourtsTable({ courts, onEdit, onCreate }: CourtsTableProps) {
         </div>
       ) : (
         <div style={{ flex: 1, overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               {COLS.map((col, i) => (
                 <col key={i} style={{ width: col.width ?? undefined }} />

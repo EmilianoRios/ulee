@@ -67,6 +67,14 @@ html, body {
   background: transparent;
 }
 
+.strip-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width:    none;
+}
+.strip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0.01ms !important;

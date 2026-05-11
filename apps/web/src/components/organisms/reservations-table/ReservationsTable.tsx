@@ -100,7 +100,7 @@ export function ReservationsTable({ rows, page, totalPages, onPageChange, action
       ) : (
         <>
           <div style={{ flex: 1, overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 {COLS.map((col) => (
                   <col key={col.label} style={{ width: col.width ? col.width : undefined }} />

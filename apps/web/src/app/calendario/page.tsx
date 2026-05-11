@@ -161,17 +161,19 @@ export default function CalendarioPage() {
 
   const strip = (
     <>
-    <div style={{
+    <div className="strip-scroll" style={{
       height:          56,
       display:         'flex',
       alignItems:      'center',
       justifyContent:  'space-between',
       padding:         '0 32px',
       backgroundColor: t.cabeceraOscura.val,
+      overflowX:       'auto',
+      gap:             12,
     }}>
 
       {/* Left: title + date navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <span style={{
           fontSize:      15,
           fontWeight:    600,
@@ -203,7 +205,7 @@ export default function CalendarioPage() {
           letterSpacing: '-0.01em',
           lineHeight:    1.2,
           userSelect:    'none',
-          minWidth:      248,
+          minWidth:      0,
           textAlign:     'center',
         }}>
           {formatHeaderDate(currentDate)}
@@ -243,7 +245,7 @@ export default function CalendarioPage() {
       </div>
 
       {/* Right: action + view toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <button
           onClick={() => {
             setDefaultType('reserva')
@@ -315,16 +317,17 @@ export default function CalendarioPage() {
     </div>
 
     {/* Info strip: state legend + pending payments alert */}
-    <div style={{
+    <div className="strip-scroll" style={{
       height:       36,
       display:      'flex',
       alignItems:   'center',
       padding:      '0 32px',
       borderBottom: `1px solid ${t.divisor.val}`,
       gap:          20,
+      overflowX:    'auto',
     }}>
       {LEGEND.map(({ label, color }) => (
-        <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none' }}>
+        <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
         </span>

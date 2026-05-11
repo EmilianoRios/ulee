@@ -90,15 +90,16 @@ export default function ReservasPage() {
       </div>
 
       {/* Info strip: stat row on light background */}
-      <div style={{
+      <div className="strip-scroll" style={{
         height:       52,
         display:      'flex',
         alignItems:   'center',
         padding:      '0 32px',
         borderBottom: `1px solid ${t.divisor.val}`,
+        overflowX:    'auto',
       }}>
         {STATS.map((stat, i) => (
-          <div key={stat.label} style={{ display: 'flex', alignItems: 'center' }}>
+          <div key={stat.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             {i > 0 && (
               <div style={{ width: 1, height: 32, backgroundColor: t.divisor.val, margin: '0 28px', flexShrink: 0 }} />
             )}

@@ -130,11 +130,11 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
         backgroundColor: palette.bg,
         border:          `1.5px solid ${palette.border}`,
         borderRadius:    6,
-        padding:         isCompact ? '4px 8px' : '8px 10px',
+        padding:         isCompact ? '4px 8px' : '10px 12px',
         cursor:          'pointer',
         display:         'flex',
         flexDirection:   'column',
-        gap:             2,
+        gap:             4,
         overflow:        'hidden',
         userSelect:      'none',
         outline:         'none',
@@ -170,14 +170,13 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
           {reservation.clientName}
         </span>
         <span style={{
-          fontSize:      9,
-          fontWeight:    700,
-          letterSpacing: '0.07em',
-          textTransform: 'uppercase',
+          fontSize:      10,
+          fontWeight:    500,
+          letterSpacing: '0.02em',
           color:         palette.label,
           whiteSpace:    'nowrap',
           flexShrink:    0,
-          lineHeight:    1.6,
+          lineHeight:    1.5,
         }}>
           {STATE_LABEL[reservation.state]}
         </span>
@@ -190,19 +189,19 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
       )}
 
       {!isCompact && reservation.state === 'en-cancha' && heightPx >= 100 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ fontSize: 10, color: palette.text, opacity: 0.7, lineHeight: 1.4 }}>
-            ⏱ {fmtDuration(elapsed)} transcurridos
+            {fmtDuration(elapsed)} jugados
           </span>
           <span style={{ fontSize: 10, color: palette.text, opacity: 0.7, lineHeight: 1.4 }}>
-            ⏳ {fmtDuration(remaining)} restantes
+            {fmtDuration(remaining)} restantes
           </span>
         </div>
       )}
 
       {!isCompact && heightPx >= 88 && (
         <span style={{
-          fontSize:    11,
+          fontSize:    12,
           fontWeight:  500,
           color:       palette.text,
           lineHeight:  1.3,
