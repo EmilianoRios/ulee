@@ -44,18 +44,16 @@ export default function ReservasPage() {
   const rows       = ALL_ROWS.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const strip = (
-    <div style={{
-      height:          56,
-      display:         'flex',
-      alignItems:      'center',
-      justifyContent:  'space-between',
-      padding:         '0 32px',
-      backgroundColor: t.cabeceraOscura.val,
-      flexShrink:      0,
-    }}>
-
-      {/* Left: title + inline stats */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+    <>
+      {/* Dark header: module identity + primary action */}
+      <div style={{
+        height:          56,
+        display:         'flex',
+        alignItems:      'center',
+        justifyContent:  'space-between',
+        padding:         '0 32px',
+        backgroundColor: t.cabeceraOscura.val,
+      }}>
         <span style={{
           fontSize:      15,
           fontWeight:    600,
@@ -67,49 +65,56 @@ export default function ReservasPage() {
           Reservas
         </span>
 
-        <div style={{ width: 1, height: 14, backgroundColor: 'oklch(38% 0.016 228)', flexShrink: 0 }} />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          {STATS.map((stat) => (
-            <span
-              key={stat.label}
-              style={{ display: 'flex', alignItems: 'baseline', gap: 5, lineHeight: 1, userSelect: 'none' }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'oklch(88% 0.008 225)', fontVariantNumeric: 'tabular-nums' }}>
-                {stat.value}
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 400, color: 'oklch(50% 0.012 228)' }}>
-                {stat.label}
-              </span>
-            </span>
-          ))}
-        </div>
+        <button
+          style={{
+            display:         'flex',
+            alignItems:      'center',
+            gap:             6,
+            padding:         '6px 14px',
+            borderRadius:    7,
+            border:          'none',
+            backgroundColor: t.verdeCancha.val,
+            color:           'oklch(98% 0.004 155)',
+            fontSize:        12,
+            fontWeight:      500,
+            cursor:          'pointer',
+            lineHeight:      1,
+            fontFamily:      'inherit',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
+        >
+          <Plus size={13} strokeWidth={2.5} />
+          Nueva reserva
+        </button>
       </div>
 
-      {/* Right: primary action */}
-      <button
-        style={{
-          display:         'flex',
-          alignItems:      'center',
-          gap:             6,
-          padding:         '6px 14px',
-          borderRadius:    7,
-          border:          'none',
-          backgroundColor: t.verdeCancha.val,
-          color:           'oklch(98% 0.004 155)',
-          fontSize:        12,
-          fontWeight:      500,
-          cursor:          'pointer',
-          lineHeight:      1,
-          fontFamily:      'inherit',
-        }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
-      >
-        <Plus size={13} strokeWidth={2.5} />
-        Nueva reserva
-      </button>
-    </div>
+      {/* Info strip: contextual stats on light background */}
+      <div style={{
+        height:       36,
+        display:      'flex',
+        alignItems:   'center',
+        padding:      '0 32px',
+        borderBottom: `1px solid ${t.divisor.val}`,
+        gap:          0,
+      }}>
+        {STATS.map((stat, i) => (
+          <div key={stat.label} style={{ display: 'flex', alignItems: 'center' }}>
+            {i > 0 && (
+              <span style={{ fontSize: 14, color: t.textoInactivo.val, padding: '0 10px', lineHeight: 1, userSelect: 'none' }}>
+                ·
+              </span>
+            )}
+            <span style={{ fontSize: 13, color: t.textoMuted.val, lineHeight: 1, userSelect: 'none' }}>
+              <span style={{ fontWeight: 600, color: t.textoPrimario.val, marginRight: 4, fontVariantNumeric: 'tabular-nums' }}>
+                {stat.value}
+              </span>
+              {stat.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
   )
 
   return (

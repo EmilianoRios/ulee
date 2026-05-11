@@ -28,10 +28,21 @@ const RESERVATIONS: CalendarReservation[] = [
   { id: '7',  clientName: 'Juan Méndez',                               startTime: '15:00', endTime: '16:30', state: 'señado',   amount: 4200, courtId: '4' },
   { id: '8',  clientName: 'Equipo Rivadavia',   phone: '11 1122-3344', startTime: '18:00', endTime: '20:00', state: 'señado',   amount: 9600, courtId: '1' },
   { id: '9',  clientName: 'Ana Torres',                                startTime: '20:00', endTime: '21:30', state: 'pagado',   amount: 6000, courtId: '4' },
-  { id: '10', clientName: 'Nicolás García',                            startTime: '21:00', endTime: '22:30', state: 'señado',   amount: 5400, courtId: '2' },
+  { id: '10', clientName: 'Nicolás García',                            startTime: '21:00', endTime: '22:30', state: 'señado',        amount: 5400, courtId: '2' },
+  { id: '11', clientName: 'Limpieza y pintura',                        startTime: '16:00', endTime: '18:00', state: 'mantenimiento',  amount: 0,    courtId: '2' },
+  { id: '12', clientName: 'Prof. Herrera — Clínica pádel',            startTime: '10:00', endTime: '12:00', state: 'recurrente',     amount: 7200, courtId: '4' },
 ]
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const LEGEND: { label: string; color: string }[] = [
+  { label: 'Pagado',        color: 'oklch(90% 0.008 220)' },
+  { label: 'En cancha',     color: 'oklch(68% 0.13 155)'  },
+  { label: 'Señado',        color: 'oklch(78% 0.09 42)'   },
+  { label: 'Ausente',       color: 'oklch(60% 0.010 224)' },
+  { label: 'Mantenimiento', color: 'oklch(76% 0.13 88)'   },
+  { label: 'Recurrente',    color: 'oklch(70% 0.09 275)'  },
+]
 
 const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
   { id: 'dia',    label: 'Día'    },
@@ -94,6 +105,7 @@ export default function CalendarioPage() {
   }
 
   const strip = (
+    <>
     <div style={{
       height:          56,
       display:         'flex',
@@ -101,11 +113,24 @@ export default function CalendarioPage() {
       justifyContent:  'space-between',
       padding:         '0 32px',
       backgroundColor: t.cabeceraOscura.val,
-      flexShrink:      0,
     }}>
 
-      {/* Left: date navigation */}
+      {/* Left: title + date navigation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{
+          fontSize:      15,
+          fontWeight:    600,
+          color:         D.text,
+          letterSpacing: '-0.01em',
+          lineHeight:    1,
+          userSelect:    'none',
+          marginRight:   12,
+        }}>
+          Calendario
+        </span>
+
+        <div style={{ width: 1, height: 14, backgroundColor: 'oklch(38% 0.016 228)', flexShrink: 0, marginRight: 4 }} />
+
         <button
           onClick={prevDay}
           aria-label="Día anterior"
@@ -226,6 +251,24 @@ export default function CalendarioPage() {
         </div>
       </div>
     </div>
+
+    {/* Info strip: state legend on light background */}
+    <div style={{
+      height:       36,
+      display:      'flex',
+      alignItems:   'center',
+      padding:      '0 32px',
+      borderBottom: `1px solid ${t.divisor.val}`,
+      gap:          20,
+    }}>
+      {LEGEND.map(({ label, color }) => (
+        <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
+        </span>
+      ))}
+    </div>
+    </>
   )
 
   return (
