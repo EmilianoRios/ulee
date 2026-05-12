@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "turbo run dev --ui=tui",
     "build": "turbo run build",
+    "start": "pnpm --filter @canchero/web start",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "format": "prettier --write ."
@@ -21,8 +22,8 @@
   },
   "packageManager": "pnpm@11.1.0",
   "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "node": ">=22.13",
+    "pnpm": ">=11.0.0"
   },
   "pnpm": {
     "overrides": {
