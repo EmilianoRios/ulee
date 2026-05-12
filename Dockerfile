@@ -37,4 +37,4 @@ WORKDIR /app/apps/web
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+CMD ["sh", "-c", "echo '=== RUNTIME CHECK ===' && pwd && ls -la .next/ 2>&1 | head -20 && echo '=== STARTING ===' && exec pnpm start"]
