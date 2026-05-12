@@ -6,9 +6,6 @@ const nextConfig: NextConfig = {
   // TODO: apretar de vuelta cuando se tipen los tokens custom de Tamagui en theme.
   eslint:     { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  experimental: {
-    nodeMiddleware: true,
-  },
 }
 
 export default withTamagui({
