@@ -1,0 +1,5 @@
+
+.env.local
+
+# AI agent skills — regenerated via `npx convex ai-files install`
+.agents/
