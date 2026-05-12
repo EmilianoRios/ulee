@@ -5,8 +5,6 @@ RUN corepack enable && corepack prepare pnpm@11.1.0 --activate
 
 WORKDIR /app
 
-# Railway forwards matching service env vars as Docker ARGs. Required for
-# Next.js to inline NEXT_PUBLIC_* into the client bundle during `next build`.
 ARG NEXT_PUBLIC_CONVEX_URL
 ARG NEXT_PUBLIC_CONVEX_SITE_URL
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -32,6 +30,9 @@ COPY . .
 
 RUN pnpm --filter @canchero/web build
 
+# Sanity check: show what standalone produced so we can debug if it breaks
+RUN echo "--- Standalone output ---" && ls -la /app/apps/web/.next/standalone/apps/web/.next/ || true
+
 # ─── Runtime stage ───────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 
@@ -39,13 +40,13 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-# Standalone output contains the server, minimal node_modules and the
-# traced workspace deps. Static assets and public files are copied
-# separately because Next.js does NOT include them in standalone.
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 
+WORKDIR /app/apps/web
+
 EXPOSE 3000
 
-CMD ["node", "apps/web/server.js"]
+CMD ["node", "server.js"]
