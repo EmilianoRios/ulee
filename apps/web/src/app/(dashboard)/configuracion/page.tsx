@@ -32,10 +32,10 @@ export default function ConfiguracionPage() {
 
   // ─── Stable dirty callbacks per tab ───────────────────────────────────────
 
-  const onGeneralDirty  = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); d ? n.add('general')  : n.delete('general');  return n }), [])
-  const onHorariosDirty = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); d ? n.add('horarios') : n.delete('horarios'); return n }), [])
-  const onPreciosDirty  = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); d ? n.add('precios')  : n.delete('precios');  return n }), [])
-  const onFeriadosDirty = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); d ? n.add('feriados') : n.delete('feriados'); return n }), [])
+  const onGeneralDirty  = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); if (d) n.add('general');  else n.delete('general');  return n }), [])
+  const onHorariosDirty = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); if (d) n.add('horarios'); else n.delete('horarios'); return n }), [])
+  const onPreciosDirty  = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); if (d) n.add('precios');  else n.delete('precios');  return n }), [])
+  const onFeriadosDirty = useCallback((d: boolean) => setDirtyTabs(p => { const n = new Set(p); if (d) n.add('feriados'); else n.delete('feriados'); return n }), [])
 
   // ─── Stable saved callbacks per tab ───────────────────────────────────────
 
