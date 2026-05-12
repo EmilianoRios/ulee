@@ -16,6 +16,7 @@ import {
   MapPin,
   type LucideIcon,
 } from 'lucide-react'
+import { useUser, UserButton } from '@clerk/nextjs'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 function useC() {
@@ -223,6 +224,24 @@ function SectionDivider() {
 // ─── User zone ────────────────────────────────────────────────────────────────
 function UserZone({ collapsed }: { collapsed: boolean }) {
   const C = useC()
+  const { user, isLoaded } = useUser()
+
+  if (!isLoaded) {
+    return (
+      <XStack
+        px={collapsed ? 0 : 12}
+        py={12}
+        items="center"
+        justify={collapsed ? 'center' : 'flex-start'}
+        style={{ borderTop: `1px solid ${C.divider}`, flexShrink: 0, height: 56 }}
+      />
+    )
+  }
+
+  const displayName =
+    user?.fullName ?? user?.username ?? user?.primaryEmailAddress?.emailAddress ?? 'Usuario'
+  const secondary = user?.primaryEmailAddress?.emailAddress ?? ''
+
   return (
     <XStack
       px={collapsed ? 0 : 12}
@@ -232,19 +251,14 @@ function UserZone({ collapsed }: { collapsed: boolean }) {
       justify={collapsed ? 'center' : 'flex-start'}
       style={{ borderTop: `1px solid ${C.divider}`, overflow: 'hidden', flexShrink: 0 }}
     >
-      <div style={{
-        width: 32, height: 32, borderRadius: '50%',
-        backgroundColor: C.avatarBg, display: 'flex',
-        alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      }}>
-        <span style={{
-          fontSize: 11, fontWeight: 800,
-          // @ts-expect-error — OKLCH color
-          color: C.avatarText, letterSpacing: '0.03em', userSelect: 'none',
-        }}>
-          ER
-        </span>
-      </div>
+      <UserButton
+        afterSignOutUrl="/sign-in"
+        appearance={{
+          elements: {
+            avatarBox: { width: 32, height: 32 },
+          },
+        }}
+      />
 
       {!collapsed && (
         <YStack flex={1} gap={1} style={{ overflow: 'hidden', minWidth: 0 }}>
@@ -252,14 +266,16 @@ function UserZone({ collapsed }: { collapsed: boolean }) {
             color: C.textPrimary, letterSpacing: '-0.1px',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            Emiliano Rios
+            {displayName}
           </Text>
-          <Text fontSize={11} numberOfLines={1} style={{
-            color: C.textMuted, overflow: 'hidden',
-            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            Sede activa: Centro Norte
-          </Text>
+          {secondary ? (
+            <Text fontSize={11} numberOfLines={1} style={{
+              color: C.textMuted, overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {secondary}
+            </Text>
+          ) : null}
         </YStack>
       )}
     </XStack>
