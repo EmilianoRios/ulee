@@ -1,0 +1,1 @@
+export { ConfigPrecios } from './ConfigPrecios'

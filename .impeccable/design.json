@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-08T00:00:00.000Z",
+  "title": "Design System: Canchero",
+  "extensions": {
+    "colorMeta": {
+      "verde-cancha": {
+        "role": "primary",
+        "displayName": "Verde Cancha",
+        "canonical": "oklch(50% 0.18 155)",
+        "tonalRamp": [
+          "oklch(15% 0.10 155)",
+          "oklch(22% 0.13 155)",
+          "oklch(32% 0.17 155)",
+          "oklch(42% 0.18 155)",
+          "oklch(50% 0.18 155)",
+          "oklch(62% 0.15 155)",
+          "oklch(75% 0.10 155)",
+          "oklch(85% 0.058 155)"
+        ]
+      },
+      "acento-terraza": {
+        "role": "secondary",
+        "displayName": "Acento Terraza",
+        "canonical": "oklch(55% 0.13 42)",
+        "tonalRamp": [
+          "oklch(18% 0.08 42)",
+          "oklch(28% 0.11 42)",
+          "oklch(38% 0.13 42)",
+          "oklch(46% 0.13 42)",
+          "oklch(55% 0.13 42)",
+          "oklch(66% 0.10 42)",
+          "oklch(79% 0.06 42)",
+          "oklch(92% 0.03 42)"
+        ]
+      },
+      "texto-nav": {
+        "role": "tertiary",
+        "displayName": "Terracota Oscuro",
+        "canonical": "oklch(32% 0.012 75)",
+        "tonalRamp": [
+          "oklch(12% 0.006 75)",
+          "oklch(20% 0.009 75)",
+          "oklch(32% 0.012 75)",
+          "oklch(44% 0.011 75)",
+          "oklch(58% 0.010 75)",
+          "oklch(70% 0.010 75)",
+          "oklch(82% 0.008 75)",
+          "oklch(92% 0.005 75)"
+        ]
+      },
+      "superficie-contenido": {
+        "role": "neutral",
+        "displayName": "Superficie Contenido",
+        "canonical": "oklch(97% 0.010 220)",
+        "tonalRamp": [
+          "oklch(16% 0.014 222)",
+          "oklch(28% 0.016 222)",
+          "oklch(40% 0.014 224)",
+          "oklch(54% 0.014 224)",
+          "oklch(68% 0.014 222)",
+          "oklch(80% 0.016 222)",
+          "oklch(90% 0.014 222)",
+          "oklch(97% 0.010 220)"
+        ]
+      },
+      "cabecera-oscura": {
+        "role": "neutral",
+        "displayName": "Cabecera Oscura",
+        "canonical": "oklch(22% 0.024 228)",
+        "tonalRamp": [
+          "oklch(10% 0.015 228)",
+          "oklch(16% 0.020 228)",
+          "oklch(22% 0.024 228)",
+          "oklch(32% 0.024 228)",
+          "oklch(44% 0.022 226)",
+          "oklch(58% 0.020 224)",
+          "oklch(74% 0.018 224)",
+          "oklch(88% 0.014 222)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Títulos de página. Una vez por vista. Color texto-nav conecta headings con la identidad de marca." },
+      "headline": { "displayName": "Headline", "purpose": "Headings de sección y paneles." },
+      "title":    { "displayName": "Title",    "purpose": "Labels de subsección, títulos de card, grupos nombrados." },
+      "body":     { "displayName": "Body",     "purpose": "Detalles de reserva, filas de tabla, texto de lectura. Máximo 65ch." },
+      "label":    { "displayName": "Label",    "purpose": "Chips, badges, ítems de nav, timestamps, labels de sección header." }
+    },
+    "shadows": [
+      {
+        "name": "popover",
+        "value": "0 4px 16px oklch(16% 0.014 222 / 0.12), 0 1px 4px oklch(16% 0.014 222 / 0.08)",
+        "purpose": "Solo capas flotantes: tooltips, dropdowns, datepickers. Nunca en cards ni botones en reposo."
+      }
+    ],
+    "motion": [
+      { "name": "ease-state",    "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Easing por defecto para todas las transiciones de estado." },
+      { "name": "duration-fast", "value": "100ms", "purpose": "Hover de navegación, hover de botón. Feedback inmediato." },
+      { "name": "duration-mid",  "value": "150ms", "purpose": "Press de botón, focus ring de input. Más deliberado." },
+      { "name": "duration-enter","value": "200ms", "purpose": "Entrada de panel, aparición de toast." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal confirmada. Usado para agregar reservas, guardar cambios, confirmar operaciones.",
+      "html": "<button class=\"ds-btn-primary\">Agregar reserva</button>",
+      "css": ".ds-btn-primary { background: oklch(50% 0.18 155); color: oklch(98% 0.004 155); font-family: 'Poppins', system-ui, sans-serif; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 7px; border: none; cursor: pointer; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), transform 100ms cubic-bezier(0.4, 0, 0.2, 1); line-height: 1.4; } .ds-btn-primary:hover { background: oklch(42% 0.18 155); } .ds-btn-primary:active { background: oklch(32% 0.17 155); transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(48% 0.19 155); outline-offset: 2px; border-radius: 7px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Acción secundaria. Convive con un botón primario sin competir con él.",
+      "html": "<button class=\"ds-btn-ghost\">Cancelar</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: oklch(50% 0.18 155); font-family: 'Poppins', system-ui, sans-serif; font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: 7px; border: 1px solid oklch(86% 0.016 222); cursor: pointer; transition: background 100ms cubic-bezier(0.4, 0, 0.2, 1), color 100ms cubic-bezier(0.4, 0, 0.2, 1), border-color 100ms cubic-bezier(0.4, 0, 0.2, 1); line-height: 1.4; } .ds-btn-ghost:hover { background: oklch(85% 0.058 155); color: oklch(32% 0.17 155); border-color: oklch(85% 0.058 155); } .ds-btn-ghost:focus-visible { outline: 2px solid oklch(48% 0.19 155); outline-offset: 2px; }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item-hover",
+      "description": "Ítem de navegación del sidebar en estado default con hover. Sin borde izquierdo de acento.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\"/></svg>Canchas</a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 7px; color: oklch(40% 0.014 224); font-family: 'Poppins', system-ui, sans-serif; font-size: 14px; font-weight: 400; text-decoration: none; transition: background 100ms cubic-bezier(0.4, 0, 0.2, 1), color 100ms cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; } .ds-nav-item:hover { background: oklch(89% 0.020 224); color: oklch(16% 0.014 222); } .ds-nav-item:focus-visible { outline: 2px solid oklch(48% 0.19 155); outline-offset: 2px; }"
+    },
+    {
+      "name": "Nav Item Active",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Ítem de navegación activo. Verde Cancha Activo de fondo, Verde Cancha Profundo en texto. Sin stripe lateral.",
+      "html": "<a class=\"ds-nav-item-active\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\"/></svg>Canchas</a>",
+      "css": ".ds-nav-item-active { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 7px; background: oklch(85% 0.058 155); color: oklch(32% 0.17 155); font-family: 'Poppins', system-ui, sans-serif; font-size: 14px; font-weight: 500; text-decoration: none; cursor: default; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": null,
+      "description": "Indica estado de cancha o reserva. Se lee, no se cliquea. Verde para Disponible.",
+      "html": "<span class=\"ds-chip ds-chip-disponible\">Disponible</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 9999px; font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.02em; } .ds-chip-disponible { background: oklch(84% 0.052 155); color: oklch(32% 0.17 155); }"
+    },
+    {
+      "name": "Sidebar Header",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Componente signature. Header oscuro del sidebar con nombre de sede, subtítulo y avatar. Único punto de fondo oscuro en la interfaz.",
+      "html": "<div class=\"ds-sidebar-header\"><div class=\"ds-sidebar-avatar\">CL</div><div class=\"ds-sidebar-identity\"><span class=\"ds-sidebar-venue\">Complejo Los Álamos</span><span class=\"ds-sidebar-subtitle\">Plan Profesional</span></div></div>",
+      "css": ".ds-sidebar-header { display: flex; align-items: center; gap: 12px; padding: 16px; background: oklch(22% 0.024 228); } .ds-sidebar-avatar { width: 36px; height: 36px; border-radius: 9999px; background: oklch(84% 0.052 155); color: oklch(28% 0.14 155); font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; letter-spacing: 0.02em; flex-shrink: 0; } .ds-sidebar-identity { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .ds-sidebar-venue { color: oklch(94% 0.008 218); font-family: 'Poppins', system-ui, sans-serif; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-sidebar-subtitle { color: oklch(58% 0.018 222); font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; font-weight: 400; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": null,
+      "description": "Campo de texto. Borde neutral en reposo, Verde Cancha en focus a 2px. Sin glow.",
+      "html": "<div class=\"ds-input-wrapper\"><label class=\"ds-input-label\">Nombre del turno</label><input class=\"ds-input\" type=\"text\" placeholder=\"Ej: Partido nocturno\" /></div>",
+      "css": ".ds-input-wrapper { display: flex; flex-direction: column; gap: 6px; } .ds-input-label { color: oklch(32% 0.012 75); font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.02em; } .ds-input { background: oklch(97% 0.010 220); border: 1px solid oklch(86% 0.016 222); border-radius: 7px; padding: 10px 14px; color: oklch(16% 0.014 222); font-family: 'Poppins', system-ui, sans-serif; font-size: 14px; font-weight: 400; transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-width 150ms cubic-bezier(0.4, 0, 0.2, 1); outline: none; } .ds-input::placeholder { color: oklch(58% 0.010 218); } .ds-input:focus { border-color: oklch(50% 0.18 155); border-width: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": null,
+      "description": "Contenedor para reservas o canchas. Borde neutral en reposo, borde cálido en hover. Nunca anidado.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><span class=\"ds-card-title\">Cancha 3 — Fútbol 5</span><span class=\"ds-chip ds-chip-disponible\">Disponible</span></div><p class=\"ds-card-body\">Sin reservas activas para hoy. La cancha está libre hasta las 18:00.</p></div>",
+      "css": ".ds-card { background: oklch(97% 0.010 220); border: 1px solid oklch(86% 0.016 222); border-radius: 7px; padding: 16px; transition: border-color 100ms cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; } .ds-card:hover { border-color: oklch(88% 0.012 78); } .ds-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; } .ds-card-title { color: oklch(16% 0.014 222); font-family: 'Poppins', system-ui, sans-serif; font-size: 16px; font-weight: 500; line-height: 1.4; } .ds-card-body { color: oklch(48% 0.012 218); font-family: 'Poppins', system-ui, sans-serif; font-size: 14px; font-weight: 400; line-height: 1.5; margin: 0; } .ds-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 9999px; font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.02em; } .ds-chip-disponible { background: oklch(84% 0.052 155); color: oklch(32% 0.17 155); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El Cuaderno Digital",
+    "overview": "Canchero se siente como el cuaderno que el dueño siempre tuvo sobre el escritorio, ahora en una pantalla. No porque imite el papel, sino porque hereda la lógica de una herramienta física de confianza: todo tiene un lugar, nada está escondido, y el sistema trabaja para la persona, no al revés.\n\nLa interfaz gana calidez a través del layout y el espacio negativo, no de la decoración. Los colores confirman acciones. El espaciado crea ritmo. La jerarquía es inmediata.\n\nEste sistema rechaza explícitamente la estética del dashboard SaaS genérico: paleta azul-blanca, grillas de cards con iconos, números grandes. Rechaza también la estética de herramienta de monitoreo (Grafana, PagerDuty) y el lenguaje visual deportivo estereotipado.",
+    "keyCharacteristics": [
+      "Flat y tonal: la profundidad viene de la relación de colores, no de sombras",
+      "Acento dual-cálido: verde para la acción, tierra para la identidad",
+      "Sistema de una sola fuente: Poppins, cinco pesos, contraste de jerarquía fuerte",
+      "Estados táctiles: hover y active son visibles e inmediatos",
+      "Lenguaje del negocio, no del equipo de producto"
+    ],
+    "rules": [
+      { "name": "The Two-Family Rule",       "body": "El verde confirma acción y selección. Los tonos cálidos establecen identidad y jerarquía. Estas dos familias no se sustituyen entre sí. Un estado de confirmación nunca es cálido; un heading nunca es verde.", "section": "colors" },
+      { "name": "The No-Black Rule",          "body": "Sin negro puro, sin blanco puro. Cada neutral está teñido hacia la familia azul-gris (cromatismo 0.010–0.024).", "section": "colors" },
+      { "name": "The Single Voice Rule",      "body": "Una fuente, cinco pesos. Nunca introducir una segunda tipografía para acento, display o branding.", "section": "typography" },
+      { "name": "The No-Scale-Compression Rule", "body": "Ratio mínimo entre niveles de jerarquía adyacentes: 1.25. Nunca dos niveles adyacentes con el mismo peso.", "section": "typography" },
+      { "name": "The Flat-by-Default Rule",   "body": "Sin box-shadow en reposo. Si un componente parece necesitar sombra, probablemente necesita un borde.", "section": "elevation" },
+      { "name": "The Tonal Depth Rule",       "body": "Tres niveles de luminosidad en el layout: oscuro (22%), medio (92–97%), casi blanco (97–99%). Respetarlos; no colapsarlos con overrides de fondo.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar Verde Cancha para todas las confirmaciones interactivas: estados activos, indicadores de éxito, botones primarios.",
+      "Do usar tonos marrón-cálido (texto-nav) para los títulos de página y headings.",
+      "Do mantener las superficies planas. Un borde de 1px define cards e inputs.",
+      "Do usar Poppins 600 para headings y Poppins 400 para cuerpo.",
+      "Do etiquetar los chips con el lenguaje del negocio: Disponible, Reservada, Ocupada.",
+      "Do respetar prefers-reduced-motion. Todas las transiciones son respuestas de estado.",
+      "Do mantener contraste WCAG AA en todo texto."
+    ],
+    "donts": [
+      "Don't usar una paleta azul-blanca. Si una pantalla se lee como SaaS dashboard genérico solo por la paleta, falló.",
+      "Don't construir layouts hero-metric: número grande, label pequeño, stats de soporte, acento con gradiente.",
+      "Don't usar dark mode ni estética de herramienta de monitoreo (Grafana, PagerDuty).",
+      "Don't usar gradientes neon, tipografía jersey/Impact, ni colores de camiseta de equipo.",
+      "Don't usar border-left mayor a 1px como stripe de acento de color en nav items, cards ni callouts.",
+      "Don't aplicar background-clip: text con un gradiente. Todo el texto es un color sólido único.",
+      "Don't llegar a un modal como primera solución para acciones secundarias.",
+      "Don't usar grillas de cards idénticas con ícono + heading + texto repetido N veces.",
+      "Don't introducir una segunda fuente. Poppins con cinco pesos es el vocabulario tipográfico completo.",
+      "Don't mostrar complejidad que el dueño no pidió. Revelar opciones avanzadas de forma progresiva."
+    ]
+  }
+}

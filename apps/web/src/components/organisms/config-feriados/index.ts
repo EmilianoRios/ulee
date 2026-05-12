@@ -1,0 +1,1 @@
+export { ConfigFeriados } from './ConfigFeriados'

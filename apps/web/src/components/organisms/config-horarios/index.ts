@@ -1,0 +1,1 @@
+export { ConfigHorarios } from './ConfigHorarios'

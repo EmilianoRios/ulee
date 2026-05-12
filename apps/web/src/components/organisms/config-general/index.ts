@@ -1,0 +1,1 @@
+export { ConfigGeneral } from './ConfigGeneral'
