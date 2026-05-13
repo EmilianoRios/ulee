@@ -7,10 +7,111 @@
 | Monorepo | Turborepo + pnpm workspaces |
 | Web (dashboard) | Next.js 15 App Router |
 | Mobile (clientes) | Expo 54 + Expo Router |
-| UI compartida | Tamagui (cross-platform) |
-| Backend | Convex (real-time) |
+| UI compartida | Tamagui (cross-platform) — `@canchero/ui` |
+| Backend | Convex (real-time) — `@canchero/backend` |
+| Auth compartida | Clerk — `@canchero/auth` (tipos) + SDK por plataforma |
 | Tipado | TypeScript strict |
 | Linting | ESLint v9 flat config |
+
+---
+
+## Estructura del monorepo
+
+```
+apps/
+  web/      → Next.js dashboard (@canchero/web)
+  mobile/   → Expo app (@canchero/mobile)
+
+packages/
+  backend/  → Convex: schema, functions, tipos generados (@canchero/backend)
+  auth/     → Tipos y constantes de auth compartidos (@canchero/auth)
+  ui/       → Componentes Tamagui cross-platform (@canchero/ui)
+  tsconfig/ → Configuraciones de TypeScript base (@canchero/tsconfig)
+```
+
+### REGLA CRÍTICA — Infraestructura compartida
+
+**NUNCA pongas infraestructura compartida dentro de una app.**
+
+Shared = va en `packages/`. La prueba del nueve: ¿lo necesitan dos o más apps? Si sí → `packages/`.
+
+| ¿Dónde va? | Ejemplos |
+|------------|---------|
+| `packages/backend/convex/` | Schema, functions, auth.config.ts |
+| `packages/auth/src/` | Tipos de usuario, constantes de rutas de auth |
+| `packages/ui/src/` | Componentes Tamagui reutilizables |
+| `apps/web/` | Middleware de Next.js, providers de @clerk/nextjs |
+| `apps/mobile/` | Providers de @clerk/expo, configuración de Expo |
+
+---
+
+## Backend — `packages/backend`
+
+El directorio `convex/` vive en `packages/backend/convex/`. Contiene:
+
+```
+packages/backend/
+  convex/
+    schema.ts           → Definición de entidades
+    auth.config.ts      → Configuración de Clerk para Convex
+    functions/          → Casos de uso por dominio
+      reservations/
+      courts/
+      venues/
+    lib/                → Lógica de dominio pura (sin ctx de Convex)
+    _generated/         → Generado por npx convex dev — NO editar a mano
+  src/
+    index.ts            → Re-exporta api e internal de _generated
+```
+
+### Cómo usar el backend en una app
+
+```ts
+// En apps/web o apps/mobile
+import { api } from '@canchero/backend'
+```
+
+**NUNCA** importes directamente desde `../convex/_generated/api` dentro de una app.
+
+### Correr Convex en desarrollo
+
+```bash
+pnpm --filter @canchero/backend dev
+# o desde la raíz:
+turbo dev  # levanta todo el monorepo
+```
+
+### Reglas de backend
+
+- Las funciones en `functions/` son los puertos de entrada (Hexagonal Architecture).
+- La lógica de negocio va en `lib/` — sin referencias a `ctx` de Convex.
+- Un módulo no importa de otro directamente; si necesita datos de otro, los recibe como parámetro.
+
+---
+
+## Auth — `packages/auth` + SDKs por plataforma
+
+### Qué va en `packages/auth`
+
+Tipos y constantes que son idénticos en todas las plataformas:
+
+```ts
+// tipos: UserRole, AuthUser
+// constantes: SIGN_IN_URL, SIGN_IN_FALLBACK_REDIRECT
+import { UserRole, SIGN_IN_URL } from '@canchero/auth'
+```
+
+### Qué va en cada app
+
+| App | SDK | Archivos específicos |
+|-----|-----|----------------------|
+| `apps/web` | `@clerk/nextjs` | `middleware.ts`, `providers.tsx`, `sign-in/` |
+| `apps/mobile` | `@clerk/expo` | `_layout.tsx` con ClerkProvider |
+
+**NUNCA** pongas `@clerk/nextjs` en un paquete compartido — es Next.js only.  
+**NUNCA** pongas `@clerk/expo` en un paquete compartido — es Expo only.
+
+La configuración de Clerk para Convex (`auth.config.ts`) vive en `packages/backend/convex/` porque es server-side y compartida.
 
 ---
 
@@ -32,32 +133,7 @@ pages/        → Template + datos reales. En Next.js: app/ route segments.
 - Una molécula NO importa organismos.
 - Los organismos pueden importar moléculas y átomos.
 - Los templates no tienen lógica de negocio.
-- Las páginas conectan organismos con datos (Convex queries).
-
----
-
-## Arquitectura Backend — Hexagonal (Ports & Adapters)
-
-Cuando arranquemos el backend (Convex), usamos separación de responsabilidades:
-
-```
-convex/
-  schema.ts           → Definición de entidades (el "qué")
-  functions/          → Casos de uso (queries y mutations por dominio)
-    reservations/
-    courts/
-    venues/
-    ...
-  lib/                → Lógica de dominio pura (sin dependencias de Convex)
-    validators.ts
-    helpers.ts
-```
-
-### Reglas
-
-- Las funciones en `functions/` son los puertos de entrada.
-- La lógica de negocio va en `lib/` — sin referencias a `ctx` de Convex.
-- Un módulo de dominio (ej: reservations) no importa de otro módulo directamente. Si necesita datos de otro, los recibe como parámetro.
+- Las páginas conectan organismos con datos (Convex queries vía `@canchero/backend`).
 
 ---
 
@@ -66,6 +142,30 @@ convex/
 - Todo componente que use Tamagui requiere `'use client'`. Los RSC no tienen React Context ni DOM.
 - Las páginas (`app/` route segments) son RSC: fetchean datos y se los pasan a componentes client.
 - Todos los atoms, molecules y organisms de `packages/ui` llevan `'use client'` en la primera línea.
+
+---
+
+## Deploy — Railway
+
+El deploy apunta a `apps/web` mediante el `Dockerfile` en la raíz del monorepo.
+
+```dockerfile
+# Build: instala todo el monorepo, buildea solo la app web
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @canchero/web build
+
+# Run: ejecuta next start desde la app web
+WORKDIR /app/apps/web
+CMD ["pnpm", "start"]
+```
+
+### Reglas de deploy
+
+- El `Dockerfile` va en la **raíz** del monorepo — tiene visibilidad de todos los packages.
+- `railway.json` va en la **raíz** con `"builder": "DOCKERFILE"`.
+- Variables de entorno `NEXT_PUBLIC_*` se pasan como `ARG` al Docker build (Railway las inyecta).
+- **NUNCA** uses `--standalone` de Next.js sin configurar el `output: 'standalone'` en `next.config.ts` primero.
+- **NUNCA** agregues `RUN ls`, `RUN echo` ni comandos de debug al Dockerfile.
 
 ---
 

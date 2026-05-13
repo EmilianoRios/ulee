@@ -1,0 +1,18 @@
+{
+  "name": "@canchero/auth",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@canchero/tsconfig": "workspace:*"
+  }
+}

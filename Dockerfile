@@ -19,6 +19,7 @@ ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_CLERK_SIGN_IN_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_URL
 ENV NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
 ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
+ENV NODE_ENV=production
 
 COPY . .
 
@@ -26,10 +27,6 @@ RUN pnpm install --frozen-lockfile
 
 RUN pnpm --filter @canchero/web build
 
-# Debug: verify .next contents after build
-RUN echo "=== /app/apps/web/.next ===" && ls -la /app/apps/web/.next/ | head -25
-
-ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 

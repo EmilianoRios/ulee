@@ -1,0 +1,21 @@
+{
+  "name": "@canchero/backend",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "dev": "npx convex dev",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "convex": "^1.38.0"
+  },
+  "devDependencies": {
+    "@canchero/tsconfig": "workspace:*"
+  }
+}

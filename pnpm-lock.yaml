@@ -102,6 +102,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@canchero/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@canchero/backend':
+        specifier: workspace:*
+        version: link:../../packages/backend
       '@canchero/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -145,6 +151,22 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.3(@types/react@19.2.14)
+
+  packages/auth:
+    devDependencies:
+      '@canchero/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
+  packages/backend:
+    dependencies:
+      convex:
+        specifier: ^1.38.0
+        version: 1.38.0(@clerk/react@6.6.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
+    devDependencies:
+      '@canchero/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
 
   packages/tsconfig: {}
 

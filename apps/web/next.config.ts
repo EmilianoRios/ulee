@@ -2,7 +2,7 @@ import type { NextConfig } from 'next'
 import { withTamagui } from '@tamagui/next-plugin'
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@canchero/ui'],
+  transpilePackages: ['@canchero/ui', '@canchero/auth', '@canchero/backend'],
   // TODO: apretar de vuelta cuando se tipen los tokens custom de Tamagui en theme.
   eslint:     { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
