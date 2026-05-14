@@ -169,6 +169,36 @@ CMD ["pnpm", "start"]
 
 ---
 
+## Desarrollo cross-platform — Web + Mobile
+
+`apps/mobile` corre en **iOS, Android y Web** (Expo Router usa Metro para web). Ambas superficies están activas en desarrollo.
+
+### Librerías que NO funcionan en web
+
+Algunas librerías nativas usan APIs (`codegenNativeComponent`, etc.) que no existen en web:
+
+| Librería | Problema en web |
+|----------|----------------|
+| `react-native-maps` | `codegenNativeComponent` no existe |
+
+### Patrón obligatorio: shim `.web.tsx`
+
+Cuando un componente usa una librería nativa incompatible con web, creá un archivo paralelo con extensión `.web.tsx`. Metro lo toma automáticamente en web.
+
+```
+CourtMap.tsx        → implementación nativa (react-native-maps, etc.)
+CourtMap.web.tsx    → fallback web (sin la dependencia nativa)
+```
+
+**Reglas:**
+
+- El `.web.tsx` debe exportar el mismo componente con la misma interfaz (mismas props).
+- **NUNCA** uses `Platform.OS === 'web'` inline para ocultar imports nativos — el bundler los incluye igual y rompe en web.
+- El fallback puede mostrar un placeholder/mensaje; no tiene que ser funcional, pero sí no crashear.
+- Si la feature es irrelevante en web (ej: mapa nativo), un placeholder con mensaje claro alcanza.
+
+---
+
 ## Convenciones de código
 
 - Siempre TypeScript strict. `any` es un error de lint.

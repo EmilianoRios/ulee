@@ -1,5 +1,5 @@
 'use client'
-import { ChevronDown } from '@tamagui/lucide-icons'
+import { ChevronDown } from '@tamagui/lucide-icons-2'
 import { XStack, Text } from 'tamagui'
 
 interface FilterPillProps {

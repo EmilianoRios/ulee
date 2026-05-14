@@ -1,5 +1,5 @@
 'use client'
-import { Star } from '@tamagui/lucide-icons'
+import { Star } from '@tamagui/lucide-icons-2'
 import { XStack, Text } from 'tamagui'
 
 interface CourtRatingProps {

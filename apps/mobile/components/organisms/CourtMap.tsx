@@ -1,7 +1,7 @@
 'use client'
 import { ScrollView, StyleSheet, Image } from 'react-native'
 import MapView, { Marker, Callout } from 'react-native-maps'
-import { AlignJustify, Map } from '@tamagui/lucide-icons'
+import { AlignJustify, Map } from '@tamagui/lucide-icons-2'
 import { XStack, YStack, Text, View } from 'tamagui'
 import type { Court } from '../../data/mock-courts'
 import { CourtRating } from '../atoms/CourtRating'

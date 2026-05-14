@@ -19,8 +19,8 @@
     "convex": "^1.38.0",
     "lucide-react": "^1.14.0",
     "next": "^15.0.0",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "tamagui": "^1.0.0"
   },
   "devDependencies": {

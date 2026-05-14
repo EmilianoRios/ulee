@@ -1,5 +1,5 @@
 'use client'
-import { Bell, MapPin } from '@tamagui/lucide-icons'
+import { Bell, MapPin } from '@tamagui/lucide-icons-2'
 import { XStack, YStack, Text, View } from 'tamagui'
 
 interface ExploreHeaderProps {

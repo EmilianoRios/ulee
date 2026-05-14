@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Image, StyleSheet, TouchableOpacity } from 'react-native'
-import { Heart } from '@tamagui/lucide-icons'
+import { Heart } from '@tamagui/lucide-icons-2'
 import { XStack, YStack, Text, View } from 'tamagui'
 import type { Court } from '../../data/mock-courts'
 import { CourtRating } from '../atoms/CourtRating'

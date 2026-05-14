@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router'
-import { Compass, Search, CalendarDays, UserCircle2 } from '@tamagui/lucide-icons'
+import { Compass, Search, CalendarDays, UserCircle2 } from '@tamagui/lucide-icons-2'
 
 export default function TabsLayout() {
   return (

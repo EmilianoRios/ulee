@@ -1,6 +1,6 @@
 'use client'
 import { FlatList } from 'react-native'
-import { AlignJustify, Map } from '@tamagui/lucide-icons'
+import { AlignJustify, Map } from '@tamagui/lucide-icons-2'
 import { XStack, YStack, Text } from 'tamagui'
 import type { Court } from '../../data/mock-courts'
 import { CourtCard } from '../molecules/CourtCard'
