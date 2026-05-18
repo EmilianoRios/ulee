@@ -3,7 +3,7 @@
 import { YStack, Text } from 'tamagui'
 import { Construction } from 'lucide-react'
 
-function SedesPage() {
+function ClientesPage() {
   return (
     <YStack flex={1} items="center" justify="center" gap="$4" height="100%">
       <YStack opacity={0.35}>
@@ -14,11 +14,11 @@ function SedesPage() {
           Módulo en Desarrollo
         </Text>
         <Text fontSize={14} color="$textoNav" opacity={0.5}>
-          Sedes estará disponible próximamente.
+          Clientes estará disponible próximamente.
         </Text>
       </YStack>
     </YStack>
   )
 }
 
-export default SedesPage
+export default ClientesPage

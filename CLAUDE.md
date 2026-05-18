@@ -143,6 +143,12 @@ pages/        → Template + datos reales. En Next.js: app/ route segments.
 - Las páginas (`app/` route segments) son RSC: fetchean datos y se los pasan a componentes client.
 - Todos los atoms, molecules y organisms de `packages/ui` llevan `'use client'` en la primera línea.
 
+## Íconos
+
+- En `apps/web` usar **`lucide-react`** — es el paquete instalado.
+- **NUNCA** usar `@tamagui/lucide-icons` en la app web — no está instalado y no resuelve.
+- Los íconos de lucide-react usan `currentColor`. **NUNCA** pasarles tokens de Tamagui (`$token`) como prop `color` — llegan como string literal y el SVG no los resuelve. Si necesitás colorear un ícono, poné el color en el componente Tamagui padre y el ícono lo hereda vía CSS.
+
 ---
 
 ## Deploy — Railway
