@@ -224,7 +224,7 @@ function TxtArea({ value, onChange, placeholder, error }: {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      rows={3}
+      rows={2}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
@@ -232,7 +232,7 @@ function TxtArea({ value, onChange, placeholder, error }: {
         border: `1.5px solid ${borderColor(t, focused, error)}`,
         backgroundColor: t.superficieContenido.val, fontSize: 13,
         color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
-        fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5, minHeight: 72,
+        fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5, minHeight: 56,
         transition: 'border-color 120ms ease-out',
       }}
     />
@@ -270,7 +270,34 @@ function RadioGroup({ value, onChange, options }: {
   )
 }
 
-// ─── Form content (keyed by type+formKey for auto-reset) ─────────────────────
+// ─── Compound field: time range ───────────────────────────────────────────────
+
+function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin }: {
+  inicio: string; onInicio: (v: string) => void
+  fin: string;   onFin:    (v: string) => void
+  errorInicio?: string; errorFin?: string
+}) {
+  const t = useTheme()
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 500, color: t.textoMuted.val, marginBottom: 5, letterSpacing: '0.02em' }}>
+        Horario <span style={{ color: 'oklch(55% 0.18 25)', marginLeft: 2 }}>*</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1 }}><TimeInput value={inicio} onChange={onInicio} error={errorInicio} /></div>
+        <span style={{ color: t.textoMuted.val, fontSize: 13, flexShrink: 0, userSelect: 'none' }}>→</span>
+        <div style={{ flex: 1 }}><TimeInput value={fin} onChange={onFin} error={errorFin} /></div>
+      </div>
+      {(errorInicio || errorFin) && (
+        <div style={{ fontSize: 11, color: 'oklch(50% 0.18 25)', marginTop: 4 }}>
+          {errorInicio || errorFin}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Form content ─────────────────────────────────────────────────────────────
 
 function FormContent({ type, courts, initialDate, initialTime, initialCourtId, onClose }: {
   type:            EntryType
@@ -359,212 +386,215 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, o
 
   const courtOptions = courts.map((c) => ({ value: c.id, label: c.name }))
 
+  // Shared layout pieces
+  const whereWhenBlock = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 10 }}>
+        <Field label="Cancha" required error={errors.courtId}>
+          <SelectInput value={courtId} onChange={setCourtId} options={courtOptions} error={errors.courtId} />
+        </Field>
+        <Field label="Fecha" required>
+          <DateInput value={fecha} onChange={setFecha} />
+        </Field>
+      </div>
+      <TimeRangeField
+        inicio={horaInicio} onInicio={setHoraInicio}
+        fin={horaFin}       onFin={setHoraFin}
+        errorInicio={errors.horaInicio} errorFin={errors.horaFin}
+      />
+    </div>
+  )
+
+  const notasBlock = (
+    <Field label="Notas">
+      <TxtArea value={notas} onChange={setNotas} placeholder="Observaciones opcionales..." />
+    </Field>
+  )
+
   return (
     <>
       {/* Body */}
       <div className="calendar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {type === 'reserva' && (
             <>
-              <Field label="Cliente" required error={errors.cliente}>
-                <TxtInput value={cliente} onChange={setCliente} placeholder="Nombre del cliente" error={errors.cliente} />
-              </Field>
-              <Field label="Teléfono">
-                <TxtInput value={telefono} onChange={setTelefono} placeholder="Ej: 11 4523-8891" />
-              </Field>
-              <Field label="Cancha" required error={errors.courtId}>
-                <SelectInput value={courtId} onChange={setCourtId} options={courtOptions} error={errors.courtId} />
-              </Field>
-              <Field label="Fecha" required>
-                <DateInput value={fecha} onChange={setFecha} />
-              </Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Hora inicio" required error={errors.horaInicio}>
-                  <TimeInput value={horaInicio} onChange={setHoraInicio} error={errors.horaInicio} />
+              {/* Quién */}
+              <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 10 }}>
+                <Field label="Cliente" required error={errors.cliente}>
+                  <TxtInput value={cliente} onChange={setCliente} placeholder="Nombre" error={errors.cliente} />
                 </Field>
-                <Field label="Hora fin" required error={errors.horaFin}>
-                  <TimeInput value={horaFin} onChange={setHoraFin} error={errors.horaFin} />
+                <Field label="Teléfono">
+                  <TxtInput value={telefono} onChange={setTelefono} placeholder="11 4523-8891" />
                 </Field>
               </div>
-              <Field label="Monto ($)" required error={errors.monto}>
-                <NumInput value={monto} onChange={setMonto} placeholder="Ej: 4500" error={errors.monto} />
-              </Field>
-              <Field label="Estado inicial" required>
-                <RadioGroup
-                  value={estado}
-                  onChange={(v) => setEstado(v as 'señado' | 'pagado')}
-                  options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
-                />
-              </Field>
-              <Field label="Notas">
-                <TxtArea value={notas} onChange={setNotas} placeholder="Observaciones opcionales..." />
-              </Field>
+
+              {/* Dónde / cuándo */}
+              {whereWhenBlock}
+
+              {/* Pago */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <Field label="Monto ($)" required error={errors.monto}>
+                  <NumInput value={monto} onChange={setMonto} placeholder="4500" error={errors.monto} />
+                </Field>
+                <Field label="Estado inicial" required>
+                  <RadioGroup
+                    value={estado}
+                    onChange={(v) => setEstado(v as 'señado' | 'pagado')}
+                    options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
+                  />
+                </Field>
+              </div>
+
+              {notasBlock}
             </>
           )}
 
           {type === 'mantenimiento' && (
             <>
               <Field label="Descripción" required error={errors.descripcion}>
-                <TxtInput value={descripcion} onChange={setDescripcion} placeholder="Ej: Limpieza, pintura de líneas..." error={errors.descripcion} />
+                <TxtInput value={descripcion} onChange={setDescripcion} placeholder="Limpieza, pintura de líneas..." error={errors.descripcion} />
               </Field>
-              <Field label="Cancha" required error={errors.courtId}>
-                <SelectInput value={courtId} onChange={setCourtId} options={courtOptions} error={errors.courtId} />
-              </Field>
-              <Field label="Fecha" required>
-                <DateInput value={fecha} onChange={setFecha} />
-              </Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Hora inicio" required error={errors.horaInicio}>
-                  <TimeInput value={horaInicio} onChange={setHoraInicio} error={errors.horaInicio} />
-                </Field>
-                <Field label="Hora fin" required error={errors.horaFin}>
-                  <TimeInput value={horaFin} onChange={setHoraFin} error={errors.horaFin} />
-                </Field>
-              </div>
-              <Field label="Notas">
-                <TxtArea value={notas} onChange={setNotas} placeholder="Observaciones opcionales..." />
-              </Field>
+
+              {whereWhenBlock}
+
+              {notasBlock}
             </>
           )}
 
           {type === 'evento' && (
             <>
               <Field label="Nombre del evento" required error={errors.nombreEvento}>
-                <TxtInput value={nombreEvento} onChange={setNombreEvento} placeholder="Ej: Clínica pádel — Prof. Herrera" error={errors.nombreEvento} />
+                <TxtInput value={nombreEvento} onChange={setNombreEvento} placeholder="Clínica pádel — Prof. Herrera" error={errors.nombreEvento} />
               </Field>
-              <Field label="Cancha" required error={errors.courtId}>
-                <SelectInput value={courtId} onChange={setCourtId} options={courtOptions} error={errors.courtId} />
-              </Field>
-              <Field label="Fecha" required>
-                <DateInput value={fecha} onChange={setFecha} />
-              </Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Hora inicio" required error={errors.horaInicio}>
-                  <TimeInput value={horaInicio} onChange={setHoraInicio} error={errors.horaInicio} />
-                </Field>
-                <Field label="Hora fin" required error={errors.horaFin}>
-                  <TimeInput value={horaFin} onChange={setHoraFin} error={errors.horaFin} />
-                </Field>
-              </div>
+
+              {whereWhenBlock}
+
               <Field label="Monto ($)">
-                <NumInput value={montoEvento} onChange={setMontoEvento} placeholder="Ej: 7200" />
+                <NumInput value={montoEvento} onChange={setMontoEvento} placeholder="7200" />
               </Field>
-              <Field label="Notas">
-                <TxtArea value={notas} onChange={setNotas} placeholder="Observaciones opcionales..." />
-              </Field>
+
+              {notasBlock}
             </>
           )}
 
           {type === 'recurrente' && (
             <>
-              <Field label="Cliente" required error={errors.cliente}>
-                <TxtInput value={cliente} onChange={setCliente} placeholder="Nombre del cliente" error={errors.cliente} />
-              </Field>
-              <Field label="Teléfono">
-                <TxtInput value={telefono} onChange={setTelefono} placeholder="Ej: 11 4523-8891" />
-              </Field>
-              <Field label="Cancha" required error={errors.courtId}>
-                <SelectInput value={courtId} onChange={setCourtId} options={courtOptions} error={errors.courtId} />
-              </Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Hora inicio" required error={errors.horaInicio}>
-                  <TimeInput value={horaInicio} onChange={setHoraInicio} error={errors.horaInicio} />
+              {/* Quién */}
+              <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 10 }}>
+                <Field label="Cliente" required error={errors.cliente}>
+                  <TxtInput value={cliente} onChange={setCliente} placeholder="Nombre" error={errors.cliente} />
                 </Field>
-                <Field label="Hora fin" required error={errors.horaFin}>
-                  <TimeInput value={horaFin} onChange={setHoraFin} error={errors.horaFin} />
+                <Field label="Teléfono">
+                  <TxtInput value={telefono} onChange={setTelefono} placeholder="11 4523-8891" />
                 </Field>
               </div>
 
-              <Field label="Frecuencia" required>
-                <RadioGroup
-                  value={frecuencia}
-                  onChange={(v) => { setFrecuencia(v as typeof frecuencia); setDiasSemana([]); setDiaDelMes('') }}
-                  options={[
-                    { value: 'semanal',  label: 'Semanal'  },
-                    { value: 'mensual',  label: 'Mensual'  },
-                    { value: 'anual',    label: 'Anual'    },
-                  ]}
+              {/* Cancha y horario */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Field label="Cancha" required error={errors.courtId}>
+                  <SelectInput value={courtId} onChange={setCourtId} options={courtOptions} error={errors.courtId} />
+                </Field>
+                <TimeRangeField
+                  inicio={horaInicio} onInicio={setHoraInicio}
+                  fin={horaFin}       onFin={setHoraFin}
+                  errorInicio={errors.horaInicio} errorFin={errors.horaFin}
                 />
-              </Field>
+              </div>
 
-              {frecuencia === 'semanal' && (
-                <Field label="Días" required error={errors.diasSemana}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {DIAS_SEMANA.map(({ key, label }) => {
-                      const selected = diasSemana.includes(key)
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setDiasSemana((prev) =>
-                            prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key]
-                          )}
-                          style={{
-                            flex: 1, height: 36, borderRadius: 7, fontFamily: 'inherit',
-                            border: `1.5px solid ${selected ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
-                            backgroundColor: selected ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
-                            color: selected ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
-                            fontSize: 13, fontWeight: selected ? 700 : 400,
-                            cursor: 'pointer', transition: 'all 120ms ease-out',
-                          }}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
+              {/* Frecuencia */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Field label="Frecuencia" required>
+                  <RadioGroup
+                    value={frecuencia}
+                    onChange={(v) => { setFrecuencia(v as typeof frecuencia); setDiasSemana([]); setDiaDelMes('') }}
+                    options={[
+                      { value: 'semanal', label: 'Semanal' },
+                      { value: 'mensual', label: 'Mensual' },
+                      { value: 'anual',   label: 'Anual'   },
+                    ]}
+                  />
+                </Field>
+
+                {frecuencia === 'semanal' && (
+                  <Field label="Días" required error={errors.diasSemana}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {DIAS_SEMANA.map(({ key, label }) => {
+                        const selected = diasSemana.includes(key)
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setDiasSemana((prev) =>
+                              prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key]
+                            )}
+                            style={{
+                              flex: 1, height: 36, borderRadius: 7, fontFamily: 'inherit',
+                              border: `1.5px solid ${selected ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
+                              backgroundColor: selected ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
+                              color: selected ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
+                              fontSize: 13, fontWeight: selected ? 700 : 400,
+                              cursor: 'pointer', transition: 'all 120ms ease-out',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Field>
+                )}
+
+                {frecuencia === 'mensual' && (
+                  <Field label="Día del mes" required error={errors.diaDelMes}>
+                    <NumInput value={diaDelMes} onChange={setDiaDelMes} placeholder="15" error={errors.diaDelMes} />
+                  </Field>
+                )}
+              </div>
+
+              {/* Vigencia */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <Field label="Fecha de inicio" required error={errors.fecha}>
+                  <DateInput value={fecha} onChange={setFecha} error={errors.fecha} />
+                </Field>
+                <Field label="Vencimiento">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {!sinVencimiento && (
+                      <DateInput value={fechaVenc} onChange={setFechaVenc} />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setSinVencimiento((v) => !v); setFechaVenc('') }}
+                      style={{
+                        padding: '7px 11px', borderRadius: 7, fontFamily: 'inherit',
+                        border: `1.5px solid ${sinVencimiento ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
+                        backgroundColor: sinVencimiento ? 'oklch(85% 0.058 155)' : 'transparent',
+                        color: sinVencimiento ? 'oklch(32% 0.17 155)' : t.textoMuted.val,
+                        fontSize: 12, fontWeight: sinVencimiento ? 600 : 400,
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 120ms ease-out',
+                      }}
+                    >
+                      {sinVencimiento ? '✓ Sin vencimiento' : 'Sin vencimiento'}
+                    </button>
                   </div>
-                  {errors.diasSemana && (
-                    <div style={{ fontSize: 11, color: 'oklch(50% 0.18 25)', marginTop: 4 }}>{errors.diasSemana}</div>
-                  )}
                 </Field>
-              )}
+              </div>
 
-              {frecuencia === 'mensual' && (
-                <Field label="Día del mes" required error={errors.diaDelMes}>
-                  <NumInput value={diaDelMes} onChange={setDiaDelMes} placeholder="Ej: 15" error={errors.diaDelMes} />
+              {/* Pago */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <Field label="Monto por turno ($)" required error={errors.monto}>
+                  <NumInput value={monto} onChange={setMonto} placeholder="9600" error={errors.monto} />
                 </Field>
-              )}
+                <Field label="Estado inicial" required>
+                  <RadioGroup
+                    value={estado}
+                    onChange={(v) => setEstado(v as 'señado' | 'pagado')}
+                    options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
+                  />
+                </Field>
+              </div>
 
-              <Field label="Fecha de inicio" required error={errors.fecha}>
-                <DateInput value={fecha} onChange={setFecha} error={errors.fecha} />
-              </Field>
-
-              <Field label="Fecha de vencimiento">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {!sinVencimiento && (
-                    <DateInput value={fechaVenc} onChange={setFechaVenc} />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => { setSinVencimiento((v) => !v); setFechaVenc('') }}
-                    style={{
-                      padding: '7px 11px', borderRadius: 7, fontFamily: 'inherit',
-                      border: `1.5px solid ${sinVencimiento ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
-                      backgroundColor: sinVencimiento ? 'oklch(85% 0.058 155)' : 'transparent',
-                      color: sinVencimiento ? 'oklch(32% 0.17 155)' : t.textoMuted.val,
-                      fontSize: 12, fontWeight: sinVencimiento ? 600 : 400,
-                      cursor: 'pointer', textAlign: 'left', transition: 'all 120ms ease-out',
-                    }}
-                  >
-                    {sinVencimiento ? '✓ Sin fecha de vencimiento' : 'Sin fecha de vencimiento'}
-                  </button>
-                </div>
-              </Field>
-
-              <Field label="Monto por turno ($)" required error={errors.monto}>
-                <NumInput value={monto} onChange={setMonto} placeholder="Ej: 9600" error={errors.monto} />
-              </Field>
-              <Field label="Estado inicial" required>
-                <RadioGroup
-                  value={estado}
-                  onChange={(v) => setEstado(v as 'señado' | 'pagado')}
-                  options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
-                />
-              </Field>
-              <Field label="Notas">
-                <TxtArea value={notas} onChange={setNotas} placeholder="Observaciones opcionales..." />
-              </Field>
+              {notasBlock}
             </>
           )}
 
@@ -640,25 +670,32 @@ export function NewEntrySlideOver({
         aria-hidden="true"
         onClick={onClose}
         style={{
-          position: 'fixed', inset: 0, background: 'oklch(12% 0.01 222 / 0.18)',
+          position: 'fixed', inset: 0, background: 'oklch(12% 0.01 222 / 0.28)',
           zIndex: 300, opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none',
-          transition: 'opacity 220ms ease-out',
+          transition: 'opacity 200ms ease-out',
         }}
       />
 
-      {/* Panel */}
+      {/* Modal */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Nuevo ingreso"
         style={{
-          position: 'fixed', top: 0, right: 0, height: '100vh', width: 400,
+          position: 'fixed', top: '50%', left: '50%',
+          width: 440, height: 'min(90vh, 680px)',
           backgroundColor: t.superficieContenido.val,
-          borderLeft: `1px solid ${t.bordeNeutral.val}`,
+          border: `1px solid ${t.bordeNeutral.val}`,
+          borderRadius: 12,
           zIndex: 400, display: 'flex', flexDirection: 'column',
-          transform: open ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 240ms cubic-bezier(0.16, 1, 0.3, 1)',
-          boxShadow: open ? '-8px 0 32px oklch(0% 0 0 / 0.06)' : 'none',
+          overflow: 'hidden',
+          opacity: open ? 1 : 0,
+          transform: open
+            ? 'translate(-50%, -50%) scale(1)'
+            : 'translate(-50%, -50%) scale(0.96)',
+          pointerEvents: open ? 'auto' : 'none',
+          transition: 'opacity 200ms ease-out, transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+          boxShadow: '0 12px 48px oklch(0% 0 0 / 0.12)',
         }}
       >
         {open && (
