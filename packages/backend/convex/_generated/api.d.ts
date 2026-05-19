@@ -10,6 +10,8 @@
 
 import type * as functions_courts_mutations from "../functions/courts/mutations.js";
 import type * as functions_courts_queries from "../functions/courts/queries.js";
+import type * as functions_finances_index from "../functions/finances/index.js";
+import type * as functions_finances_queries from "../functions/finances/queries.js";
 import type * as functions_reservations_mutations from "../functions/reservations/mutations.js";
 import type * as functions_reservations_queries from "../functions/reservations/queries.js";
 import type * as functions_users_sync from "../functions/users/sync.js";
@@ -28,6 +30,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   "functions/courts/mutations": typeof functions_courts_mutations;
   "functions/courts/queries": typeof functions_courts_queries;
+  "functions/finances/index": typeof functions_finances_index;
+  "functions/finances/queries": typeof functions_finances_queries;
   "functions/reservations/mutations": typeof functions_reservations_mutations;
   "functions/reservations/queries": typeof functions_reservations_queries;
   "functions/users/sync": typeof functions_users_sync;

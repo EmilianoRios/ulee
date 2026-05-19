@@ -3,49 +3,18 @@
 import { useState, useRef, useCallback } from 'react'
 import { Lock, Download, ChevronDown } from 'lucide-react'
 import { useTheme } from 'tamagui'
+import { useQuery } from 'convex/react'
+import { api } from '@canchero/backend'
 import { FinancesTable, type Transaction } from '@/components/organisms/finances-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
+import { useActiveVenue } from '@/context/active-venue'
+import type { Id } from '@canchero/backend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Period = 'dia' | 'semana' | 'mes'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-// Mock "now": domingo 11/05/2026. Week = lun 06 → dom 11. Month = may 01 → 11.
-
-type TransactionRaw = Transaction & { date: string }
-
-const ALL: TransactionRaw[] = [
-  // ── Hoy (dom 11/05) ───────────────────────────────────────────────
-  { id: '01', cliente: 'Lucas Martínez',   cancha: 'Cancha 1',     diayhorario: 'Dom 08:00 – 09:00', fechaReserva: '11/05/2026', date: '2026-05-11', mercadoPago: 8500,  seña: 0,    total: 8500  },
-  { id: '02', cliente: 'Sofía González',   cancha: 'La Principal', diayhorario: 'Dom 09:00 – 10:00', fechaReserva: '11/05/2026', date: '2026-05-11', mercadoPago: 0,     seña: 6000, total: 12000 },
-  { id: '03', cliente: 'Martín Rodríguez', cancha: 'Pádel Norte',  diayhorario: 'Dom 10:00 – 11:00', fechaReserva: '11/05/2026', date: '2026-05-11', mercadoPago: 0,     seña: 0,    total: 9500  },
-  { id: '04', cliente: 'Valentina López',  cancha: 'Cancha 1',     diayhorario: 'Dom 11:00 – 12:00', fechaReserva: '11/05/2026', date: '2026-05-11', mercadoPago: 8500,  seña: 0,    total: 8500  },
-  { id: '05', cliente: 'Agustín Torres',   cancha: 'La Principal', diayhorario: 'Dom 14:00 – 15:00', fechaReserva: '11/05/2026', date: '2026-05-11', mercadoPago: 0,     seña: 5000, total: 12000 },
-
-  // ── Esta semana sin hoy (sáb-mar 06-10/05) ────────────────────────
-  { id: '06', cliente: 'Camila Fernández', cancha: 'Cancha 1',     diayhorario: 'Sáb 08:00 – 09:00', fechaReserva: '10/05/2026', date: '2026-05-10', mercadoPago: 8500,  seña: 0,    total: 8500  },
-  { id: '07', cliente: 'Nicolás Pérez',    cancha: 'Pádel Sur',    diayhorario: 'Sáb 09:00 – 10:00', fechaReserva: '10/05/2026', date: '2026-05-10', mercadoPago: 0,     seña: 0,    total: 9500  },
-  { id: '08', cliente: 'Luciana García',   cancha: 'La Principal', diayhorario: 'Vie 17:00 – 18:00', fechaReserva: '09/05/2026', date: '2026-05-09', mercadoPago: 12000, seña: 0,    total: 12000 },
-  { id: '09', cliente: 'Santiago Ruiz',    cancha: 'Pádel Norte',  diayhorario: 'Vie 18:00 – 19:00', fechaReserva: '09/05/2026', date: '2026-05-09', mercadoPago: 0,     seña: 4500, total: 9000  },
-  { id: '10', cliente: 'Pilar Herrera',    cancha: 'Cancha 1',     diayhorario: 'Jue 19:00 – 20:00', fechaReserva: '08/05/2026', date: '2026-05-08', mercadoPago: 10000, seña: 0,    total: 10000 },
-  { id: '11', cliente: 'Mateo Álvarez',    cancha: 'Pádel Sur',    diayhorario: 'Jue 20:00 – 21:00', fechaReserva: '08/05/2026', date: '2026-05-08', mercadoPago: 0,     seña: 5000, total: 10000 },
-  { id: '12', cliente: 'Florencia Sosa',   cancha: 'La Principal', diayhorario: 'Mié 10:00 – 11:00', fechaReserva: '07/05/2026', date: '2026-05-07', mercadoPago: 9500,  seña: 0,    total: 9500  },
-  { id: '13', cliente: 'Tomás Ramírez',    cancha: 'Pádel Norte',  diayhorario: 'Mié 15:00 – 16:00', fechaReserva: '07/05/2026', date: '2026-05-07', mercadoPago: 0,     seña: 0,    total: 9000  },
-  { id: '14', cliente: 'Emilia Vega',      cancha: 'Cancha 1',     diayhorario: 'Mar 08:00 – 09:00', fechaReserva: '06/05/2026', date: '2026-05-06', mercadoPago: 8500,  seña: 0,    total: 8500  },
-
-  // ── Este mes sin esta semana (01-05/05) ───────────────────────────
-  { id: '15', cliente: 'Diego Morales',    cancha: 'La Principal', diayhorario: 'Dom 09:00 – 10:00', fechaReserva: '05/05/2026', date: '2026-05-05', mercadoPago: 12000, seña: 0,    total: 12000 },
-  { id: '16', cliente: 'Ana Torres',       cancha: 'Pádel Sur',    diayhorario: 'Sáb 10:00 – 11:00', fechaReserva: '04/05/2026', date: '2026-05-04', mercadoPago: 0,     seña: 4500, total: 9000  },
-  { id: '17', cliente: 'Pablo Castro',     cancha: 'Cancha 1',     diayhorario: 'Vie 16:00 – 17:00', fechaReserva: '03/05/2026', date: '2026-05-03', mercadoPago: 8500,  seña: 0,    total: 8500  },
-  { id: '18', cliente: 'Fernanda Ríos',    cancha: 'Pádel Norte',  diayhorario: 'Jue 18:00 – 19:00', fechaReserva: '02/05/2026', date: '2026-05-02', mercadoPago: 9000,  seña: 0,    total: 9000  },
-  { id: '19', cliente: 'Rodrigo Suárez',   cancha: 'La Principal', diayhorario: 'Mié 20:00 – 21:00', fechaReserva: '01/05/2026', date: '2026-05-01', mercadoPago: 0,     seña: 5000, total: 12000 },
-  { id: '20', cliente: 'Claudia Ferreyra', cancha: 'Cancha 1',     diayhorario: 'Mié 08:00 – 09:00', fechaReserva: '01/05/2026', date: '2026-05-01', mercadoPago: 0,     seña: 0,    total: 8500  },
-]
-
-const ALL_RAW = ALL
-
-const CANCHAS = ['Cancha 1', 'La Principal', 'Pádel Norte', 'Pádel Sur'] as const
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const PERIOD_OPTIONS: { id: Period; label: string }[] = [
   { id: 'dia',    label: 'Día'    },
@@ -53,16 +22,57 @@ const PERIOD_OPTIONS: { id: Period; label: string }[] = [
   { id: 'mes',    label: 'Mes'    },
 ]
 
-const PERIOD_CUTOFF: Record<Period, string> = {
-  dia:    '2026-05-11',
-  semana: '2026-05-06',
-  mes:    '2026-05-01',
-}
-
 const PAGE_SIZE = 8
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number): string {
   return '$' + n.toLocaleString('es-AR')
+}
+
+function computePeriodRange(period: Period): { dateFrom: string; dateTo: string } {
+  const now   = new Date(Date.now() - 3 * 60 * 60 * 1000)
+  const today = now.toISOString().slice(0, 10)
+
+  if (period === 'dia') {
+    return { dateFrom: today, dateTo: today }
+  }
+  if (period === 'semana') {
+    // Monday of current week (ISO: Mon=1 … Sun=7)
+    const dow = now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1
+    const mon = new Date(now)
+    mon.setUTCDate(now.getUTCDate() - dow)
+    return { dateFrom: mon.toISOString().slice(0, 10), dateTo: today }
+  }
+  // mes
+  return { dateFrom: `${today.slice(0, 7)}-01`, dateTo: today }
+}
+
+type FinanceRowShape = {
+  _id: Id<'reservations'>
+  clientName: string
+  courtName: string
+  date: string
+  startTime: string
+  endTime: string
+  mercadoPago: number
+  senia: number
+  efectivo: number
+  total: number
+}
+
+function toTransaction(row: FinanceRowShape): Transaction {
+  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short' })
+  return {
+    id:           row._id,
+    cliente:      row.clientName,
+    cancha:       row.courtName,
+    diayhorario:  `${dayLabel} ${row.startTime} – ${row.endTime}`,
+    fechaReserva: row.date.split('-').reverse().join('/'),
+    mercadoPago:  row.mercadoPago,
+    seña:         row.senia,
+    total:        row.total,
+  }
 }
 
 // ─── Dark header tokens ───────────────────────────────────────────────────────
@@ -81,27 +91,42 @@ const D = {
 
 export default function FinanzasPage() {
   const t = useTheme()
+  const { activeVenueId } = useActiveVenue()
 
-  const [period,           setPeriod]           = useState<Period>('semana')
-  const [cancha,           setCancha]           = useState('todas')
-  const [page,             setPage]             = useState(1)
-  const [showExportTip,    setShowExportTip]    = useState(false)
-  const [tipPos,           setTipPos]           = useState({ top: 0, left: 0 })
+  const [period,        setPeriod]        = useState<Period>('semana')
+  const [cancha,        setCancha]        = useState('todas')
+  const [page,          setPage]          = useState(1)
+  const [showExportTip, setShowExportTip] = useState(false)
+  const [tipPos,        setTipPos]        = useState({ top: 0, left: 0 })
   const exportRef = useRef<HTMLButtonElement>(null)
 
-  const filtered = ALL_RAW.filter((r) => {
-    const inPeriod = r.date >= PERIOD_CUTOFF[period]
-    const inCancha = cancha === 'todas' || r.cancha === cancha
-    return inPeriod && inCancha
-  })
+  const { dateFrom, dateTo } = computePeriodRange(period)
 
+  const allRows = useQuery(
+    api.functions.finances.queries.listByVenueAndPeriod,
+    activeVenueId !== null
+      ? { venueId: activeVenueId, dateFrom, dateTo }
+      : 'skip'
+  )
+
+  const isLoading = activeVenueId !== null && allRows === undefined
+
+  // Client-side cancha filter
+  const filtered = (allRows ?? []).filter(
+    (r) => cancha === 'todas' || r.courtName === cancha
+  )
+
+  // Unique cancha names derived from live data
+  const canchaOptions = [...new Set((allRows ?? []).map((r) => r.courtName))].sort()
+
+  // KPIs — derived client-side from filtered rows
   const totalMP       = filtered.reduce((s, r) => s + r.mercadoPago, 0)
-  const totalSeña     = filtered.reduce((s, r) => s + r.seña,        0)
-  const totalEfectivo = filtered.reduce((s, r) => s + Math.max(0, r.total - r.mercadoPago - r.seña), 0)
+  const totalSeña     = filtered.reduce((s, r) => s + r.senia,       0)
+  const totalEfectivo = filtered.reduce((s, r) => s + r.efectivo,    0)
   const totalGeneral  = filtered.reduce((s, r) => s + r.total,       0)
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const rows       = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toTransaction)
 
   const handlePeriod = useCallback((p: Period) => { setPeriod(p); setPage(1) }, [])
   const handleCancha = useCallback((c: string)  => { setCancha(c);  setPage(1) }, [])
@@ -193,23 +218,23 @@ export default function FinanzasPage() {
               value={cancha}
               onChange={(e) => handleCancha(e.target.value)}
               style={{
-                appearance:      'none',
+                appearance:       'none',
                 WebkitAppearance: 'none',
-                backgroundColor: 'transparent',
-                border:          `1px solid ${D.border}`,
-                borderRadius:    6,
-                color:           D.text,
-                fontSize:        12,
-                fontWeight:      500,
-                padding:         '5px 28px 5px 10px',
-                cursor:          'pointer',
-                outline:         'none',
-                fontFamily:      'inherit',
-                lineHeight:      1,
+                backgroundColor:  'transparent',
+                border:           `1px solid ${D.border}`,
+                borderRadius:     6,
+                color:            D.text,
+                fontSize:         12,
+                fontWeight:       500,
+                padding:          '5px 28px 5px 10px',
+                cursor:           'pointer',
+                outline:          'none',
+                fontFamily:       'inherit',
+                lineHeight:       1,
               }}
             >
               <option style={{ background: 'oklch(22% 0.024 228)' }} value="todas">Todas las canchas</option>
-              {CANCHAS.map((c) => (
+              {canchaOptions.map((c) => (
                 <option key={c} style={{ background: 'oklch(22% 0.024 228)' }} value={c}>{c}</option>
               ))}
             </select>
@@ -300,13 +325,26 @@ export default function FinanzasPage() {
           display:       'flex',
           flexDirection: 'column',
         }}>
-          <FinancesTable
-            rows={rows}
-            page={page}
-            totalPages={totalPages}
-            totalRows={filtered.length}
-            onPageChange={setPage}
-          />
+          {isLoading ? (
+            <div style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              height:         '100%',
+              color:          t.textoMuted.val,
+              fontSize:       14,
+            }}>
+              Cargando...
+            </div>
+          ) : (
+            <FinancesTable
+              rows={pageRows}
+              page={page}
+              totalPages={totalPages}
+              totalRows={filtered.length}
+              onPageChange={setPage}
+            />
+          )}
         </div>
       </ModuleLayout>
 
