@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useTheme } from 'tamagui'
 import { X, ChevronDown } from 'lucide-react'
+import { useMutation } from 'convex/react'
+import { api } from '@canchero/backend'
+import type { Id } from '@canchero/backend'
 import type { Court } from '@/components/atoms/reservation-card'
 
 export type EntryType = 'reserva' | 'mantenimiento' | 'evento' | 'recurrente'
@@ -14,6 +17,7 @@ interface NewEntrySlideOverProps {
   initialCourtId?: string
   courts:          Court[]
   initialDate:     Date
+  venueId:         Id<'venues'> | null
   onClose:         () => void
 }
 
@@ -46,6 +50,11 @@ const TAB_OPTIONS: { type: EntryType; label: string }[] = [
   { type: 'evento',        label: 'Evento' },
   { type: 'recurrente',    label: 'Recurrente' },
 ]
+
+const STATE_TO_STATUS: Record<'señado' | 'pagado', 'deposit_paid' | 'paid'> = {
+  señado: 'deposit_paid',
+  pagado: 'paid',
+}
 
 const DIAS_SEMANA = [
   { key: 'lun', label: 'L' },
@@ -299,22 +308,26 @@ function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin }:
 
 // ─── Form content ─────────────────────────────────────────────────────────────
 
-function FormContent({ type, courts, initialDate, initialTime, initialCourtId, onClose }: {
+function FormContent({ type, courts, initialDate, initialTime, initialCourtId, venueId, onClose }: {
   type:            EntryType
   courts:          Court[]
   initialDate:     Date
   initialTime?:    string
   initialCourtId?: string
+  venueId:         Id<'venues'> | null
   onClose:         () => void
 }) {
   const t = useTheme()
+
+  const createReservation = useMutation(api.functions.reservations.mutations.create)
 
   const defaultCourtId  = initialCourtId ?? courts[0]?.id ?? ''
   const defaultInicio   = initialTime ?? '09:00'
   const defaultFin      = initialTime ? addMinutes(initialTime, 90) : '10:30'
 
-  const [errors,     setErrors]     = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState(false)
+  const [errors,      setErrors]      = useState<Record<string, string>>({})
+  const [submitting,  setSubmitting]  = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Shared fields
   const [courtId,    setCourtId]    = useState(defaultCourtId)
@@ -346,11 +359,12 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, o
   function validate(): boolean {
     const errs: Record<string, string> = {}
     if (type === 'reserva') {
-      if (!cliente.trim()) errs.cliente    = 'El nombre del cliente es obligatorio'
-      if (!courtId)        errs.courtId    = 'Seleccioná una cancha'
-      if (!horaInicio)     errs.horaInicio = 'Requerido'
-      if (!horaFin)        errs.horaFin    = 'Requerido'
-      if (!monto)          errs.monto      = 'Ingresá el monto'
+      if (!cliente.trim())  errs.cliente   = 'El nombre del cliente es obligatorio'
+      if (!telefono.trim()) errs.telefono  = 'El teléfono del cliente es obligatorio'
+      if (!courtId)         errs.courtId   = 'Seleccioná una cancha'
+      if (!horaInicio)      errs.horaInicio = 'Requerido'
+      if (!horaFin)         errs.horaFin   = 'Requerido'
+      if (!monto)           errs.monto     = 'Ingresá el monto'
     }
     if (type === 'mantenimiento') {
       if (!descripcion.trim()) errs.descripcion = 'La descripción es obligatoria'
@@ -378,10 +392,59 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, o
     return Object.keys(errs).length === 0
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!validate()) return
+    if (!venueId) return
     setSubmitting(true)
-    setTimeout(() => { setSubmitting(false); onClose() }, 400)
+    setSubmitError(null)
+    try {
+      if (type === 'reserva' || type === 'recurrente') {
+        await createReservation({
+          venueId,
+          courtId:     courtId as Id<'courts'>,
+          date:        fecha,
+          startTime:   horaInicio,
+          endTime:     horaFin,
+          clientName:  cliente,
+          clientPhone: telefono,
+          totalAmount: Number(monto),
+          status:      STATE_TO_STATUS[estado],
+          notes:       notas || undefined,
+        })
+      } else if (type === 'mantenimiento') {
+        await createReservation({
+          venueId,
+          courtId:     courtId as Id<'courts'>,
+          date:        fecha,
+          startTime:   horaInicio,
+          endTime:     horaFin,
+          clientName:  descripcion,
+          clientPhone: '',
+          totalAmount: 0,
+          status:      'maintenance',
+          notes:       notas || undefined,
+        })
+      } else if (type === 'evento') {
+        await createReservation({
+          venueId,
+          courtId:     courtId as Id<'courts'>,
+          date:        fecha,
+          startTime:   horaInicio,
+          endTime:     horaFin,
+          clientName:  nombreEvento,
+          clientPhone: '',
+          totalAmount: montoEvento ? Number(montoEvento) : 0,
+          status:      'event',
+          notes:       notas || undefined,
+        })
+      }
+      onClose()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al guardar'
+      setSubmitError(message)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const courtOptions = courts.map((c) => ({ value: c.id, label: c.name }))
@@ -424,8 +487,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, o
                 <Field label="Cliente" required error={errors.cliente}>
                   <TxtInput value={cliente} onChange={setCliente} placeholder="Nombre" error={errors.cliente} />
                 </Field>
-                <Field label="Teléfono">
-                  <TxtInput value={telefono} onChange={setTelefono} placeholder="11 4523-8891" />
+                <Field label="Teléfono" required error={errors.telefono}>
+                  <TxtInput value={telefono} onChange={setTelefono} placeholder="11 4523-8891" error={errors.telefono} />
                 </Field>
               </div>
 
@@ -604,35 +667,42 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, o
       {/* Footer */}
       <div style={{
         padding: '16px 24px 24px', borderTop: `1px solid ${t.divisor.val}`,
-        flexShrink: 0, display: 'flex', gap: 8,
+        flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8,
       }}>
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          style={{
-            flex: 1, padding: '10px 20px', borderRadius: 7, border: 'none',
-            backgroundColor: submitting ? t.verdeCanchaActivo.val : t.verdeCancha.val,
-            color: submitting ? t.verdeCanchaProfundo.val : 'oklch(98% 0.004 155)',
-            fontSize: 13, fontWeight: 500, cursor: submitting ? 'not-allowed' : 'pointer',
-            fontFamily: 'inherit', transition: 'background-color 120ms ease-out',
-          }}
-          onMouseEnter={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
-          onMouseLeave={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
-        >
-          {submitting ? 'Guardando...' : SUBMIT_LABEL[type]}
-        </button>
-        <button
-          onClick={onClose}
-          style={{
-            padding: '10px 16px', borderRadius: 7, border: `1px solid ${t.bordeNeutral.val}`,
-            backgroundColor: 'transparent', color: t.textoPrimario.val,
-            fontSize: 13, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.fondoHover.val }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
-        >
-          Cancelar
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{
+              flex: 1, padding: '10px 20px', borderRadius: 7, border: 'none',
+              backgroundColor: submitting ? t.verdeCanchaActivo.val : t.verdeCancha.val,
+              color: submitting ? t.verdeCanchaProfundo.val : 'oklch(98% 0.004 155)',
+              fontSize: 13, fontWeight: 500, cursor: submitting ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', transition: 'background-color 120ms ease-out',
+            }}
+            onMouseEnter={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
+            onMouseLeave={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
+          >
+            {submitting ? 'Guardando...' : SUBMIT_LABEL[type]}
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 16px', borderRadius: 7, border: `1px solid ${t.bordeNeutral.val}`,
+              backgroundColor: 'transparent', color: t.textoPrimario.val,
+              fontSize: 13, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.fondoHover.val }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
+          >
+            Cancelar
+          </button>
+        </div>
+        {submitError && (
+          <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', lineHeight: 1.4 }}>
+            {submitError}
+          </div>
+        )}
       </div>
     </>
   )
@@ -642,7 +712,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, o
 
 export function NewEntrySlideOver({
   open, defaultType = 'reserva', initialTime, initialCourtId,
-  courts, initialDate, onClose,
+  courts, initialDate, venueId, onClose,
 }: NewEntrySlideOverProps) {
   const t = useTheme()
 
@@ -777,6 +847,7 @@ export function NewEntrySlideOver({
               initialDate={initialDate}
               initialTime={initialTime}
               initialCourtId={initialCourtId}
+              venueId={venueId}
               onClose={onClose}
             />
           </>

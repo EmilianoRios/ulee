@@ -19,6 +19,20 @@ export interface ReservationRow {
   totalAmount: number
 }
 
+export interface ReservationCalRow {
+  _id:         Id<'reservations'>
+  courtId:     Id<'courts'>
+  courtName:   string   // denormalized — resolved via court lookup
+  clientName:  string
+  clientPhone: string
+  startTime:   string
+  endTime:     string
+  date:        string
+  status:      Doc<'reservations'>['status']
+  totalAmount: number
+  notes?:      string
+}
+
 export interface ReservationStats {
   count:        number
   totalRevenue: number
@@ -66,6 +80,44 @@ export const listByVenueAndDate = query({
     }))
 
     return { ...paginationResult, page }
+  },
+})
+
+export const listAllByVenueAndDate = query({
+  args: {
+    venueId: v.id('venues'),
+    date:    v.string(),   // "YYYY-MM-DD"
+  },
+  handler: async (ctx, args): Promise<ReservationCalRow[]> => {
+    await getCurrentUser(ctx)
+
+    const reservations = await ctx.db
+      .query('reservations')
+      .withIndex('by_venueId_date', (q) =>
+        q.eq('venueId', args.venueId).eq('date', args.date)
+      )
+      .collect()
+
+    // Denormalize courtName — batch lookup courts
+    const courtIds = [...new Set(reservations.map((r) => r.courtId))]
+    const courts = await Promise.all(courtIds.map((id) => ctx.db.get(id)))
+    const courtMap = new Map(
+      courts.filter(Boolean).map((c) => [c!._id, c!.name])
+    )
+
+    return reservations.map((r) => ({
+      _id:         r._id,
+      courtId:     r.courtId,
+      courtName:   courtMap.get(r.courtId) ?? '',
+      clientName:  r.clientName,
+      clientPhone: r.clientPhone,
+      startTime:   r.startTime,
+      endTime:     r.endTime,
+      date:        r.date,
+      status:      r.status,
+      totalAmount: r.totalAmount,
+      notes:       r.notes,
+    }))
   },
 })
 

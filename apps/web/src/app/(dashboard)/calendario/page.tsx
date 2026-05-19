@@ -3,83 +3,37 @@
 import { useState, useCallback } from 'react'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
+import { useQuery } from 'convex/react'
+import { api } from '@canchero/backend'
+import type { Doc } from '@canchero/backend'
 
 import { CalendarDayView }    from '@/components/organisms/calendar-day-view'
 import { ModuleLayout }       from '@/components/templates/module-layout'
 import { NewEntrySlideOver }  from '@/components/organisms/new-entry-slide-over'
 import type { EntryType }     from '@/components/organisms/new-entry-slide-over'
 import type { CalendarViewMode }           from '@/components/molecules/calendar-header'
-import type { Court, CalendarReservation } from '@/components/atoms/reservation-card'
+import type { Court, CalendarReservation, CalendarReservationState } from '@/components/atoms/reservation-card'
+import { useActiveVenue } from '@/context/active-venue'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Simulated current time: 12:00 noon (2026). The indicator and transitions use this.
-const MOCK_NOW = (() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d })()
-
-const COURTS: Court[] = [
-  { id: '1', name: 'Cancha 1' },
-  { id: '2', name: 'La Principal' },
-  { id: '3', name: 'Pádel Norte' },
-  { id: '4', name: 'Pádel Sur' },
-]
-
-function buildMockReservations(): CalendarReservation[] {
-  // MOCK_NOW = 12:00. Offsets in minutes from noon.
-  // -180=09:00  -120=10:00  -60=11:00  0=12:00  60=13:00  120=14:00
-  //  180=15:00   240=16:00  300=17:00  360=18:00 420=19:00  480=20:00
-  //  540=21:00   600=22:00  660=23:00
-  const base = 12 * 60
-
-  function t(offset: number): string {
-    const m   = base + offset
-    const h   = Math.floor(m / 60) % 24
-    const min = m % 60
-    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
-  }
-
-  return [
-    // ── Cancha 1 — pagado 9:00, en-cancha cruzando las 12:00, señados tarde y noche
-    { id: '1',  clientName: 'Lucas Martínez',          phone: '11 4523-8891', startTime: t(-180), endTime: t(-90),  state: 'jugado',        amount: 4500, courtId: '1' },
-    { id: '2',  clientName: 'Equipo Rivadavia',        phone: '11 1122-3344', startTime: t(-60),  endTime: t(60),   state: 'en-cancha',     amount: 9600, courtId: '1' },
-    { id: '3',  clientName: 'Nicolás García',                                 startTime: t(120),  endTime: t(210),  state: 'pagado',        amount: 5400, courtId: '1' },
-    { id: '4',  clientName: 'Familias Fernández',                             startTime: t(300),  endTime: t(390),  state: 'señado',        amount: 6000, courtId: '1' },
-    { id: '5',  clientName: 'Torneo Sub-18',                                  startTime: t(540),  endTime: t(660),  state: 'señado',        amount: 7200, courtId: '1' },
-
-    // ── La Principal — señado → auto-jugado (cobro pendiente), señado, recurrente, mantenimiento
-    { id: '6',  clientName: 'Sofía González',          phone: '11 6712-3344', startTime: t(-150), endTime: t(-30),  state: 'señado',        amount: 3600, courtId: '2', notes: 'Viene con seña pagada desde la app.' },
-    { id: '7',  clientName: 'Ana Torres',              phone: '11 5544-3322', startTime: t(60),   endTime: t(150),  state: 'pagado',        amount: 4800, courtId: '2' },
-    { id: '8',  clientName: 'Prof. Herrera — Clínica', phone: '11 1155-2233', startTime: t(240),  endTime: t(360),  state: 'recurrente',    amount: 7200, courtId: '2' },
-    { id: '9',  clientName: 'Limpieza y pintura',                             startTime: t(480),  endTime: t(570),  state: 'mantenimiento', amount: 0,    courtId: '2' },
-
-    // ── Pádel Norte — ausente 10:00, recurrente cruzando las 12:00, señado, evento noche
-    { id: '10', clientName: 'Pedro Fernández',                                startTime: t(-120), endTime: t(-60),  state: 'ausente',       amount: 3000, courtId: '3' },
-    { id: '11', clientName: 'Clínica Técnica Herrera',                        startTime: t(-30),  endTime: t(90),   state: 'recurrente',    amount: 5400, courtId: '3' },
-    { id: '12', clientName: 'Valentina López',         phone: '11 9988-7766', startTime: t(180),  endTime: t(300),  state: 'señado',        amount: 5400, courtId: '3' },
-    { id: '13', clientName: 'Torneo Verano 2026',                             startTime: t(420),  endTime: t(570),  state: 'evento',        amount: 0,    courtId: '3', notes: 'Torneo interno. Acceso libre para socios.' },
-
-    // ── Pádel Sur — señado → auto-jugado, en-cancha cruzando las 12:00, señados tarde y noche
-    { id: '14', clientName: 'Martín Rodríguez',                               startTime: t(-180), endTime: t(-60),  state: 'señado',        amount: 4200, courtId: '4' },
-    { id: '15', clientName: 'Club Deportivo Norte',    phone: '11 2233-4455', startTime: t(-60),  endTime: t(30),   state: 'en-cancha',     amount: 8000, courtId: '4' },
-    { id: '16', clientName: 'Juan Méndez',                                    startTime: t(90),   endTime: t(210),  state: 'pagado',        amount: 4200, courtId: '4' },
-    { id: '17', clientName: 'Constanza Ríos',                                 startTime: t(330),  endTime: t(450),  state: 'señado',        amount: 5600, courtId: '4' },
-    { id: '18', clientName: 'Familia González',                               startTime: t(480),  endTime: t(630),  state: 'señado',        amount: 6800, courtId: '4' },
-  ]
+/** Convert a JS Date to "YYYY-MM-DD" using UTC-3 offset. */
+function dateFromDate(d: Date): string {
+  return new Date(d.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
-const RESERVATIONS = buildMockReservations()
+// ─── Status mappings ──────────────────────────────────────────────────────────
 
-function parseMins(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
+const STATUS_TO_STATE: Record<Doc<'reservations'>['status'], CalendarReservationState> = {
+  deposit_paid:  'señado',
+  on_court:      'en-cancha',
+  absent:        'ausente',
+  paid:          'pagado',
+  maintenance:   'mantenimiento',
+  recurring:     'recurrente',
+  played:        'jugado',
+  event:         'evento',
 }
-
-const MOCK_NOW_MINS = MOCK_NOW.getHours() * 60 + MOCK_NOW.getMinutes()
-
-const PENDING_COBROS = RESERVATIONS.filter((r) => {
-  if (r.state === 'jugado') return true
-  if ((r.state === 'señado' || r.state === 'en-cancha') && MOCK_NOW_MINS > parseMins(r.endTime)) return true
-  return false
-}).length
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -99,7 +53,6 @@ const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
   { id: 'semana', label: 'Semana' },
   { id: 'mes',    label: 'Mes'    },
 ]
-
 
 function formatHeaderDate(date: Date): string {
   const raw = date.toLocaleDateString('es-AR', {
@@ -127,6 +80,7 @@ const D = {
 
 export default function CalendarioPage() {
   const t = useTheme()
+  const { activeVenueId } = useActiveVenue()
 
   const [currentDate,      setCurrentDate]      = useState(() => new Date())
   const [viewMode,         setViewMode]         = useState<CalendarViewMode>('dia')
@@ -135,6 +89,48 @@ export default function CalendarioPage() {
   const [initialSlotTime,  setInitialSlotTime]  = useState<string | undefined>(undefined)
   const [initialSlotCourt, setInitialSlotCourt] = useState<string | undefined>(undefined)
 
+  const currentDateStr = dateFromDate(currentDate)
+
+  // ── Convex queries — skip when no venue selected ───────────────────────────
+  const reservationsRaw = useQuery(
+    api.functions.reservations.queries.listAllByVenueAndDate,
+    activeVenueId !== null
+      ? { venueId: activeVenueId, date: currentDateStr }
+      : 'skip'
+  )
+
+  const courtsRaw = useQuery(
+    api.functions.courts.queries.listByVenue,
+    activeVenueId !== null
+      ? { venueId: activeVenueId }
+      : 'skip'
+  )
+
+  const stats = useQuery(
+    api.functions.reservations.queries.statsByVenueAndDate,
+    activeVenueId !== null
+      ? { venueId: activeVenueId, date: currentDateStr }
+      : 'skip'
+  )
+
+  const isLoading = activeVenueId !== null && (reservationsRaw === undefined || courtsRaw === undefined)
+
+  // ── Shape adaptation ───────────────────────────────────────────────────────
+  const courts: Court[] = courtsRaw?.map((c) => ({ id: c._id as string, name: c.name })) ?? []
+
+  const reservations: CalendarReservation[] = (reservationsRaw ?? []).map((r) => ({
+    id:         r._id,
+    clientName: r.clientName,
+    phone:      r.clientPhone || undefined,
+    startTime:  r.startTime,
+    endTime:    r.endTime,
+    state:      STATUS_TO_STATE[r.status],
+    amount:     r.totalAmount,
+    courtId:    r.courtId as string,
+    notes:      r.notes,
+  }))
+
+  // ── Navigation ─────────────────────────────────────────────────────────────
   const prevDay = useCallback(() => {
     setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })
   }, [])
@@ -316,39 +312,37 @@ export default function CalendarioPage() {
       </div>
     </div>
 
-    {/* Info strip: state legend + pending payments alert */}
+    {/* Info strip: state legend + pending cobros */}
     <div className="strip-scroll" style={{
-      height:       36,
-      display:      'flex',
-      alignItems:   'center',
-      padding:      '0 32px',
-      borderBottom: `1px solid ${t.divisor.val}`,
-      gap:          20,
-      overflowX:    'auto',
+      height:          36,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'space-between',
+      padding:         '0 32px',
+      borderBottom:    `1px solid ${t.divisor.val}`,
+      overflowX:       'auto',
+      gap:             20,
     }}>
-      {LEGEND.map(({ label, color }) => (
-        <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
-        </span>
-      ))}
-
-      {PENDING_COBROS > 0 && (
-        <span style={{
-          marginLeft:      'auto',
-          display:         'flex',
-          alignItems:      'center',
-          gap:             6,
-          padding:         '3px 10px',
-          borderRadius:    9999,
-          backgroundColor: 'oklch(95% 0.06 58)',
-          border:          '1px solid oklch(82% 0.12 58)',
-          userSelect:      'none',
-          flexShrink:      0,
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'oklch(60% 0.18 58)', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: 'oklch(38% 0.14 58)', lineHeight: 1 }}>
-            {PENDING_COBROS} cobro{PENDING_COBROS !== 1 ? 's' : ''} pendiente{PENDING_COBROS !== 1 ? 's' : ''}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        {LEGEND.map(({ label, color }) => (
+          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
+          </span>
+        ))}
+      </div>
+      {stats !== undefined && stats.pendingCount > 0 && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{
+            fontSize:        11,
+            fontWeight:      500,
+            color:           'oklch(55% 0.15 42)',
+            backgroundColor: 'oklch(95% 0.04 42)',
+            borderRadius:    5,
+            padding:         '2px 8px',
+            lineHeight:      1.4,
+          }}>
+            {stats.pendingCount} cobro{stats.pendingCount !== 1 ? 's' : ''} pendiente{stats.pendingCount !== 1 ? 's' : ''}
           </span>
         </span>
       )}
@@ -366,25 +360,47 @@ export default function CalendarioPage() {
           display:       'flex',
           flexDirection: 'column',
         }}>
-          <div style={{
-            flex:         1,
-            minHeight:    0,
-            borderRadius: 7,
-            border:       `1px solid ${t.bordeNeutral.val}`,
-            overflow:     'hidden',
-          }}>
-            <CalendarDayView
-            courts={COURTS}
-            reservations={RESERVATIONS}
-            mockNow={MOCK_NOW}
-            onSlotClick={(courtId, time) => {
-              setDefaultType('reserva')
-              setInitialSlotTime(time)
-              setInitialSlotCourt(courtId)
-              setSlideOverOpen(true)
-            }}
-          />
-          </div>
+          {activeVenueId === null ? (
+            <div style={{
+              flex:           1,
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 14, color: t.textoMuted.val }}>
+                Seleccioná una sede para ver el calendario
+              </span>
+            </div>
+          ) : isLoading ? (
+            <div style={{
+              flex:           1,
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 14, color: t.textoMuted.val }}>Cargando...</span>
+            </div>
+          ) : (
+            <div style={{
+              flex:         1,
+              minHeight:    0,
+              borderRadius: 7,
+              border:       `1px solid ${t.bordeNeutral.val}`,
+              overflow:     'hidden',
+            }}>
+              <CalendarDayView
+                courts={courts}
+                reservations={reservations}
+                mockNow={currentDate}
+                onSlotClick={(courtId, time) => {
+                  setDefaultType('reserva')
+                  setInitialSlotTime(time)
+                  setInitialSlotCourt(courtId)
+                  setSlideOverOpen(true)
+                }}
+              />
+            </div>
+          )}
         </div>
       </ModuleLayout>
 
@@ -393,8 +409,9 @@ export default function CalendarioPage() {
         defaultType={defaultType}
         initialTime={initialSlotTime}
         initialCourtId={initialSlotCourt}
-        courts={COURTS}
+        courts={courts}
         initialDate={currentDate}
+        venueId={activeVenueId}
         onClose={() => setSlideOverOpen(false)}
       />
     </>
