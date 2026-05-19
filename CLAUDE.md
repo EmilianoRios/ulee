@@ -213,6 +213,22 @@ CourtMap.web.tsx    → fallback web (sin la dependencia nativa)
 - Cada carpeta de feature tiene su propio `index.ts` barrel.
 - No instalar dependencias sin que el módulo que las necesita esté siendo implementado.
 
+### Idioma en el código
+
+**Todo lo programático va en inglés:** nombres de tablas, campos, funciones, variables, constantes, enums, tipos, índices, rutas de API.
+
+**Todo lo que ve el usuario va en español:** labels, placeholders, mensajes de error, copy de UI, descripciones, notificaciones.
+
+```ts
+// ✅ correcto
+courts: defineTable({ name: v.string(), status: v.literal('active') })
+<span>Nueva cancha</span>
+
+// ❌ incorrecto
+canchas: defineTable({ nombre: v.string(), estado: v.literal('activa') })
+<span>New court</span>
+```
+
 ---
 
 ## Flujo de desarrollo
