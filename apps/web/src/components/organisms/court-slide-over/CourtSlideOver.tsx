@@ -24,9 +24,9 @@ const COVERED_OPTIONS = [
 ]
 
 const STATUS_OPTIONS: { label: string; value: CourtStatus }[] = [
-  { label: 'Activa',        value: 'activa'        },
-  { label: 'Inactiva',      value: 'inactiva'      },
-  { label: 'Mantenimiento', value: 'mantenimiento' },
+  { label: 'Activa',        value: 'active'      },
+  { label: 'Inactiva',      value: 'inactive'    },
+  { label: 'Mantenimiento', value: 'maintenance' },
 ]
 
 const DEFAULT_FORM = {
@@ -35,7 +35,7 @@ const DEFAULT_FORM = {
   surface:      'Sintético',
   covered:      'true',
   pricePerHour: '',
-  status:       'activa' as CourtStatus,
+  status:       'active' as CourtStatus,
   images:       [] as string[],
 }
 

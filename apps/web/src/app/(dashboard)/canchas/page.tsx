@@ -3,23 +3,18 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTheme } from 'tamagui'
+import { useQuery, useMutation } from 'convex/react'
+import { api } from '@canchero/backend'
 import { CourtsTable, type Court } from '@/components/organisms/courts-list'
 import { CourtSlideOver } from '@/components/organisms/court-slide-over'
 import { ModuleLayout } from '@/components/templates/module-layout'
+import { useActiveVenue } from '@/context/active-venue'
+import type { Id } from '@canchero/backend'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const INITIAL_COURTS: Court[] = [
-  { id: '1', name: 'La Principal', sport: 'Fútbol 5', surface: 'Sintético', covered: true,  pricePerHour: 12000, status: 'activa',        todayTurnos: 7, todayRevenue: 84000 },
-  { id: '2', name: 'Cancha 2',     sport: 'Fútbol 5', surface: 'Sintético', covered: false, pricePerHour: 10000, status: 'activa',        todayTurnos: 5, todayRevenue: 50000 },
-  { id: '3', name: 'Cancha 3',     sport: 'Fútbol 7', surface: 'Sintético', covered: false, pricePerHour: 11000, status: 'activa',        todayTurnos: 6, todayRevenue: 66000 },
-  { id: '4', name: 'Cancha Pádel', sport: 'Pádel',    surface: 'Hormigón',  covered: true,  pricePerHour:  9500, status: 'activa',        todayTurnos: 4, todayRevenue: 38000 },
-  { id: '5', name: 'Cancha Tenis', sport: 'Tenis',    surface: 'Tierra',    covered: false, pricePerHour:  8500, status: 'inactiva',      todayTurnos: 0, todayRevenue:     0 },
-  { id: '6', name: 'Cancha Norte', sport: 'Fútbol 5', surface: 'Sintético', covered: true,  pricePerHour: 10000, status: 'mantenimiento', todayTurnos: 0, todayRevenue:     0 },
-]
+// ─── Stats derivation ─────────────────────────────────────────────────────────
 
 function deriveStats(courts: Court[]) {
-  const active   = courts.filter((c) => c.status === 'activa').length
+  const active   = courts.filter((c) => c.status === 'active').length
   const turnos   = courts.reduce((s, c) => s + c.todayTurnos, 0)
   const ingresos = courts.reduce((s, c) => s + c.todayRevenue, 0)
   return [
@@ -34,33 +29,65 @@ function deriveStats(courts: Court[]) {
 
 export default function CanchasPage() {
   const t = useTheme()
+  const { activeVenueId } = useActiveVenue()
 
-  const [courts,   setCourts]   = useState<Court[]>(INITIAL_COURTS)
   const [editing,  setEditing]  = useState<Court | null>(null)
   const [creating, setCreating] = useState(false)
 
+  // ─── Convex data ────────────────────────────────────────────────────────────
+
+  const rawCourts  = useQuery(
+    api.functions.courts.queries.listByVenue,
+    activeVenueId ? { venueId: activeVenueId } : 'skip',
+  )
+  const createCourt = useMutation(api.functions.courts.mutations.create)
+  const updateCourt = useMutation(api.functions.courts.mutations.update)
+
+  // Adapt Convex shape (_id) to the Court interface (id) expected by UI components
+  const courts: Court[] = (rawCourts ?? []).map((c) => ({
+    ...c,
+    id:      c._id,
+    surface: c.surface ?? '',
+    covered: c.covered ?? false,
+  }))
+
+  // ─── Derived state ──────────────────────────────────────────────────────────
+
   const isOpen    = editing !== null || creating
   const slideOver = editing ?? null
+  const STATS     = deriveStats(courts)
 
-  const STATS = deriveStats(courts)
+  // ─── Handlers ───────────────────────────────────────────────────────────────
 
-  function handleSave(data: Omit<Court, 'id' | 'todayTurnos' | 'todayRevenue'>) {
+  async function handleSave(data: Omit<Court, 'id' | 'todayTurnos' | 'todayRevenue'>) {
+    if (!activeVenueId) return
+
     if (editing) {
-      setCourts((cs) => cs.map((c) => c.id === editing.id ? { ...c, ...data } : c))
+      await updateCourt({
+        courtId:       editing.id as Id<'courts'>,
+        name:          data.name,
+        sport:         data.sport,
+        surface:       data.surface,
+        covered:       data.covered,
+        status:        data.status,
+        priceOverride: data.pricePerHour,
+      })
     } else {
-      setCourts((cs) => [...cs, { id: String(Date.now()), todayTurnos: 0, todayRevenue: 0, ...data }])
+      await createCourt({
+        venueId:       activeVenueId,
+        name:          data.name,
+        sport:         data.sport,
+        surface:       data.surface,
+        covered:       data.covered,
+        priceOverride: data.pricePerHour,
+      })
     }
   }
 
-  function handleClose() {
-    setEditing(null)
-    setCreating(false)
-  }
+  function handleClose() { setEditing(null); setCreating(false) }
+  function openCreate()  { setEditing(null); setCreating(true)  }
 
-  function openCreate() {
-    setEditing(null)
-    setCreating(true)
-  }
+  // ─── Strip ────────────────────────────────────────────────────────────────
 
   const strip = (
     <>
@@ -143,6 +170,25 @@ export default function CanchasPage() {
       </div>
     </>
   )
+
+  // ─── Loading state ────────────────────────────────────────────────────────
+
+  if (!activeVenueId) {
+    return (
+      <ModuleLayout strip={strip}>
+        <div style={{
+          height:         '100%',
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: 13, color: t.textoMuted.val }}>
+            Seleccioná una sede para ver las canchas.
+          </span>
+        </div>
+      </ModuleLayout>
+    )
+  }
 
   return (
     <>

@@ -8,13 +8,35 @@
  * @module
  */
 
+import type * as functions_courts_mutations from "../functions/courts/mutations.js";
+import type * as functions_courts_queries from "../functions/courts/queries.js";
+import type * as functions_reservations_mutations from "../functions/reservations/mutations.js";
+import type * as functions_reservations_queries from "../functions/reservations/queries.js";
+import type * as functions_users_sync from "../functions/users/sync.js";
+import type * as functions_venues_mutations from "../functions/venues/mutations.js";
+import type * as functions_venues_queries from "../functions/venues/queries.js";
+import type * as lib_auth from "../lib/auth.js";
+import type * as lib_conflicts from "../lib/conflicts.js";
+import type * as lib_time from "../lib/time.js";
+
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
 
-declare const fullApi: ApiFromModules<{}>;
+declare const fullApi: ApiFromModules<{
+  "functions/courts/mutations": typeof functions_courts_mutations;
+  "functions/courts/queries": typeof functions_courts_queries;
+  "functions/reservations/mutations": typeof functions_reservations_mutations;
+  "functions/reservations/queries": typeof functions_reservations_queries;
+  "functions/users/sync": typeof functions_users_sync;
+  "functions/venues/mutations": typeof functions_venues_mutations;
+  "functions/venues/queries": typeof functions_venues_queries;
+  "lib/auth": typeof lib_auth;
+  "lib/conflicts": typeof lib_conflicts;
+  "lib/time": typeof lib_time;
+}>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.

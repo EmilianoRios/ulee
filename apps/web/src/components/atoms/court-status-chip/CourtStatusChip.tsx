@@ -1,14 +1,10 @@
 'use client'
 
 import { useTheme } from 'tamagui'
+import type { Doc } from '@canchero/backend'
+import { COURT_STATUS_LABELS } from '@/lib/convex/status-labels'
 
-export type CourtStatus = 'activa' | 'inactiva' | 'mantenimiento'
-
-const LABELS: Record<CourtStatus, string> = {
-  activa:        'Activa',
-  inactiva:      'Inactiva',
-  mantenimiento: 'Mantenimiento',
-}
+export type CourtStatus = Doc<'courts'>['status']
 
 interface CourtStatusChipProps {
   status: CourtStatus
@@ -18,9 +14,9 @@ export function CourtStatusChip({ status }: CourtStatusChipProps) {
   const t = useTheme()
 
   const palette =
-    status === 'activa'
+    status === 'active'
       ? { bg: t.verdeCanchaFondo.val,   color: t.verdeCanchaProfundo.val, border: t.verdeCanchaActivo.val }
-      : status === 'mantenimiento'
+      : status === 'maintenance'
       ? { bg: t.acentoTerrazaClaro.val, color: t.acentoTerraza.val,       border: 'oklch(88% 0.06 42)'   }
       : { bg: 'oklch(93% 0.008 224)',   color: t.textoMuted.val,           border: t.bordeNeutral.val     }
 
@@ -41,7 +37,7 @@ export function CourtStatusChip({ status }: CourtStatusChipProps) {
         whiteSpace:      'nowrap',
       }}
     >
-      {LABELS[status]}
+      {COURT_STATUS_LABELS[status]}
     </span>
   )
 }

@@ -1,14 +1,10 @@
 'use client'
 
 import { useTheme } from 'tamagui'
+import type { Doc } from '@canchero/backend'
+import { RESERVATION_STATUS_LABELS } from '@/lib/convex/status-labels'
 
-export type ReservationStatus = 'pagado' | 'señado' | 'paga_en_cancha'
-
-const LABELS: Record<ReservationStatus, string> = {
-  pagado:         'Pagado',
-  señado:         'Señado',
-  paga_en_cancha: 'Paga en cancha',
-}
+export type ReservationStatus = Doc<'reservations'>['status']
 
 interface StatusChipProps {
   status: ReservationStatus
@@ -17,9 +13,9 @@ interface StatusChipProps {
 export function StatusChip({ status }: StatusChipProps) {
   const t = useTheme()
 
-  const palette = status === 'pagado'
+  const palette = status === 'paid'
     ? { bg: t.verdeCanchaFondo.val,    color: t.verdeCanchaProfundo.val, border: t.verdeCanchaActivo.val }
-    : status === 'señado'
+    : status === 'deposit_paid'
     ? { bg: t.acentoTerrazaClaro.val,  color: t.acentoTerraza.val,       border: 'oklch(88% 0.06 42)'   }
     : { bg: 'transparent',             color: t.textoMuted.val,           border: t.bordeNeutral.val     }
 
@@ -40,7 +36,7 @@ export function StatusChip({ status }: StatusChipProps) {
         whiteSpace:      'nowrap',
       }}
     >
-      {LABELS[status]}
+      {RESERVATION_STATUS_LABELS[status]}
     </span>
   )
 }

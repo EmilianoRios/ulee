@@ -125,7 +125,7 @@ export function CourtsTable({ courts, onEdit, onCreate }: CourtsTableProps) {
             </thead>
             <tbody>
               {courts.map((court, idx) => {
-                const dim = court.status === 'inactiva' ? 0.45 : 1
+                const dim = court.status === 'inactive' ? 0.45 : 1
                 return (
                   <tr
                     key={court.id}

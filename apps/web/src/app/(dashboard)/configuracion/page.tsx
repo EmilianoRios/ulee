@@ -3,11 +3,14 @@
 import { useCallback, useState } from 'react'
 import { Check } from 'lucide-react'
 import { useTheme } from 'tamagui'
+import { useQuery, useMutation } from 'convex/react'
+import { api } from '@canchero/backend'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { ConfigGeneral  } from '@/components/organisms/config-general'
 import { ConfigHorarios } from '@/components/organisms/config-horarios'
 import { ConfigPrecios  } from '@/components/organisms/config-precios'
 import { ConfigFeriados } from '@/components/organisms/config-feriados'
+import { useActiveVenue } from '@/context/active-venue'
 
 type Tab = 'general' | 'horarios' | 'precios' | 'feriados'
 
@@ -22,6 +25,20 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function ConfiguracionPage() {
   const t = useTheme()
+  const { activeVenueId } = useActiveVenue()
+
+  // ─── Convex ──────────────────────────────────────────────────────────────
+  const venue = useQuery(
+    api.functions.venues.queries.getById,
+    activeVenueId ? { venueId: activeVenueId } : 'skip',
+  )
+  const updateVenue     = useMutation(api.functions.venues.mutations.update)
+  const updateSchedule  = useMutation(api.functions.venues.mutations.updateSchedule)
+  const updatePricing   = useMutation(api.functions.venues.mutations.updatePricing)
+  const updateHolidays  = useMutation(api.functions.venues.mutations.updateHolidays)
+
+  // Suppress unused-variable warnings until organisms accept venue props
+  void venue; void updateVenue; void updateSchedule; void updatePricing; void updateHolidays
 
   const [activeTab, setActiveTab] = useState<Tab>('general')
   const [dirtyTabs, setDirtyTabs] = useState<Set<Tab>>(new Set())

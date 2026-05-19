@@ -14,9 +14,14 @@ import {
   Building2,
   Settings,
   MapPin,
+  ChevronDown,
+  Check,
   type LucideIcon,
 } from 'lucide-react'
 import { useUser, UserButton } from '@clerk/nextjs'
+import { useQuery } from 'convex/react'
+import { api } from '@canchero/backend'
+import { useActiveVenue } from '@/context/active-venue'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 function useC() {
@@ -90,6 +95,192 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
+
+// ─── Venue switcher ───────────────────────────────────────────────────────────
+
+function VenueSwitcher({ collapsed }: { collapsed: boolean }) {
+  const C        = useC()
+  const venues   = useQuery(api.functions.venues.queries.listByOwner)
+  const { activeVenueId, setActiveVenueId } = useActiveVenue()
+  const [open, setOpen] = useState(false)
+
+  const activeVenue = venues?.find((v) => v._id === activeVenueId)
+  const hasMultiple = (venues?.length ?? 0) > 1
+
+  if (!venues || venues.length === 0) return null
+
+  const displayName = activeVenue?.name ?? 'Sin sede'
+
+  if (collapsed) {
+    return (
+      <div style={{
+        padding:        '8px 0',
+        borderBottom:   `1px solid ${C.divider}`,
+        display:        'flex',
+        justifyContent: 'center',
+        flexShrink:     0,
+      }}>
+        <div
+          title={displayName}
+          style={{
+            width:           32,
+            height:          32,
+            borderRadius:    7,
+            backgroundColor: C.activeBg,
+            border:          `1px solid ${C.green}30`,
+            display:         'flex',
+            alignItems:      'center',
+            justifyContent:  'center',
+            cursor:          'default',
+          }}
+        >
+          <MapPin size={14} strokeWidth={2} color={C.green} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      borderBottom: `1px solid ${C.divider}`,
+      flexShrink:   0,
+    }}>
+      {/* Trigger */}
+      <button
+        onClick={() => hasMultiple && setOpen((o) => !o)}
+        style={{
+          width:           '100%',
+          display:         'flex',
+          alignItems:      'center',
+          gap:             8,
+          padding:         '10px 14px',
+          border:          'none',
+          backgroundColor: 'transparent',
+          cursor:          hasMultiple ? 'pointer' : 'default',
+          fontFamily:      'inherit',
+          transition:      'background-color 120ms ease-out',
+        }}
+        onMouseEnter={(e) => {
+          if (hasMultiple) (e.currentTarget as HTMLButtonElement).style.backgroundColor = C.hoverBg
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+        }}
+      >
+        <div style={{
+          width:           28,
+          height:          28,
+          borderRadius:    6,
+          backgroundColor: C.activeBg,
+          border:          `1px solid ${C.green}28`,
+          display:         'flex',
+          alignItems:      'center',
+          justifyContent:  'center',
+          flexShrink:      0,
+        }}>
+          <MapPin size={13} strokeWidth={2} color={C.green} />
+        </div>
+
+        <div style={{
+          flex:         1,
+          minWidth:     0,
+          textAlign:    'left',
+          display:      'flex',
+          flexDirection:'column',
+          gap:          1,
+        }}>
+          <span style={{
+            fontSize:     10,
+            fontWeight:   500,
+            letterSpacing:'0.06em',
+            textTransform:'uppercase',
+            color:        C.sectionLabel,
+            lineHeight:   1,
+            userSelect:   'none',
+          }}>
+            Sede activa
+          </span>
+          <span style={{
+            fontSize:     13,
+            fontWeight:   600,
+            color:        C.textPrimary,
+            lineHeight:   1.3,
+            letterSpacing:'-0.01em',
+            overflow:     'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace:   'nowrap',
+            userSelect:   'none',
+          }}>
+            {displayName}
+          </span>
+        </div>
+
+        {hasMultiple && (
+          <ChevronDown
+            size={13}
+            strokeWidth={2.2}
+            color={C.textMuted}
+            style={{
+              flexShrink:  0,
+              transform:   open ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition:  'transform 160ms ease-out',
+            }}
+          />
+        )}
+      </button>
+
+      {/* Dropdown */}
+      {open && hasMultiple && (
+        <div style={{
+          borderTop:     `1px solid ${C.divider}`,
+          paddingBottom: 4,
+          paddingTop:    4,
+        }}>
+          {venues?.map((venue) => {
+            const isActive = venue._id === activeVenueId
+            return (
+              <button
+                key={venue._id}
+                onClick={() => { setActiveVenueId(venue._id); setOpen(false) }}
+                style={{
+                  width:           '100%',
+                  display:         'flex',
+                  alignItems:      'center',
+                  gap:             8,
+                  padding:         '8px 14px',
+                  border:          'none',
+                  backgroundColor: 'transparent',
+                  cursor:          'pointer',
+                  fontFamily:      'inherit',
+                  transition:      'background-color 120ms ease-out',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = C.hoverBg }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
+              >
+                <span style={{
+                  flex:         1,
+                  textAlign:    'left',
+                  fontSize:     13,
+                  fontWeight:   isActive ? 600 : 400,
+                  color:        isActive ? C.textPrimary : C.textMuted,
+                  lineHeight:   1.3,
+                  overflow:     'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace:   'nowrap',
+                }}>
+                  {venue.name}
+                </span>
+                {isActive && (
+                  <Check size={13} strokeWidth={2.5} color={C.green} style={{ flexShrink: 0 }} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
 function Tooltip({ label, visible, top, left }: { label: string; visible: boolean; top: number; left: number }) {
@@ -407,6 +598,9 @@ export function Sidebar() {
           </YStack>
         )}
       </XStack>
+
+      {/* ── Venue switcher ─────────────────────────────────────────────────── */}
+      <VenueSwitcher collapsed={collapsed} />
 
       {/* ── Nav zone ───────────────────────────────────────────────────────── */}
       <YStack
