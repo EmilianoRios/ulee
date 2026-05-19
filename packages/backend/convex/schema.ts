@@ -18,6 +18,16 @@ const pricingConfig = v.object({
   pricePerHour: v.number(),                  // ARS float pesos — NOT cents
   currency: v.literal('ARS'),
   depositPercentage: v.optional(v.number()), // 0–100; only used when policy = deposit
+  nightRatePrice: v.optional(v.number()),    // ARS float pesos — NOT cents
+  nightRateStart: v.optional(v.string()),    // "HH:MM"
+  chargePolicy: v.optional(v.union(
+    v.literal('on_arrival'),
+    v.literal('on_booking_deposit'),
+    v.literal('on_booking_full'),
+  )),
+  bookingWindowDays: v.optional(v.number()),
+  balanceDeadlineDays: v.optional(v.number()),
+  allowedDurations: v.optional(v.array(v.number())),
 })
 
 // ---------------------------------------------------------------------------

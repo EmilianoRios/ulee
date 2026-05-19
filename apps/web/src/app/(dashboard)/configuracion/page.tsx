@@ -5,11 +5,16 @@ import { Check } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
+import type { Doc } from '@canchero/backend'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { ConfigGeneral  } from '@/components/organisms/config-general'
 import { ConfigHorarios } from '@/components/organisms/config-horarios'
 import { ConfigPrecios  } from '@/components/organisms/config-precios'
 import { ConfigFeriados } from '@/components/organisms/config-feriados'
+import type { GeneralInitialData  } from '@/components/organisms/config-general'
+import type { ScheduleEntry       } from '@/components/organisms/config-horarios'
+import type { PricingInitialData  } from '@/components/organisms/config-precios'
+import type { HolidayEntry        } from '@/components/organisms/config-feriados'
 import { useActiveVenue } from '@/context/active-venue'
 
 type Tab = 'general' | 'horarios' | 'precios' | 'feriados'
@@ -20,6 +25,49 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'precios',  label: 'Precios y pagos'      },
   { id: 'feriados', label: 'Feriados'             },
 ]
+
+// ─── Adapter functions (pure, module-scope) ────────────────────────────────────
+
+function venueToGeneralData(venue: Doc<'venues'>): GeneralInitialData {
+  return {
+    name:        venue.name,
+    description: venue.description,
+    address:     venue.address,
+    phone:       venue.phone,
+    email:       venue.email,
+  }
+}
+
+function venueToScheduleData(venue: Doc<'venues'>): ScheduleEntry[] {
+  return venue.schedule.map(entry => ({
+    dayOfWeek: entry.dayOfWeek,
+    active:    entry.active,
+    openTime:  entry.openTime,
+    closeTime: entry.closeTime,
+  }))
+}
+
+function venueToPricingData(venue: Doc<'venues'>): PricingInitialData {
+  const pc = venue.pricingConfig
+  return {
+    pricePerHour:        pc.pricePerHour,
+    currency:            pc.currency,
+    depositPercentage:   pc.depositPercentage,
+    nightRatePrice:      pc.nightRatePrice,
+    nightRateStart:      pc.nightRateStart,
+    chargePolicy:        pc.chargePolicy,
+    bookingWindowDays:   pc.bookingWindowDays,
+    balanceDeadlineDays: pc.balanceDeadlineDays,
+    allowedDurations:    pc.allowedDurations,
+  }
+}
+
+function venueToHolidaysData(venue: Doc<'venues'>): HolidayEntry[] {
+  return (venue.holidays ?? []).map(h => ({
+    date:   h.date,
+    reason: h.reason,
+  }))
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -36,9 +84,6 @@ export default function ConfiguracionPage() {
   const updateSchedule  = useMutation(api.functions.venues.mutations.updateSchedule)
   const updatePricing   = useMutation(api.functions.venues.mutations.updatePricing)
   const updateHolidays  = useMutation(api.functions.venues.mutations.updateHolidays)
-
-  // Suppress unused-variable warnings until organisms accept venue props
-  void venue; void updateVenue; void updateSchedule; void updatePricing; void updateHolidays
 
   const [activeTab, setActiveTab] = useState<Tab>('general')
   const [dirtyTabs, setDirtyTabs] = useState<Set<Tab>>(new Set())
@@ -66,6 +111,35 @@ export default function ConfiguracionPage() {
   const onHorariosSaved = useCallback(() => markSaved('horarios'), [markSaved])
   const onPreciosSaved  = useCallback(() => markSaved('precios'),  [markSaved])
   const onFeriadosSaved = useCallback(() => markSaved('feriados'), [markSaved])
+
+  // ─── Submit handlers ──────────────────────────────────────────────────────
+
+  const handleGeneralSubmit = useCallback(async (data: GeneralInitialData) => {
+    if (!activeVenueId) return
+    await updateVenue({
+      venueId:     activeVenueId,
+      name:        data.name,
+      description: data.description,
+      address:     data.address,
+      phone:       data.phone,
+      email:       data.email,
+    })
+  }, [activeVenueId, updateVenue])
+
+  const handleScheduleSubmit = useCallback(async (schedule: ScheduleEntry[]) => {
+    if (!activeVenueId) return
+    await updateSchedule({ venueId: activeVenueId, schedule })
+  }, [activeVenueId, updateSchedule])
+
+  const handlePricingSubmit = useCallback(async (data: PricingInitialData) => {
+    if (!activeVenueId) return
+    await updatePricing({ venueId: activeVenueId, pricingConfig: data })
+  }, [activeVenueId, updatePricing])
+
+  const handleHolidaysSubmit = useCallback(async (holidays: HolidayEntry[]) => {
+    if (!activeVenueId) return
+    await updateHolidays({ venueId: activeVenueId, holidays })
+  }, [activeVenueId, updateHolidays])
 
   const FORM_ID = `config-form-${activeTab}`
 
@@ -208,6 +282,8 @@ export default function ConfiguracionPage() {
               formId={FORM_ID}
               onDirtyChange={onGeneralDirty}
               onSaved={onGeneralSaved}
+              initialData={venue ? venueToGeneralData(venue) : null}
+              onSubmit={handleGeneralSubmit}
             />
           )}
           {activeTab === 'horarios' && (
@@ -215,6 +291,8 @@ export default function ConfiguracionPage() {
               formId={FORM_ID}
               onDirtyChange={onHorariosDirty}
               onSaved={onHorariosSaved}
+              initialData={venue ? venueToScheduleData(venue) : null}
+              onSubmit={handleScheduleSubmit}
             />
           )}
           {activeTab === 'precios'  && (
@@ -222,6 +300,8 @@ export default function ConfiguracionPage() {
               formId={FORM_ID}
               onDirtyChange={onPreciosDirty}
               onSaved={onPreciosSaved}
+              initialData={venue ? venueToPricingData(venue) : null}
+              onSubmit={handlePricingSubmit}
             />
           )}
           {activeTab === 'feriados' && (
@@ -229,6 +309,8 @@ export default function ConfiguracionPage() {
               formId={FORM_ID}
               onDirtyChange={onFeriadosDirty}
               onSaved={onFeriadosSaved}
+              initialData={venue ? venueToHolidaysData(venue) : null}
+              onSubmit={handleHolidaysSubmit}
             />
           )}
         </div>

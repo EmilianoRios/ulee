@@ -1,9 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'tamagui'
 
 type PolicyType = 'cancha' | 'seña' | 'completo'
+
+export interface PricingInitialData {
+  pricePerHour:        number
+  currency:            'ARS'
+  depositPercentage:   number | undefined
+  nightRatePrice:      number | undefined
+  nightRateStart:      string | undefined
+  chargePolicy:        'on_arrival' | 'on_booking_deposit' | 'on_booking_full' | undefined
+  bookingWindowDays:   number | undefined
+  balanceDeadlineDays: number | undefined
+  allowedDurations:    number[] | undefined
+}
 
 interface PreciosForm {
   tarifaDiurna:   string
@@ -17,16 +29,18 @@ interface PreciosForm {
   duraciones:     number[]
 }
 
-const INITIAL: PreciosForm = {
-  tarifaDiurna:   '12000',
-  tarifaNocturna: '15000',
-  inicioNocturno: '19:00',
-  politicaCobro:  'seña',
-  porcentajeSeña: '30',
-  ventanaReserva: 30,
-  deadlineSaldo:  3,
-  umbralForzado:  15,
-  duraciones:     [60, 90],
+// chargePolicy DB literal → UI label
+const SCHEMA_TO_POLICY: Record<string, PolicyType> = {
+  on_arrival:          'cancha',
+  on_booking_deposit:  'seña',
+  on_booking_full:     'completo',
+}
+
+// UI label → DB literal
+const POLICY_TO_SCHEMA: Record<PolicyType, 'on_arrival' | 'on_booking_deposit' | 'on_booking_full'> = {
+  cancha:   'on_arrival',
+  seña:     'on_booking_deposit',
+  completo: 'on_booking_full',
 }
 
 const POLITICA_OPTS: { value: PolicyType; label: string; desc: string }[] = [
@@ -41,6 +55,22 @@ interface Props {
   formId:        string
   onDirtyChange: (dirty: boolean) => void
   onSaved:       () => void
+  initialData:   PricingInitialData | null
+  onSubmit:      (data: PricingInitialData) => Promise<void>
+}
+
+function adaptInitialDataToForm(data: PricingInitialData): PreciosForm {
+  return {
+    tarifaDiurna:   String(data.pricePerHour),
+    tarifaNocturna: data.nightRatePrice !== undefined ? String(data.nightRatePrice) : '',
+    inicioNocturno: data.nightRateStart ?? '19:00',
+    politicaCobro:  data.chargePolicy ? (SCHEMA_TO_POLICY[data.chargePolicy] ?? 'seña') : 'seña',
+    porcentajeSeña: data.depositPercentage !== undefined ? String(data.depositPercentage) : '30',
+    ventanaReserva: data.bookingWindowDays ?? 30,
+    deadlineSaldo:  data.balanceDeadlineDays ?? 3,
+    umbralForzado:  0,
+    duraciones:     data.allowedDurations ?? [60, 90],
+  }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -146,16 +176,58 @@ function RadioOption({ option, selected, onSelect }: {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
+export function ConfigPrecios({ formId, onDirtyChange, onSaved, initialData, onSubmit }: Props) {
   const t = useTheme()
-  const [form, setForm] = useState<PreciosForm>(INITIAL)
+
+  const EMPTY_FORM: PreciosForm = {
+    tarifaDiurna:   '',
+    tarifaNocturna: '',
+    inicioNocturno: '19:00',
+    politicaCobro:  'seña',
+    porcentajeSeña: '30',
+    ventanaReserva: 30,
+    deadlineSaldo:  3,
+    umbralForzado:  0,
+    duraciones:     [60, 90],
+  }
+
+  const [form, setForm] = useState<PreciosForm>(
+    initialData ? adaptInitialDataToForm(initialData) : EMPTY_FORM
+  )
+  const serverSnapshot = useRef<PreciosForm | null>(
+    initialData ? adaptInitialDataToForm(initialData) : null
+  )
 
   useEffect(() => {
-    onDirtyChange(JSON.stringify(form) !== JSON.stringify(INITIAL))
+    if (initialData === null) return
+    const adapted = adaptInitialDataToForm(initialData)
+    serverSnapshot.current = adapted
+    setForm(adapted)
+  }, [initialData])
+
+  useEffect(() => {
+    if (serverSnapshot.current === null) {
+      onDirtyChange(false)
+      return
+    }
+    onDirtyChange(JSON.stringify(form) !== JSON.stringify(serverSnapshot.current))
   }, [form, onDirtyChange])
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!initialData) return
+    const data: PricingInitialData = {
+      pricePerHour:        Number(form.tarifaDiurna) || 0,
+      currency:            'ARS',
+      depositPercentage:   form.politicaCobro === 'seña' ? Number(form.porcentajeSeña) || undefined : undefined,
+      nightRatePrice:      form.tarifaNocturna !== '' ? Number(form.tarifaNocturna) : undefined,
+      nightRateStart:      form.inicioNocturno || undefined,
+      chargePolicy:        POLICY_TO_SCHEMA[form.politicaCobro],
+      bookingWindowDays:   form.ventanaReserva,
+      balanceDeadlineDays: form.politicaCobro === 'seña' ? form.deadlineSaldo : undefined,
+      allowedDurations:    form.duraciones.length > 0 ? form.duraciones : undefined,
+    }
+    await onSubmit(data)
     onSaved()
   }
 
@@ -168,13 +240,15 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
     }))
   }
 
+  const disabled = initialData === null
+
   const inputBase: React.CSSProperties = {
     width:           '100%',
     padding:         '9px 12px',
     borderRadius:    7,
     border:          `1px solid ${t.bordeNeutral.val}`,
-    backgroundColor: t.superficieContenido.val,
-    color:           t.textoPrimario.val,
+    backgroundColor: disabled ? t.superficie.val : t.superficieContenido.val,
+    color:           disabled ? t.textoInactivo.val : t.textoPrimario.val,
     fontSize:        13,
     fontFamily:      'inherit',
     outline:         'none',
@@ -191,14 +265,14 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
   const timeInput: React.CSSProperties = {
     ...inputBase,
     width:  120,
-    cursor: 'pointer',
+    cursor: disabled ? 'default' : 'pointer',
   }
 
   return (
     <form
       id={formId}
       onSubmit={handleSubmit}
-      style={{ display: 'flex', flexDirection: 'column', gap: 32 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 32, opacity: disabled ? 0.5 : 1 }}
     >
       {/* ── Tarifas ── */}
       <Section title="Tarifas">
@@ -213,9 +287,10 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
                 type="text"
                 inputMode="numeric"
                 value={form.tarifaDiurna}
+                disabled={disabled}
                 onChange={(e) => setForm(f => ({ ...f, tarifaDiurna: e.target.value.replace(/\D/g, '') }))}
                 style={{ ...inputBase, paddingLeft: 24 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+                onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
                 onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
               />
             </div>
@@ -231,9 +306,10 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
                 type="text"
                 inputMode="numeric"
                 value={form.tarifaNocturna}
+                disabled={disabled}
                 onChange={(e) => setForm(f => ({ ...f, tarifaNocturna: e.target.value.replace(/\D/g, '') }))}
                 style={{ ...inputBase, paddingLeft: 24 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+                onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
                 onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
               />
             </div>
@@ -247,9 +323,10 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
           <input
             type="time"
             value={form.inicioNocturno}
+            disabled={disabled}
             onChange={(e) => setForm(f => ({ ...f, inicioNocturno: e.target.value }))}
             style={timeInput}
-            onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+            onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
             onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
           />
         </FormField>
@@ -265,7 +342,7 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
               key={opt.value}
               option={opt}
               selected={form.politicaCobro === opt.value}
-              onSelect={() => setForm(f => ({ ...f, politicaCobro: opt.value }))}
+              onSelect={() => { if (!disabled) setForm(f => ({ ...f, politicaCobro: opt.value })) }}
             />
           ))}
         </div>
@@ -283,9 +360,10 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
                   max="99"
                   step="0.1"
                   value={form.porcentajeSeña}
+                  disabled={disabled}
                   onChange={(e) => setForm(f => ({ ...f, porcentajeSeña: e.target.value }))}
                   style={numInput}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+                  onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
                   onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
                 />
                 <span style={{ fontSize: 13, color: t.textoMuted.val }}>%</span>
@@ -308,9 +386,10 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
             min="1"
             max="365"
             value={form.ventanaReserva}
+            disabled={disabled}
             onChange={(e) => setForm(f => ({ ...f, ventanaReserva: Number(e.target.value) }))}
             style={numInput}
-            onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+            onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
             onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
           />
           <span style={{ fontSize: 13, color: t.textoMuted.val }}>días</span>
@@ -332,9 +411,10 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
                   min="0"
                   max="30"
                   value={form.deadlineSaldo}
+                  disabled={disabled}
                   onChange={(e) => setForm(f => ({ ...f, deadlineSaldo: Number(e.target.value) }))}
                   style={numInput}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+                  onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
                   onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
                 />
                 <span style={{ fontSize: 13, color: t.textoMuted.val }}>días antes del turno</span>
@@ -351,9 +431,10 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
                   min="0"
                   max={form.ventanaReserva}
                   value={form.umbralForzado}
+                  disabled={disabled}
                   onChange={(e) => setForm(f => ({ ...f, umbralForzado: Number(e.target.value) }))}
                   style={numInput}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+                  onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
                   onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
                 />
                 <span style={{ fontSize: 13, color: t.textoMuted.val }}>días de antelación</span>
@@ -377,6 +458,7 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
               <button
                 key={mins}
                 type="button"
+                disabled={disabled}
                 onClick={() => toggleDuracion(mins)}
                 style={{
                   padding:         '8px 18px',
@@ -387,7 +469,7 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved }: Props) {
                   fontSize:        13,
                   fontWeight:      selected ? 500 : 400,
                   fontFamily:      'inherit',
-                  cursor:          'pointer',
+                  cursor:          disabled ? 'default' : 'pointer',
                   transition:      'all 120ms ease-out',
                   userSelect:      'none',
                 }}

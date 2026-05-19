@@ -1,8 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'tamagui'
 import { ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react'
+
+export interface HolidayEntry {
+  date:   string   // "YYYY-MM-DD"
+  reason: string
+}
 
 interface Feriado {
   id:     string
@@ -14,13 +19,9 @@ interface Props {
   formId:        string
   onDirtyChange: (dirty: boolean) => void
   onSaved:       () => void
+  initialData:   HolidayEntry[] | null
+  onSubmit:      (holidays: HolidayEntry[]) => Promise<void>
 }
-
-const INITIAL_FERIADOS: Feriado[] = [
-  { id: '1', fecha: '2026-05-25', motivo: 'Día del Ejército' },
-  { id: '2', fecha: '2026-06-20', motivo: 'Paso a la Inmortalidad del Gral. Belgrano' },
-  { id: '3', fecha: '2026-07-09', motivo: 'Día de la Independencia' },
-]
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const DIAS  = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
@@ -38,6 +39,14 @@ function mockReservationCount(dateStr: string) {
   if (dow === 6) return 3
   if (dow === 0) return 5
   return 0
+}
+
+function adaptInitialDataToForm(data: HolidayEntry[]): Feriado[] {
+  return data.map((entry, index) => ({
+    id:     entry.date || String(index),
+    fecha:  entry.date,
+    motivo: entry.reason,
+  }))
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -250,7 +259,7 @@ function MiniCalendar({ year, month, closedDates, selectedDate, onSelect, onPrev
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
+export function ConfigFeriados({ formId, onDirtyChange, onSaved, initialData, onSubmit }: Props) {
   const t = useTheme()
 
   const today = new Date()
@@ -258,17 +267,35 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
   const [calMonth,     setCalMonth]     = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [motivo,       setMotivo]       = useState('')
-  const [feriados,     setFeriados]     = useState<Feriado[]>(INITIAL_FERIADOS)
-  const [confirm,      setConfirm]      = useState<{ fecha: string; count: number } | null>(null)
+  const [feriados,     setFeriados]     = useState<Feriado[]>(
+    initialData ? adaptInitialDataToForm(initialData) : []
+  )
+  const [confirm, setConfirm] = useState<{ fecha: string; count: number } | null>(null)
+
+  const serverSnapshot = useRef<Feriado[] | null>(
+    initialData ? adaptInitialDataToForm(initialData) : null
+  )
+
+  useEffect(() => {
+    if (initialData === null) return
+    const adapted = adaptInitialDataToForm(initialData)
+    serverSnapshot.current = adapted
+    setFeriados(adapted)
+  }, [initialData])
 
   const closedDates = feriados.map(f => f.fecha)
 
   useEffect(() => {
-    onDirtyChange(JSON.stringify(feriados) !== JSON.stringify(INITIAL_FERIADOS))
+    if (serverSnapshot.current === null) {
+      onDirtyChange(false)
+      return
+    }
+    onDirtyChange(JSON.stringify(feriados) !== JSON.stringify(serverSnapshot.current))
   }, [feriados, onDirtyChange])
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    await onSubmit(feriados.map(f => ({ date: f.fecha, reason: f.motivo })))
     onSaved()
   }
 
@@ -304,13 +331,15 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
     setFeriados(fs => fs.filter(f => f.id !== id))
   }
 
+  const disabled = initialData === null
+
   const inputBase: React.CSSProperties = {
     width:           '100%',
     padding:         '9px 12px',
     borderRadius:    7,
     border:          `1px solid ${t.bordeNeutral.val}`,
-    backgroundColor: t.superficieContenido.val,
-    color:           t.textoPrimario.val,
+    backgroundColor: disabled ? t.superficie.val : t.superficieContenido.val,
+    color:           disabled ? t.textoInactivo.val : t.textoPrimario.val,
     fontSize:        13,
     fontFamily:      'inherit',
     outline:         'none',
@@ -324,7 +353,7 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
     <form
       id={formId}
       onSubmit={handleSubmit}
-      style={{ display: 'flex', flexDirection: 'column', gap: 32 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 32, opacity: disabled ? 0.5 : 1 }}
     >
       {/* ── Agregar día cerrado ── */}
       <Section
@@ -337,7 +366,7 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
             month={calMonth}
             closedDates={closedDates}
             selectedDate={selectedDate}
-            onSelect={(date) => { setSelectedDate(date); setConfirm(null) }}
+            onSelect={(date) => { if (!disabled) { setSelectedDate(date); setConfirm(null) } }}
             onPrev={prevMonth}
             onNext={nextMonth}
           />
@@ -370,9 +399,10 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
                 type="text"
                 value={motivo}
                 placeholder="ej. Feriado Nacional, Mantenimiento…"
+                disabled={disabled}
                 onChange={(e) => setMotivo(e.target.value)}
                 style={inputBase}
-                onFocus={(e) => { e.currentTarget.style.borderColor = t.verdeCancha.val }}
+                onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
                 onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
               />
             </div>
@@ -436,27 +466,27 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
             {!confirm && (
               <button
                 type="button"
-                disabled={!selectedDate || !motivo.trim() || closedDates.includes(selectedDate ?? '')}
+                disabled={disabled || !selectedDate || !motivo.trim() || closedDates.includes(selectedDate ?? '')}
                 onClick={handleAgregar}
                 style={{
                   padding:         '9px 16px',
                   borderRadius:    7,
                   border:          'none',
-                  backgroundColor: selectedDate && motivo.trim() ? t.verdeCancha.val : t.bordeNeutral.val,
-                  color:           selectedDate && motivo.trim() ? 'oklch(98% 0.004 155)' : t.textoInactivo.val,
+                  backgroundColor: selectedDate && motivo.trim() && !disabled ? t.verdeCancha.val : t.bordeNeutral.val,
+                  color:           selectedDate && motivo.trim() && !disabled ? 'oklch(98% 0.004 155)' : t.textoInactivo.val,
                   fontSize:        13,
                   fontWeight:      500,
                   fontFamily:      'inherit',
-                  cursor:          selectedDate && motivo.trim() ? 'pointer' : 'default',
+                  cursor:          selectedDate && motivo.trim() && !disabled ? 'pointer' : 'default',
                   transition:      'background-color 150ms ease-out',
                   alignSelf:       'flex-start',
                 }}
                 onMouseEnter={(e) => {
-                  if (!selectedDate || !motivo.trim()) return
+                  if (!selectedDate || !motivo.trim() || disabled) return
                   e.currentTarget.style.backgroundColor = t.verdeCanchaProfundo.val
                 }}
                 onMouseLeave={(e) => {
-                  if (!selectedDate || !motivo.trim()) return
+                  if (!selectedDate || !motivo.trim() || disabled) return
                   e.currentTarget.style.backgroundColor = t.verdeCancha.val
                 }}
               >
@@ -530,6 +560,7 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
                   <button
                     type="button"
                     onClick={() => removeFeriado(f.id)}
+                    disabled={disabled}
                     aria-label={`Eliminar ${f.motivo}`}
                     style={{
                       width:           28,
@@ -537,7 +568,7 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
                       borderRadius:    6,
                       border:          `1px solid ${t.bordeNeutral.val}`,
                       backgroundColor: 'transparent',
-                      cursor:          'pointer',
+                      cursor:          disabled ? 'default' : 'pointer',
                       display:         'flex',
                       alignItems:      'center',
                       justifyContent:  'center',
@@ -546,11 +577,13 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved }: Props) {
                       transition:      'background-color 150ms ease-out, color 150ms ease-out',
                     }}
                     onMouseEnter={(e) => {
+                      if (disabled) return
                       e.currentTarget.style.backgroundColor = 'oklch(96% 0.015 25)'
                       e.currentTarget.style.borderColor     = 'oklch(80% 0.06 25)'
                       e.currentTarget.style.color           = 'oklch(55% 0.20 25)'
                     }}
                     onMouseLeave={(e) => {
+                      if (disabled) return
                       e.currentTarget.style.backgroundColor = 'transparent'
                       e.currentTarget.style.borderColor     = t.bordeNeutral.val
                       e.currentTarget.style.color           = t.textoMuted.val

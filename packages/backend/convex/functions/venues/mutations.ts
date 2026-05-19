@@ -49,6 +49,16 @@ const pricingConfigValidator = v.object({
   pricePerHour: v.number(),
   currency: v.literal('ARS'),
   depositPercentage: v.optional(v.number()),
+  nightRatePrice: v.optional(v.number()),
+  nightRateStart: v.optional(v.string()),
+  chargePolicy: v.optional(v.union(
+    v.literal('on_arrival'),
+    v.literal('on_booking_deposit'),
+    v.literal('on_booking_full'),
+  )),
+  bookingWindowDays: v.optional(v.number()),
+  balanceDeadlineDays: v.optional(v.number()),
+  allowedDurations: v.optional(v.array(v.number())),
 })
 
 // ---------------------------------------------------------------------------

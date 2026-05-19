@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'tamagui'
 
-interface Props {
-  formId:        string
-  onDirtyChange: (dirty: boolean) => void
-  onSaved:       () => void
+export interface ScheduleEntry {
+  dayOfWeek: number   // ISO 8601: 1=Monday … 7=Sunday
+  active:    boolean
+  openTime:  string   // "HH:MM"
+  closeTime: string   // "HH:MM"
 }
 
 interface HorarioDia {
@@ -16,15 +17,35 @@ interface HorarioDia {
   cierre:   string
 }
 
-const INITIAL: HorarioDia[] = [
-  { dia: 'Lunes',     activo: true,  apertura: '08:00', cierre: '23:00' },
-  { dia: 'Martes',    activo: true,  apertura: '08:00', cierre: '23:00' },
-  { dia: 'Miércoles', activo: true,  apertura: '08:00', cierre: '23:00' },
-  { dia: 'Jueves',    activo: true,  apertura: '08:00', cierre: '23:00' },
-  { dia: 'Viernes',   activo: true,  apertura: '08:00', cierre: '23:00' },
-  { dia: 'Sábado',    activo: true,  apertura: '09:00', cierre: '22:00' },
-  { dia: 'Domingo',   activo: false, apertura: '10:00', cierre: '20:00' },
-]
+interface Props {
+  formId:        string
+  onDirtyChange: (dirty: boolean) => void
+  onSaved:       () => void
+  initialData:   ScheduleEntry[] | null
+  onSubmit:      (schedule: ScheduleEntry[]) => Promise<void>
+}
+
+// dayOfWeek 1=Monday, 2=Tuesday … 7=Sunday
+const DAY_LABELS: Record<number, string> = {
+  1: 'Lunes',
+  2: 'Martes',
+  3: 'Miércoles',
+  4: 'Jueves',
+  5: 'Viernes',
+  6: 'Sábado',
+  7: 'Domingo',
+}
+
+function adaptInitialDataToForm(data: ScheduleEntry[]): HorarioDia[] {
+  return [...data]
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .map(entry => ({
+      dia:      DAY_LABELS[entry.dayOfWeek] ?? `Día ${entry.dayOfWeek}`,
+      activo:   entry.active,
+      apertura: entry.openTime,
+      cierre:   entry.closeTime,
+    }))
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -67,16 +88,40 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ConfigHorarios({ formId, onDirtyChange, onSaved }: Props) {
+export function ConfigHorarios({ formId, onDirtyChange, onSaved, initialData, onSubmit }: Props) {
   const t = useTheme()
-  const [horarios, setHorarios] = useState<HorarioDia[]>(INITIAL)
+  const [horarios, setHorarios] = useState<HorarioDia[]>(
+    initialData ? adaptInitialDataToForm(initialData) : []
+  )
+  const serverSnapshot = useRef<HorarioDia[] | null>(
+    initialData ? adaptInitialDataToForm(initialData) : null
+  )
 
   useEffect(() => {
-    onDirtyChange(JSON.stringify(horarios) !== JSON.stringify(INITIAL))
+    if (initialData === null) return
+    const adapted = adaptInitialDataToForm(initialData)
+    serverSnapshot.current = adapted
+    setHorarios(adapted)
+  }, [initialData])
+
+  useEffect(() => {
+    if (serverSnapshot.current === null) {
+      onDirtyChange(false)
+      return
+    }
+    onDirtyChange(JSON.stringify(horarios) !== JSON.stringify(serverSnapshot.current))
   }, [horarios, onDirtyChange])
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!initialData) return
+    const schedule: ScheduleEntry[] = horarios.map((h, i) => ({
+      dayOfWeek: initialData[i]?.dayOfWeek ?? i + 1,
+      active:    h.activo,
+      openTime:  h.apertura,
+      closeTime: h.cierre,
+    }))
+    await onSubmit(schedule)
     onSaved()
   }
 
@@ -84,17 +129,19 @@ export function ConfigHorarios({ formId, onDirtyChange, onSaved }: Props) {
     setHorarios(hs => hs.map((h, i) => i === idx ? { ...h, ...patch } : h))
   }
 
-  const timeInput = (disabled: boolean): React.CSSProperties => ({
+  const disabled = initialData === null
+
+  const timeInput = (fieldDisabled: boolean): React.CSSProperties => ({
     padding:         '7px 10px',
     borderRadius:    7,
     border:          `1px solid ${t.bordeNeutral.val}`,
-    backgroundColor: disabled ? t.superficie.val : t.superficieContenido.val,
-    color:           disabled ? t.textoInactivo.val : t.textoPrimario.val,
+    backgroundColor: fieldDisabled ? t.superficie.val : t.superficieContenido.val,
+    color:           fieldDisabled ? t.textoInactivo.val : t.textoPrimario.val,
     fontSize:        13,
     fontFamily:      'inherit',
     outline:         'none',
     width:           100,
-    cursor:          disabled ? 'default' : 'pointer',
+    cursor:          fieldDisabled ? 'default' : 'pointer',
     transition:      'border-color 150ms ease-out, background-color 150ms ease-out',
     boxSizing:       'border-box',
   })
@@ -107,6 +154,30 @@ export function ConfigHorarios({ formId, onDirtyChange, onSaved }: Props) {
     textTransform: 'uppercase',
     lineHeight:    1,
     userSelect:    'none',
+  }
+
+  if (disabled) {
+    return (
+      <form
+        id={formId}
+        onSubmit={(e) => e.preventDefault()}
+        style={{ display: 'flex', flexDirection: 'column', gap: 0, opacity: 0.5 }}
+      >
+        <div style={{
+          display:             'grid',
+          gridTemplateColumns: '130px 60px 1fr 1fr',
+          gap:                 12,
+          padding:             '0 0 10px',
+          borderBottom:        `1px solid ${t.divisor.val}`,
+          alignItems:          'center',
+        }}>
+          <span style={headerLabel}>Día</span>
+          <span style={headerLabel}>Abierto</span>
+          <span style={headerLabel}>Apertura</span>
+          <span style={headerLabel}>Cierre</span>
+        </div>
+      </form>
+    )
   }
 
   return (
