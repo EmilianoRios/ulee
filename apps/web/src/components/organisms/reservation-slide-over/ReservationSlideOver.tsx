@@ -5,12 +5,23 @@ import { useTheme } from 'tamagui'
 import { X, Phone, Clock, Banknote, CreditCard } from 'lucide-react'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 
+export type ReservationBackendStatus =
+  | 'deposit_paid'
+  | 'on_court'
+  | 'absent'
+  | 'paid'
+  | 'maintenance'
+  | 'recurring'
+  | 'played'
+  | 'event'
+
 interface ReservationSlideOverProps {
-  reservation:   CalendarReservation | null
-  courts:        Court[]
-  reservations?: CalendarReservation[]
-  now?:          Date
-  onClose:       () => void
+  reservation:     CalendarReservation | null
+  courts:          Court[]
+  reservations?:   CalendarReservation[]
+  now?:            Date
+  onClose:         () => void
+  onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -226,7 +237,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose }: ReservationSlideOverProps) {
+export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose, onUpdateStatus }: ReservationSlideOverProps) {
   const t = useTheme()
 
   const [extendMins,      setExtendMins]      = useState<0 | 30 | 60>(0)
@@ -455,9 +466,17 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />}  selected={selectedPayment === 'mercadopago'} onClick={() => setSelectedPayment(p => p === 'mercadopago' ? null : 'mercadopago')} />
                     </div>
                     {selectedPayment && (
-                      <ActionButton label="Confirmar cobro" onClick={() => {}} variant="primary" />
+                      <ActionButton
+                        label="Confirmar cobro"
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid'); onClose() }}
+                        variant="primary"
+                      />
                     )}
-                    <ActionButton label="Cancelar y retener seña" onClick={() => {}} variant="danger" />
+                    <ActionButton
+                      label="Cancelar y retener seña"
+                      onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                      variant="danger"
+                    />
                   </>
                 )}
 
@@ -535,17 +554,29 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
                 {/* Mantenimiento */}
                 {reservation.state === 'mantenimiento' && (
-                  <ActionButton label="Liberar cancha" onClick={() => {}} variant="danger" />
+                  <ActionButton
+                    label="Liberar cancha"
+                    onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                    variant="danger"
+                  />
                 )}
 
                 {/* Recurrente */}
                 {reservation.state === 'recurrente' && (
-                  <ActionButton label="Cancelar este turno" onClick={() => {}} variant="danger" />
+                  <ActionButton
+                    label="Cancelar este turno"
+                    onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                    variant="danger"
+                  />
                 )}
 
                 {/* Evento */}
                 {reservation.state === 'evento' && (
-                  <ActionButton label="Cancelar evento" onClick={() => {}} variant="danger" />
+                  <ActionButton
+                    label="Cancelar evento"
+                    onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                    variant="danger"
+                  />
                 )}
 
                 {/* Jugado */}
@@ -557,7 +588,11 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />} selected={selectedPayment === 'mercadopago'} onClick={() => setSelectedPayment(p => p === 'mercadopago' ? null : 'mercadopago')} />
                     </div>
                     {selectedPayment && (
-                      <ActionButton label="Confirmar cobro" onClick={() => {}} variant="primary" />
+                      <ActionButton
+                        label="Confirmar cobro"
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid'); onClose() }}
+                        variant="primary"
+                      />
                     )}
                   </>
                 )}

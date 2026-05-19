@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react'
 
 import { ReservationCard }      from '@/components/atoms/reservation-card'
 import { ReservationSlideOver } from '@/components/organisms/reservation-slide-over'
+import type { ReservationBackendStatus } from '@/components/organisms/reservation-slide-over'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -45,15 +46,16 @@ const TIME_LABELS = generateTimeLabels()
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface CalendarDayViewProps {
-  courts:        Court[]
-  reservations:  CalendarReservation[]
-  onSlotClick?:  (courtId: string, time: string) => void
-  mockNow?:      Date
+  courts:           Court[]
+  reservations:     CalendarReservation[]
+  onSlotClick?:     (courtId: string, time: string) => void
+  onUpdateStatus?:  (reservationId: string, status: ReservationBackendStatus) => void
+  mockNow?:         Date
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations, onSlotClick, mockNow }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, onSlotClick, onUpdateStatus, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -330,6 +332,7 @@ export function CalendarDayView({ courts, reservations, onSlotClick, mockNow }: 
         reservations={effectiveReservations}
         now={now}
         onClose={() => setSelected(null)}
+        onUpdateStatus={onUpdateStatus}
       />
     </div>
   )

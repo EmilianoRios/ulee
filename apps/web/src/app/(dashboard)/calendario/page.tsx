@@ -3,9 +3,9 @@
 import { useState, useCallback } from 'react'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { useQuery } from 'convex/react'
+import { useQuery, useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
-import type { Doc } from '@canchero/backend'
+import type { Doc, Id } from '@canchero/backend'
 
 import { CalendarDayView }    from '@/components/organisms/calendar-day-view'
 import { ModuleLayout }       from '@/components/templates/module-layout'
@@ -81,6 +81,8 @@ const D = {
 export default function CalendarioPage() {
   const t = useTheme()
   const { activeVenueId } = useActiveVenue()
+
+  const updateStatus = useMutation(api.functions.reservations.mutations.updateStatus)
 
   const [currentDate,      setCurrentDate]      = useState(() => new Date())
   const [viewMode,         setViewMode]         = useState<CalendarViewMode>('dia')
@@ -397,6 +399,9 @@ export default function CalendarioPage() {
                   setInitialSlotTime(time)
                   setInitialSlotCourt(courtId)
                   setSlideOverOpen(true)
+                }}
+                onUpdateStatus={(reservationId, status) => {
+                  void updateStatus({ reservationId: reservationId as Id<'reservations'>, status })
                 }}
               />
             </div>
