@@ -7,6 +7,7 @@ import { useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
 import type { Court } from '@/components/atoms/reservation-card'
+import { TimeSelect } from '@/components/atoms/time-select'
 
 export type EntryType = 'reserva' | 'mantenimiento' | 'evento' | 'recurrente'
 
@@ -170,24 +171,7 @@ function DateInput({ value, onChange, error }: {
 function TimeInput({ value, onChange, error }: {
   value: string; onChange: (v: string) => void; error?: string
 }) {
-  const t = useTheme()
-  const [focused, setFocused] = useState(false)
-  return (
-    <input
-      type="time"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={{
-        width: '100%', padding: '8px 11px', borderRadius: 7,
-        border: `1.5px solid ${borderColor(t, focused, error)}`,
-        backgroundColor: t.superficieContenido.val, fontSize: 13,
-        color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
-        fontFamily: 'inherit', transition: 'border-color 120ms ease-out',
-      }}
-    />
-  )
+  return <TimeSelect value={value} onChange={onChange} error={error} style={{ width: '100%' }} />
 }
 
 function SelectInput({ value, onChange, options, error }: {
@@ -416,7 +400,6 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       if (!courtId)         errs.courtId   = 'Seleccioná una cancha'
       if (!horaInicio)      errs.horaInicio = 'Requerido'
       if (!horaFin)         errs.horaFin   = 'Requerido'
-      if (!monto)           errs.monto     = 'Ingresá el monto'
     }
     if (type === 'mantenimiento') {
       if (!descripcion.trim()) errs.descripcion = 'La descripción es obligatoria'
@@ -451,6 +434,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
     setSubmitError(null)
     try {
       if (type === 'reserva' || type === 'recurrente') {
+        const hasMonto = monto.trim() !== '' && Number(monto) > 0
         await createReservation({
           venueId,
           courtId:       courtId as Id<'courts'>,
@@ -459,10 +443,10 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           endTime:       horaFin,
           clientName:    cliente,
           clientPhone:   telefono,
-          totalAmount:   Number(monto),
-          status:        STATE_TO_STATUS[estado],
+          totalAmount:   hasMonto ? Number(monto) : 0,
+          status:        hasMonto ? STATE_TO_STATUS[estado] : 'absent',
           notes:         notas || undefined,
-          paymentMethod: paymentMethod,
+          ...(hasMonto ? { paymentMethod } : {}),
         })
       } else if (type === 'mantenimiento') {
         await createReservation({
@@ -549,35 +533,39 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
               {whereWhenBlock}
 
               {/* Pago */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Monto ($)" required error={errors.monto}>
+              <div style={{ display: 'grid', gridTemplateColumns: monto.trim() !== '' && Number(monto) > 0 ? '1fr 1fr' : '1fr', gap: 10 }}>
+                <Field label="Monto ($)" error={errors.monto}>
                   <NumInput value={monto} onChange={setMonto} placeholder="4500" error={errors.monto} />
                 </Field>
-                <Field label="Estado inicial" required>
-                  <RadioGroup
-                    value={estado}
-                    onChange={(v) => setEstado(v as 'señado' | 'pagado')}
-                    options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
-                  />
-                </Field>
+                {monto.trim() !== '' && Number(monto) > 0 && (
+                  <Field label="Estado inicial" required>
+                    <RadioGroup
+                      value={estado}
+                      onChange={(v) => setEstado(v as 'señado' | 'pagado')}
+                      options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
+                    />
+                  </Field>
+                )}
               </div>
 
-              <Field label="Método de pago" required>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <PaymentMethodButton
-                    label="Efectivo"
-                    icon={<Banknote size={14} strokeWidth={2} />}
-                    selected={paymentMethod === 'cash'}
-                    onClick={() => setPaymentMethod('cash')}
-                  />
-                  <PaymentMethodButton
-                    label="Mercado Pago"
-                    icon={<CreditCard size={14} strokeWidth={2} />}
-                    selected={paymentMethod === 'online'}
-                    onClick={() => setPaymentMethod('online')}
-                  />
-                </div>
-              </Field>
+              {monto.trim() !== '' && Number(monto) > 0 && (
+                <Field label="Método de pago" required>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <PaymentMethodButton
+                      label="Efectivo"
+                      icon={<Banknote size={14} strokeWidth={2} />}
+                      selected={paymentMethod === 'cash'}
+                      onClick={() => setPaymentMethod('cash')}
+                    />
+                    <PaymentMethodButton
+                      label="Mercado Pago"
+                      icon={<CreditCard size={14} strokeWidth={2} />}
+                      selected={paymentMethod === 'online'}
+                      onClick={() => setPaymentMethod('online')}
+                    />
+                  </div>
+                </Field>
+              )}
 
               {notasBlock}
             </>

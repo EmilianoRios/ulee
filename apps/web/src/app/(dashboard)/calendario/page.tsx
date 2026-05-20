@@ -6,14 +6,17 @@ import { useTheme } from 'tamagui'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Doc, Id } from '@canchero/backend'
+import type { ScheduleVersion } from '@canchero/backend'
 
 import { CalendarDayView }    from '@/components/organisms/calendar-day-view'
 import { ModuleLayout }       from '@/components/templates/module-layout'
 import { NewEntrySlideOver }  from '@/components/organisms/new-entry-slide-over'
 import type { EntryType }     from '@/components/organisms/new-entry-slide-over'
+import type { ReservationUpdateFields } from '@/components/organisms/reservation-slide-over'
 import type { CalendarViewMode }           from '@/components/molecules/calendar-header'
 import type { Court, CalendarReservation, CalendarReservationState } from '@/components/atoms/reservation-card'
 import { useActiveVenue } from '@/context/active-venue'
+import type { DaySchedule } from '@canchero/backend'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -82,7 +85,10 @@ export default function CalendarioPage() {
   const t = useTheme()
   const { activeVenueId } = useActiveVenue()
 
-  const updateStatus = useMutation(api.functions.reservations.mutations.updateStatus)
+  const updateStatus      = useMutation(api.functions.reservations.mutations.updateStatus)
+  const extendReservation = useMutation(api.functions.reservations.mutations.extendReservation)
+  const updateReservation = useMutation(api.functions.reservations.mutations.updateReservation)
+  const deleteReservation = useMutation(api.functions.reservations.mutations.deleteReservation)
 
   const [currentDate,      setCurrentDate]      = useState(() => new Date())
   const [viewMode,         setViewMode]         = useState<CalendarViewMode>('dia')
@@ -90,6 +96,10 @@ export default function CalendarioPage() {
   const [defaultType,      setDefaultType]      = useState<EntryType>('reserva')
   const [initialSlotTime,  setInitialSlotTime]  = useState<string | undefined>(undefined)
   const [initialSlotCourt, setInitialSlotCourt] = useState<string | undefined>(undefined)
+
+  // Override flow state — driven by extendReservation throwing outside_schedule_override_required
+  const [scheduleOverrideNeeded, setScheduleOverrideNeeded] = useState(false)
+  const [pendingExtendArgs, setPendingExtendArgs] = useState<{ reservationId: string; minutes: 30 | 60 } | null>(null)
 
   const currentDateStr = dateFromDate(currentDate)
 
@@ -132,6 +142,8 @@ export default function CalendarioPage() {
   })) ?? []
 
   const venuePricePerHour = venueRaw?.pricingConfig?.pricePerHour
+  const venueSchedule: DaySchedule[] = venueRaw?.schedule ?? []
+  const venueScheduleHistory: ScheduleVersion[] = venueRaw?.scheduleHistory ?? []
 
   const reservations: CalendarReservation[] = (reservationsRaw ?? []).map((r) => ({
     id:            r._id,
@@ -156,6 +168,23 @@ export default function CalendarioPage() {
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
 
   const isToday = new Date().toDateString() === currentDate.toDateString()
+
+  // ── Override confirm / cancel ──────────────────────────────────────────────
+  const handleExtendConfirmOverride = useCallback(() => {
+    if (!pendingExtendArgs) return
+    setScheduleOverrideNeeded(false)
+    void extendReservation({
+      reservationId:    pendingExtendArgs.reservationId as Id<'reservations'>,
+      additionalMinutes: pendingExtendArgs.minutes,
+      overrideSchedule:  true,
+    }).catch((err) => console.error('extendReservation override failed:', err))
+    setPendingExtendArgs(null)
+  }, [pendingExtendArgs, extendReservation])
+
+  const handleExtendCancelOverride = useCallback(() => {
+    setScheduleOverrideNeeded(false)
+    setPendingExtendArgs(null)
+  }, [])
 
   const navBtn: React.CSSProperties = {
     width:           30,
@@ -407,7 +436,12 @@ export default function CalendarioPage() {
               <CalendarDayView
                 courts={courts}
                 reservations={reservations}
-                mockNow={currentDate}
+                schedule={venueSchedule}
+                scheduleHistory={venueScheduleHistory}
+                selectedDate={currentDate}
+                scheduleOverrideNeeded={scheduleOverrideNeeded}
+                onExtendConfirmOverride={handleExtendConfirmOverride}
+                onExtendCancelOverride={handleExtendCancelOverride}
                 onSlotClick={(courtId, time) => {
                   setDefaultType('reserva')
                   setInitialSlotTime(time)
@@ -422,6 +456,33 @@ export default function CalendarioPage() {
                       ? { paymentMethod, paymentAmount: amount }
                       : {}),
                   })
+                }}
+                onExtend={(reservationId, minutes) => {
+                  setScheduleOverrideNeeded(false)
+                  setPendingExtendArgs(null)
+                  void extendReservation({
+                    reservationId:    reservationId as Id<'reservations'>,
+                    additionalMinutes: minutes,
+                  }).catch((err: unknown) => {
+                    const data = (err as { data?: { code?: string } }).data
+                    if (data?.code === 'outside_schedule_override_required') {
+                      setScheduleOverrideNeeded(true)
+                      setPendingExtendArgs({ reservationId, minutes })
+                    } else {
+                      console.error('extendReservation failed:', err)
+                    }
+                  })
+                }}
+                onUpdate={(reservationId, fields: ReservationUpdateFields) => {
+                  void updateReservation({
+                    reservationId: reservationId as Id<'reservations'>,
+                    ...fields,
+                  }).catch((err) => console.error('updateReservation failed:', err))
+                }}
+                onDelete={(reservationId) => {
+                  void deleteReservation({
+                    reservationId: reservationId as Id<'reservations'>,
+                  }).catch((err) => console.error('deleteReservation failed:', err))
                 }}
               />
             </div>

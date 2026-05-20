@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'tamagui'
+import { TimeSelect } from '@/components/atoms/time-select'
 
 export interface ScheduleEntry {
   dayOfWeek: number   // ISO 8601: 1=Monday … 7=Sunday
@@ -132,20 +133,6 @@ export function ConfigHorarios({ formId, onDirtyChange, onSaved, initialData, on
 
   const disabled = initialData === null
 
-  const timeInput = (fieldDisabled: boolean): React.CSSProperties => ({
-    padding:         '7px 10px',
-    borderRadius:    7,
-    border:          `1px solid ${t.bordeNeutral.val}`,
-    backgroundColor: fieldDisabled ? t.superficie.val : t.superficieContenido.val,
-    color:           fieldDisabled ? t.textoInactivo.val : t.textoPrimario.val,
-    fontSize:        13,
-    fontFamily:      'inherit',
-    outline:         'none',
-    width:           100,
-    cursor:          fieldDisabled ? 'default' : 'pointer',
-    transition:      'border-color 150ms ease-out, background-color 150ms ease-out',
-    boxSizing:       'border-box',
-  })
 
   const headerLabel: React.CSSProperties = {
     fontSize:      11,
@@ -232,24 +219,16 @@ export function ConfigHorarios({ formId, onDirtyChange, onSaved, initialData, on
             onChange={(v) => update(i, { activo: v })}
           />
 
-          <input
-            type="time"
+          <TimeSelect
             value={h.apertura}
             disabled={!h.activo}
-            onChange={(e) => update(i, { apertura: e.target.value })}
-            style={timeInput(!h.activo)}
-            onFocus={(e) => { if (h.activo) e.currentTarget.style.borderColor = t.verdeCancha.val }}
-            onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
+            onChange={(v) => update(i, { apertura: v })}
           />
 
-          <input
-            type="time"
+          <TimeSelect
             value={h.cierre}
             disabled={!h.activo}
-            onChange={(e) => update(i, { cierre: e.target.value })}
-            style={timeInput(!h.activo)}
-            onFocus={(e) => { if (h.activo) e.currentTarget.style.borderColor = t.verdeCancha.val }}
-            onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
+            onChange={(v) => update(i, { cierre: v })}
           />
         </div>
       ))}

@@ -1,6 +1,8 @@
 import { mutation } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
+import { addDays } from '../../lib/schedule'
+import type { ScheduleVersion } from '../../lib/schedule'
 import type { MutationCtx } from '../../_generated/server'
 import type { Id } from '../../_generated/dataModel'
 
@@ -137,13 +139,35 @@ export const update = mutation({
 
 export const updateSchedule = mutation({
   args: {
-    venueId: v.id('venues'),
+    venueId:  v.id('venues'),
     schedule: v.array(dayScheduleValidator),
   },
   handler: async (ctx, args) => {
     const identity = await getCurrentUser(ctx)
     await assertVenueAccess(ctx, args.venueId, identity.subject)
-    await ctx.db.patch(args.venueId, { schedule: args.schedule })
+
+    const venue = await ctx.db.get(args.venueId)
+    if (!venue) throw new ConvexError('venue_not_found')
+
+    const today    = new Date().toISOString().slice(0, 10)
+    const tomorrow = addDays(today, 1)
+
+    const existing: ScheduleVersion[] = venue.scheduleHistory ?? []
+
+    // Close the currently active entry (the one without validTo)
+    const updated: ScheduleVersion[] = existing.map((entry) =>
+      entry.validTo === undefined
+        ? { ...entry, validTo: tomorrow }
+        : entry
+    )
+
+    // Append new entry starting tomorrow
+    updated.push({ validFrom: tomorrow, schedule: args.schedule })
+
+    await ctx.db.patch(args.venueId, {
+      schedule:        args.schedule,
+      scheduleHistory: updated,
+    })
   },
 })
 

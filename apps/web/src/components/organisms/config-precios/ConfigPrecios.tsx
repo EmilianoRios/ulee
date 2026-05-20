@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'tamagui'
+import { TimeSelect } from '@/components/atoms/time-select'
 
 type PolicyType = 'cancha' | 'seña' | 'completo'
 
@@ -263,12 +264,6 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved, initialData, onS
     textAlign: 'right',
   }
 
-  const timeInput: React.CSSProperties = {
-    ...inputBase,
-    width:  120,
-    cursor: disabled ? 'default' : 'pointer',
-  }
-
   return (
     <form
       id={formId}
@@ -321,14 +316,11 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved, initialData, onS
           label="Inicio del horario nocturno"
           hint="A partir de este horario se aplica la tarifa nocturna automáticamente."
         >
-          <input
-            type="time"
+          <TimeSelect
             value={form.inicioNocturno}
             disabled={disabled}
-            onChange={(e) => setForm(f => ({ ...f, inicioNocturno: e.target.value }))}
-            style={timeInput}
-            onFocus={(e) => { if (!disabled) e.currentTarget.style.borderColor = t.verdeCancha.val }}
-            onBlur={(e)  => { e.currentTarget.style.borderColor = t.bordeNeutral.val }}
+            onChange={(v) => setForm(f => ({ ...f, inicioNocturno: v }))}
+            style={{ width: 120 }}
           />
         </FormField>
       </Section>

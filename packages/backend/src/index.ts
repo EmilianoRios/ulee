@@ -1,2 +1,5 @@
 export { api, internal } from '../convex/_generated/api'
 export type { Doc, Id } from '../convex/_generated/dataModel'
+export type { DaySchedule } from '../convex/lib/conflicts'
+export { resolveScheduleForDate, addDays } from '../convex/lib/schedule'
+export type { ScheduleVersion } from '../convex/lib/schedule'

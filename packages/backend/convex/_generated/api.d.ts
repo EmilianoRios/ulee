@@ -21,7 +21,9 @@ import type * as functions_venues_mutations from "../functions/venues/mutations.
 import type * as functions_venues_queries from "../functions/venues/queries.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_conflicts from "../lib/conflicts.js";
+import type * as lib_dates from "../lib/dates.js";
 import type * as lib_payments from "../lib/payments.js";
+import type * as lib_schedule from "../lib/schedule.js";
 import type * as lib_time from "../lib/time.js";
 import type * as lib_users from "../lib/users.js";
 
@@ -45,7 +47,9 @@ declare const fullApi: ApiFromModules<{
   "functions/venues/queries": typeof functions_venues_queries;
   "lib/auth": typeof lib_auth;
   "lib/conflicts": typeof lib_conflicts;
+  "lib/dates": typeof lib_dates;
   "lib/payments": typeof lib_payments;
+  "lib/schedule": typeof lib_schedule;
   "lib/time": typeof lib_time;
   "lib/users": typeof lib_users;
 }>;

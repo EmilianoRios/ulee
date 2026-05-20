@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'tamagui'
 import { X, Phone, Clock, Banknote, CreditCard } from 'lucide-react'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
+import { TimeSelect } from '@/components/atoms/time-select'
 
 export type ReservationBackendStatus =
   | 'deposit_paid'
@@ -15,6 +16,15 @@ export type ReservationBackendStatus =
   | 'played'
   | 'event'
 
+export interface ReservationUpdateFields {
+  startTime?:   string
+  endTime?:     string
+  clientName?:  string
+  clientPhone?: string
+  totalAmount?: number
+  notes?:       string
+}
+
 interface ReservationSlideOverProps {
   reservation:     CalendarReservation | null
   courts:          Court[]
@@ -22,6 +32,9 @@ interface ReservationSlideOverProps {
   now?:            Date
   onClose:         () => void
   onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus, paymentMethod?: 'cash' | 'online', amount?: number) => void
+  onExtend?:       (reservationId: string, additionalMinutes: 30 | 60) => void
+  onUpdate?:       (reservationId: string, fields: ReservationUpdateFields) => void
+  onDelete?:       (reservationId: string) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -235,13 +248,107 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ─── Inline edit form (private) ───────────────────────────────────────────────
+
+function EditForm({ reservation, fields, onChange, onConfirm, onCancel }: {
+  reservation: CalendarReservation
+  fields:      ReservationUpdateFields
+  onChange:    (f: ReservationUpdateFields) => void
+  onConfirm:   () => void
+  onCancel:    () => void
+}) {
+  const t = useTheme()
+
+  const inputStyle: React.CSSProperties = {
+    width:           '100%',
+    padding:         '7px 10px',
+    borderRadius:    6,
+    border:          `1px solid ${t.bordeNeutral.val}`,
+    backgroundColor: t.superficie.val,
+    color:           t.textoPrimario.val,
+    fontSize:        13,
+    fontFamily:      'inherit',
+    outline:         'none',
+    boxSizing:       'border-box',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 500,
+    color: t.textoMuted.val,
+    marginBottom: 4,
+    display: 'block',
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <SectionLabel>Editar reserva</SectionLabel>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Inicio</label>
+          <TimeSelect
+            value={fields.startTime ?? reservation.startTime}
+            onChange={(v) => onChange({ ...fields, startTime: v })}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Fin</label>
+          <TimeSelect
+            value={fields.endTime ?? reservation.endTime}
+            onChange={(v) => onChange({ ...fields, endTime: v })}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label style={labelStyle}>Cliente</label>
+        <input
+          type="text"
+          style={inputStyle}
+          defaultValue={reservation.clientName}
+          onChange={(e) => onChange({ ...fields, clientName: e.target.value || undefined })}
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Teléfono</label>
+        <input
+          type="text"
+          style={inputStyle}
+          defaultValue={reservation.phone ?? ''}
+          onChange={(e) => onChange({ ...fields, clientPhone: e.target.value || undefined })}
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Total</label>
+        <input
+          type="number"
+          style={inputStyle}
+          defaultValue={reservation.amount}
+          onChange={(e) => onChange({ ...fields, totalAmount: e.target.value ? Number(e.target.value) : undefined })}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+        <ActionButton label="Guardar cambios" onClick={onConfirm} variant="primary" />
+        <ActionButton label="Cancelar" onClick={onCancel} variant="secondary" />
+      </div>
+    </div>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose, onUpdateStatus }: ReservationSlideOverProps) {
+export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose, onUpdateStatus, onExtend, onUpdate, onDelete }: ReservationSlideOverProps) {
   const t = useTheme()
 
   const [extendMins,      setExtendMins]      = useState<0 | 30 | 60>(0)
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'online' | null>(null)
+  const [isEditing,       setIsEditing]       = useState(false)
+  const [editFields,      setEditFields]      = useState<ReservationUpdateFields>({})
+  const [deleteConfirm,   setDeleteConfirm]   = useState(false)
 
   useEffect(() => {
     if (!reservation) return
@@ -250,10 +357,13 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     return () => document.removeEventListener('keydown', handleKey)
   }, [reservation, onClose])
 
-  // Reset selections when reservation changes
+  // Reset all state when reservation changes
   useEffect(() => {
     setExtendMins(0)
     setSelectedPayment(null)
+    setIsEditing(false)
+    setEditFields({})
+    setDeleteConfirm(false)
   }, [reservation?.id])
 
   const isOpen = reservation !== null
@@ -272,6 +382,10 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
   const extraCharge  = reservation && durationMins > 0 ? Math.round(reservation.amount / durationMins * extendMins) : 0
   const newEndTime   = reservation && extendMins > 0 ? addMins(reservation.endTime, extendMins) : ''
+
+  // Edit/delete visibility guards (based on display state)
+  const canEdit   = reservation?.state === 'señado' || reservation?.state === 'pagado' || reservation?.state === 'ausente'
+  const canDelete = reservation?.state === 'ausente'
 
   const statePalette = reservation ? ({
     señado:        { bg: t.acentoTerrazaClaro.val, color: t.acentoTerraza.val,       border: 'oklch(84% 0.07 42)'  },
@@ -457,8 +571,67 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
               {/* ── Actions ──────────────────────────────────────────────────── */}
               <div style={{ padding: '20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
+                {/* ── Edit / Delete controls ──────────────────────────────────── */}
+                {!isEditing && !deleteConfirm && (canEdit || canDelete) && (
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                    {canEdit && (
+                      <ActionButton
+                        label="Editar"
+                        onClick={() => setIsEditing(true)}
+                        variant="secondary"
+                      />
+                    )}
+                    {canDelete && (
+                      <ActionButton
+                        label="Eliminar reserva"
+                        onClick={() => setDeleteConfirm(true)}
+                        variant="danger"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* ── Edit form ────────────────────────────────────────────────── */}
+                {isEditing && (
+                  <EditForm
+                    reservation={reservation}
+                    fields={editFields}
+                    onChange={setEditFields}
+                    onConfirm={() => {
+                      onUpdate?.(reservation.id, editFields)
+                      setIsEditing(false)
+                      setEditFields({})
+                    }}
+                    onCancel={() => {
+                      setIsEditing(false)
+                      setEditFields({})
+                    }}
+                  />
+                )}
+
+                {/* ── Delete confirmation ──────────────────────────────────────── */}
+                {deleteConfirm && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: t.textoMuted.val, lineHeight: 1.4 }}>
+                      ¿Confirmás la eliminación? Esta acción no se puede deshacer.
+                    </span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <ActionButton
+                        label="Confirmar eliminación"
+                        onClick={() => { onDelete?.(reservation.id); onClose() }}
+                        variant="danger"
+                      />
+                      <ActionButton
+                        label="Cancelar"
+                        onClick={() => setDeleteConfirm(false)}
+                        variant="secondary"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Señado */}
-                {reservation.state === 'señado' && (
+                {reservation.state === 'señado' && !isEditing && !deleteConfirm && (
                   <>
                     <SectionLabel>Método de cobro</SectionLabel>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -486,7 +659,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 )}
 
                 {/* En cancha */}
-                {reservation.state === 'en-cancha' && (
+                {reservation.state === 'en-cancha' && !isEditing && !deleteConfirm && (
                   <>
                     <div style={{ marginBottom: 4 }}>
                       <SectionLabel>Extender reserva</SectionLabel>
@@ -522,14 +695,21 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         <p style={{ margin: 0, fontSize: 11, color: t.textoMuted.val, lineHeight: 1.4 }}>
                           El cargo se cobra al finalizar el turno extendido.
                         </p>
-                        <ActionButton label="Confirmar extensión" onClick={() => setExtendMins(0)} variant="secondary" />
+                        <ActionButton
+                          label="Confirmar extensión"
+                          onClick={() => {
+                            onExtend?.(reservation.id, extendMins as 30 | 60)
+                            setExtendMins(0)
+                          }}
+                          variant="secondary"
+                        />
                       </div>
                     )}
                   </>
                 )}
 
                 {/* Ausente — estado final, sin acciones adicionales */}
-                {reservation.state === 'ausente' && (
+                {reservation.state === 'ausente' && !isEditing && !deleteConfirm && (
                   <div style={{
                     padding:         '10px 14px',
                     backgroundColor: t.fondoHover.val,

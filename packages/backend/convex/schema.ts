@@ -13,6 +13,13 @@ const daySchedule = v.object({
   closeTime: v.string(), // "HH:MM"
 })
 
+// Versioned schedule entry — one per schedule change, append-only
+const scheduleVersion = v.object({
+  validFrom: v.string(),            // "YYYY-MM-DD" inclusive
+  validTo:   v.optional(v.string()), // "YYYY-MM-DD" exclusive; undefined = currently active
+  schedule:  v.array(daySchedule),
+})
+
 // Pricing configuration for a venue (inheritable by courts)
 const pricingConfig = v.object({
   pricePerHour: v.number(),                  // ARS float pesos — NOT cents
@@ -84,6 +91,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     logoUrl: v.optional(v.string()),
     schedule: v.array(daySchedule),        // 7 entries, one per day
+    scheduleHistory: v.optional(v.array(scheduleVersion)), // append-only version log
     holidays: v.optional(v.array(v.object({
       date: v.string(),    // "YYYY-MM-DD"
       reason: v.string(),
