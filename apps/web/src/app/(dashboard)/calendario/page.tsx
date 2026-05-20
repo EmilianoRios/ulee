@@ -8,6 +8,7 @@ import { api } from '@canchero/backend'
 import type { Doc, Id } from '@canchero/backend'
 import type { ScheduleVersion } from '@canchero/backend'
 
+import { CalendarMiniPicker } from '@/components/molecules/calendar-mini-picker'
 import { CalendarDayView }    from '@/components/organisms/calendar-day-view'
 import { ModuleLayout }       from '@/components/templates/module-layout'
 import { NewEntrySlideOver }  from '@/components/organisms/new-entry-slide-over'
@@ -141,7 +142,9 @@ export default function CalendarioPage() {
     priceOverride:  c.priceOverride ?? undefined,
   })) ?? []
 
-  const venuePricePerHour = venueRaw?.pricingConfig?.pricePerHour
+  const venuePricePerHour  = venueRaw?.pricingConfig?.pricePerHour
+  const venueNightRate      = venueRaw?.pricingConfig?.nightRatePrice
+  const venueNightRateStart = venueRaw?.pricingConfig?.nightRateStart
   const venueSchedule: DaySchedule[] = venueRaw?.schedule ?? []
   const venueScheduleHistory: ScheduleVersion[] = venueRaw?.scheduleHistory ?? []
 
@@ -416,15 +419,6 @@ export default function CalendarioPage() {
                 Seleccioná una sede para ver el calendario
               </span>
             </div>
-          ) : isLoading ? (
-            <div style={{
-              flex:           1,
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-            }}>
-              <span style={{ fontSize: 14, color: t.textoMuted.val }}>Cargando...</span>
-            </div>
           ) : (
             <div style={{
               flex:         1,
@@ -432,59 +426,78 @@ export default function CalendarioPage() {
               borderRadius: 7,
               border:       `1px solid ${t.bordeNeutral.val}`,
               overflow:     'hidden',
+              display:      'flex',
             }}>
-              <CalendarDayView
-                courts={courts}
-                reservations={reservations}
-                schedule={venueSchedule}
-                scheduleHistory={venueScheduleHistory}
+              <CalendarMiniPicker
                 selectedDate={currentDate}
-                scheduleOverrideNeeded={scheduleOverrideNeeded}
-                onExtendConfirmOverride={handleExtendConfirmOverride}
-                onExtendCancelOverride={handleExtendCancelOverride}
-                onSlotClick={(courtId, time) => {
-                  setDefaultType('reserva')
-                  setInitialSlotTime(time)
-                  setInitialSlotCourt(courtId)
-                  setSlideOverOpen(true)
-                }}
-                onUpdateStatus={(reservationId, status, paymentMethod, amount) => {
-                  void updateStatus({
-                    reservationId: reservationId as Id<'reservations'>,
-                    status,
-                    ...(paymentMethod !== undefined && amount !== undefined
-                      ? { paymentMethod, paymentAmount: amount }
-                      : {}),
-                  })
-                }}
-                onExtend={(reservationId, minutes) => {
-                  setScheduleOverrideNeeded(false)
-                  setPendingExtendArgs(null)
-                  void extendReservation({
-                    reservationId:    reservationId as Id<'reservations'>,
-                    additionalMinutes: minutes,
-                  }).catch((err: unknown) => {
-                    const data = (err as { data?: { code?: string } }).data
-                    if (data?.code === 'outside_schedule_override_required') {
-                      setScheduleOverrideNeeded(true)
-                      setPendingExtendArgs({ reservationId, minutes })
-                    } else {
-                      console.error('extendReservation failed:', err)
-                    }
-                  })
-                }}
-                onUpdate={(reservationId, fields: ReservationUpdateFields) => {
-                  void updateReservation({
-                    reservationId: reservationId as Id<'reservations'>,
-                    ...fields,
-                  }).catch((err) => console.error('updateReservation failed:', err))
-                }}
-                onDelete={(reservationId) => {
-                  void deleteReservation({
-                    reservationId: reservationId as Id<'reservations'>,
-                  }).catch((err) => console.error('deleteReservation failed:', err))
-                }}
+                onSelectDate={setCurrentDate}
               />
+
+              {isLoading ? (
+                <div style={{
+                  flex:           1,
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: 14, color: t.textoMuted.val }}>Cargando...</span>
+                </div>
+              ) : (
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <CalendarDayView
+                    courts={courts}
+                    reservations={reservations}
+                    schedule={venueSchedule}
+                    scheduleHistory={venueScheduleHistory}
+                    selectedDate={currentDate}
+                    scheduleOverrideNeeded={scheduleOverrideNeeded}
+                    onExtendConfirmOverride={handleExtendConfirmOverride}
+                    onExtendCancelOverride={handleExtendCancelOverride}
+                    onSlotClick={(courtId, time) => {
+                      setDefaultType('reserva')
+                      setInitialSlotTime(time)
+                      setInitialSlotCourt(courtId)
+                      setSlideOverOpen(true)
+                    }}
+                    onUpdateStatus={(reservationId, status, paymentMethod, amount) => {
+                      void updateStatus({
+                        reservationId: reservationId as Id<'reservations'>,
+                        status,
+                        ...(paymentMethod !== undefined && amount !== undefined
+                          ? { paymentMethod, paymentAmount: amount }
+                          : {}),
+                      })
+                    }}
+                    onExtend={(reservationId, minutes) => {
+                      setScheduleOverrideNeeded(false)
+                      setPendingExtendArgs(null)
+                      void extendReservation({
+                        reservationId:    reservationId as Id<'reservations'>,
+                        additionalMinutes: minutes,
+                      }).catch((err: unknown) => {
+                        const data = (err as { data?: { code?: string } }).data
+                        if (data?.code === 'outside_schedule_override_required') {
+                          setScheduleOverrideNeeded(true)
+                          setPendingExtendArgs({ reservationId, minutes })
+                        } else {
+                          console.error('extendReservation failed:', err)
+                        }
+                      })
+                    }}
+                    onUpdate={(reservationId, fields: ReservationUpdateFields) => {
+                      void updateReservation({
+                        reservationId: reservationId as Id<'reservations'>,
+                        ...fields,
+                      }).catch((err) => console.error('updateReservation failed:', err))
+                    }}
+                    onDelete={(reservationId) => {
+                      void deleteReservation({
+                        reservationId: reservationId as Id<'reservations'>,
+                      }).catch((err) => console.error('deleteReservation failed:', err))
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -499,6 +512,8 @@ export default function CalendarioPage() {
         initialDate={currentDate}
         venueId={activeVenueId}
         venuePricePerHour={venuePricePerHour}
+        venueNightRate={venueNightRate}
+        venueNightRateStart={venueNightRateStart}
         onClose={() => setSlideOverOpen(false)}
       />
     </>

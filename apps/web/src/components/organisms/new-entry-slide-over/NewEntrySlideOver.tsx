@@ -12,15 +12,17 @@ import { TimeSelect } from '@/components/atoms/time-select'
 export type EntryType = 'reserva' | 'mantenimiento' | 'evento' | 'recurrente'
 
 interface NewEntrySlideOverProps {
-  open:                boolean
-  defaultType?:        EntryType
-  initialTime?:        string
-  initialCourtId?:     string
-  courts:              Court[]
-  initialDate:         Date
-  venueId:             Id<'venues'> | null
-  venuePricePerHour?:  number
-  onClose:             () => void
+  open:                 boolean
+  defaultType?:         EntryType
+  initialTime?:         string
+  initialCourtId?:      string
+  courts:               Court[]
+  initialDate:          Date
+  venueId:              Id<'venues'> | null
+  venuePricePerHour?:   number
+  venueNightRate?:      number
+  venueNightRateStart?: string
+  onClose:              () => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -76,15 +78,30 @@ function borderColor(t: ReturnType<typeof useTheme>, focused: boolean, error?: s
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
-function Field({ label, required, error, children }: {
-  label: string; required?: boolean; error?: string; children: React.ReactNode
+function Field({ label, required, error, badge, children }: {
+  label: string; required?: boolean; error?: string; badge?: string; children: React.ReactNode
 }) {
   const t = useTheme()
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: t.textoMuted.val, marginBottom: 5, letterSpacing: '0.02em' }}>
-        {label}
-        {required && <span style={{ color: 'oklch(55% 0.18 25)', marginLeft: 2 }}>*</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: t.textoMuted.val, letterSpacing: '0.02em' }}>
+          {label}
+          {required && <span style={{ color: 'oklch(55% 0.18 25)', marginLeft: 2 }}>*</span>}
+        </span>
+        {badge && (
+          <span style={{
+            fontSize: 10, fontWeight: 600, lineHeight: 1,
+            padding: '2px 6px', borderRadius: 4,
+            backgroundColor: 'oklch(22% 0.04 255 / 0.08)',
+            color: 'oklch(55% 0.12 255)',
+            border: '1px solid oklch(55% 0.12 255 / 0.25)',
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap',
+          }}>
+            {badge}
+          </span>
+        )}
       </div>
       {children}
       {error && (
@@ -329,15 +346,17 @@ function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin }:
 
 // ─── Form content ─────────────────────────────────────────────────────────────
 
-function FormContent({ type, courts, initialDate, initialTime, initialCourtId, venueId, venuePricePerHour, onClose }: {
-  type:                EntryType
-  courts:              Court[]
-  initialDate:         Date
-  initialTime?:        string
-  initialCourtId?:     string
-  venueId:             Id<'venues'> | null
-  venuePricePerHour?:  number
-  onClose:             () => void
+function FormContent({ type, courts, initialDate, initialTime, initialCourtId, venueId, venuePricePerHour, venueNightRate, venueNightRateStart, onClose }: {
+  type:                 EntryType
+  courts:               Court[]
+  initialDate:          Date
+  initialTime?:         string
+  initialCourtId?:      string
+  venueId:              Id<'venues'> | null
+  venuePricePerHour?:   number
+  venueNightRate?:      number
+  venueNightRateStart?: string
+  onClose:              () => void
 }) {
   const t = useTheme()
 
@@ -372,18 +391,34 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [nombreEvento, setNombreEvento] = useState('')
   const [montoEvento,  setMontoEvento]  = useState('')
 
-  // Auto-fill monto based on court price + duration
+  const [rateMode, setRateMode] = useState<'day' | 'mixed' | 'night'>('day')
+
+  // Auto-fill monto splitting the slot into day/night tramos when applicable
   useEffect(() => {
     if (type !== 'reserva' && type !== 'recurrente') return
-    const court        = courts.find((c) => c.id === courtId)
-    const pricePerHour = court?.priceOverride ?? venuePricePerHour
-    if (!pricePerHour) return
+    const court   = courts.find((c) => c.id === courtId)
+    const dayRate = court?.priceOverride ?? venuePricePerHour
+    if (!dayRate) return
     const [sh, sm] = horaInicio.split(':').map(Number)
     const [eh, em] = horaFin.split(':').map(Number)
-    const durationMins = (eh * 60 + em) - (sh * 60 + sm)
-    if (durationMins <= 0) return
-    setMonto(String(Math.round(pricePerHour * durationMins / 60)))
-  }, [courtId, horaInicio, horaFin, courts, venuePricePerHour, type])
+    const startMin = sh * 60 + sm
+    const endMin   = eh * 60 + em
+    const totalMin = endMin - startMin
+    if (totalMin <= 0) return
+
+    if (venueNightRate && venueNightRateStart) {
+      const [nh, nm]  = venueNightRateStart.split(':').map(Number)
+      const nightMin  = nh * 60 + nm
+      const dayPart   = Math.max(0, Math.min(endMin, nightMin) - startMin)
+      const nightPart = Math.max(0, endMin - Math.max(startMin, nightMin))
+      const total     = Math.round(dayRate * dayPart / 60 + venueNightRate * nightPart / 60)
+      setRateMode(dayPart === 0 ? 'night' : nightPart === 0 ? 'day' : 'mixed')
+      setMonto(String(total))
+    } else {
+      setRateMode('day')
+      setMonto(String(Math.round(dayRate * totalMin / 60)))
+    }
+  }, [courtId, horaInicio, horaFin, courts, venuePricePerHour, venueNightRate, venueNightRateStart, type])
 
   // Recurrente
   const [frecuencia,     setFrecuencia]     = useState<'semanal' | 'mensual' | 'anual'>('semanal')
@@ -534,7 +569,11 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
               {/* Pago */}
               <div style={{ display: 'grid', gridTemplateColumns: monto.trim() !== '' && Number(monto) > 0 ? '1fr 1fr' : '1fr', gap: 10 }}>
-                <Field label="Monto ($)" error={errors.monto}>
+                <Field
+                  label="Monto ($)"
+                  error={errors.monto}
+                  badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
+                >
                   <NumInput value={monto} onChange={setMonto} placeholder="4500" error={errors.monto} />
                 </Field>
                 {monto.trim() !== '' && Number(monto) > 0 && (
@@ -703,7 +742,12 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
               {/* Pago */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Monto por turno ($)" required error={errors.monto}>
+                <Field
+                  label="Monto por turno ($)"
+                  required
+                  error={errors.monto}
+                  badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
+                >
                   <NumInput value={monto} onChange={setMonto} placeholder="9600" error={errors.monto} />
                 </Field>
                 <Field label="Estado inicial" required>
@@ -787,7 +831,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
 export function NewEntrySlideOver({
   open, defaultType = 'reserva', initialTime, initialCourtId,
-  courts, initialDate, venueId, venuePricePerHour, onClose,
+  courts, initialDate, venueId, venuePricePerHour, venueNightRate, venueNightRateStart, onClose,
 }: NewEntrySlideOverProps) {
   const t = useTheme()
 
@@ -924,6 +968,8 @@ export function NewEntrySlideOver({
               initialCourtId={initialCourtId}
               venueId={venueId}
               venuePricePerHour={venuePricePerHour}
+              venueNightRate={venueNightRate}
+              venueNightRateStart={venueNightRateStart}
               onClose={onClose}
             />
           </>
