@@ -21,7 +21,7 @@ interface ReservationSlideOverProps {
   reservations?:   CalendarReservation[]
   now?:            Date
   onClose:         () => void
-  onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus) => void
+  onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus, paymentMethod?: 'cash' | 'online', amount?: number) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const t = useTheme()
 
   const [extendMins,      setExtendMins]      = useState<0 | 30 | 60>(0)
-  const [selectedPayment, setSelectedPayment] = useState<'efectivo' | 'mercadopago' | null>(null)
+  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'online' | null>(null)
 
   useEffect(() => {
     if (!reservation) return
@@ -462,16 +462,21 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   <>
                     <SectionLabel>Método de cobro</SectionLabel>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <PaymentMethodButton label="Efectivo"     icon={<Banknote size={14} strokeWidth={2} />}    selected={selectedPayment === 'efectivo'}    onClick={() => setSelectedPayment(p => p === 'efectivo'    ? null : 'efectivo')}    />
-                      <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />}  selected={selectedPayment === 'mercadopago'} onClick={() => setSelectedPayment(p => p === 'mercadopago' ? null : 'mercadopago')} />
+                      <PaymentMethodButton label="Efectivo"     icon={<Banknote size={14} strokeWidth={2} />}    selected={selectedPayment === 'cash'}    onClick={() => setSelectedPayment(p => p === 'cash'    ? null : 'cash')}    />
+                      <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />}  selected={selectedPayment === 'online'} onClick={() => setSelectedPayment(p => p === 'online' ? null : 'online')} />
                     </div>
-                    {selectedPayment && (
-                      <ActionButton
-                        label="Confirmar cobro"
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid'); onClose() }}
-                        variant="primary"
-                      />
-                    )}
+                    {selectedPayment && (() => {
+                      const pendingBalance = reservation.depositAmount != null
+                        ? reservation.amount - reservation.depositAmount
+                        : reservation.amount
+                      return (
+                        <ActionButton
+                          label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
+                          onClick={() => { onUpdateStatus?.(reservation.id, 'paid', selectedPayment ?? undefined, pendingBalance); onClose() }}
+                          variant="primary"
+                        />
+                      )
+                    })()}
                     <ActionButton
                       label="Cancelar y retener seña"
                       onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
@@ -584,13 +589,13 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   <>
                     <SectionLabel>Método de cobro</SectionLabel>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <PaymentMethodButton label="Efectivo"     icon={<Banknote size={14} strokeWidth={2} />}   selected={selectedPayment === 'efectivo'}    onClick={() => setSelectedPayment(p => p === 'efectivo'    ? null : 'efectivo')}    />
-                      <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />} selected={selectedPayment === 'mercadopago'} onClick={() => setSelectedPayment(p => p === 'mercadopago' ? null : 'mercadopago')} />
+                      <PaymentMethodButton label="Efectivo"     icon={<Banknote size={14} strokeWidth={2} />}   selected={selectedPayment === 'cash'}    onClick={() => setSelectedPayment(p => p === 'cash'    ? null : 'cash')}    />
+                      <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />} selected={selectedPayment === 'online'} onClick={() => setSelectedPayment(p => p === 'online' ? null : 'online')} />
                     </div>
                     {selectedPayment && (
                       <ActionButton
                         label="Confirmar cobro"
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid'); onClose() }}
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', selectedPayment ?? undefined, reservation.amount); onClose() }}
                         variant="primary"
                       />
                     )}

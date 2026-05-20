@@ -49,7 +49,10 @@ export default defineSchema({
       v.literal('customer'),
     ),
     avatarUrl: v.optional(v.string()),
-  }).index('by_clerkId', ['clerkId']),
+    onboardingCompleted: v.optional(v.boolean()),
+  })
+    .index('by_clerkId', ['clerkId'])
+    .index('by_email', ['email']),
 
   // -------------------------------------------------------------------------
   // venueAccess — M2M between users and venues with a role qualifier
@@ -62,6 +65,7 @@ export default defineSchema({
       v.literal('employee'),
       v.literal('manager'),
     ),
+    status: v.optional(v.union(v.literal('pending'), v.literal('active'))),
   })
     .index('by_userId', ['userId'])
     .index('by_venueId', ['venueId'])
@@ -134,6 +138,7 @@ export default defineSchema({
       v.literal('event'),              // evento especial
     ),
     totalAmount: v.number(),           // ARS float pesos — NOT cents
+    depositAmount: v.optional(v.number()), // ARS float, frozen at creation — NOT cents
     notes: v.optional(v.string()),
     seriesId: v.optional(v.id('recurrenceSeries')),
     createdByUserId: v.optional(v.id('users')),
@@ -148,8 +153,7 @@ export default defineSchema({
 
   // -------------------------------------------------------------------------
   // payments
-  // Separate table (not embedded) for MercadoPago transaction IDs + audit trail.
-  // mercadopagoTransactionId uniqueness enforced at mutation layer —
+  // externalTransactionId uniqueness enforced at mutation layer —
   // Convex schema has no native unique constraint.
   // -------------------------------------------------------------------------
   payments: defineTable({
@@ -162,9 +166,9 @@ export default defineSchema({
     amount: v.number(),                // ARS float pesos — NOT cents
     method: v.union(
       v.literal('cash'),
-      v.literal('mercadopago'),
+      v.literal('online'),
     ),
-    mercadopagoTransactionId: v.optional(v.string()),
+    externalTransactionId: v.optional(v.string()),
     status: v.union(
       v.literal('pending'),
       v.literal('completed'),
@@ -174,7 +178,7 @@ export default defineSchema({
     timestamp: v.number(),             // Unix ms
   })
     .index('by_reservationId', ['reservationId'])
-    .index('by_mercadopagoTransactionId', ['mercadopagoTransactionId']),
+    .index('by_externalTransactionId', ['externalTransactionId']),
 
   // -------------------------------------------------------------------------
   // recurrenceSeries

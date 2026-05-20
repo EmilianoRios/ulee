@@ -2,6 +2,7 @@ import { mutation, MutationCtx } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
 import { hasConflict } from '../../lib/conflicts'
+import { resolvePaymentType } from '../../lib/payments'
 import type { Id } from '../../_generated/dataModel'
 
 // ---------------------------------------------------------------------------
@@ -61,7 +62,8 @@ export const create = mutation({
       v.literal('played'),
       v.literal('event'),
     )),
-    notes: v.optional(v.string()),
+    notes:         v.optional(v.string()),
+    paymentMethod: v.optional(v.union(v.literal('cash'), v.literal('online'))),
   },
   handler: async (ctx, args) => {
     const user = await assertVenueAccess(ctx, args.venueId)
@@ -84,7 +86,19 @@ export const create = mutation({
       throw new ConvexError('time_conflict')
     }
 
-    return await ctx.db.insert('reservations', {
+    const status = args.status ?? 'deposit_paid'
+
+    // Compute and freeze depositAmount when the reservation starts as paid or señado
+    let depositAmount: number | undefined
+    if (status === 'deposit_paid' || status === 'paid') {
+      const venue = await ctx.db.get(args.venueId)
+      const pct   = venue?.pricingConfig?.depositPercentage ?? 50
+      depositAmount = status === 'paid'
+        ? args.totalAmount
+        : Math.round(args.totalAmount * pct / 100)
+    }
+
+    const reservationId = await ctx.db.insert('reservations', {
       venueId:         args.venueId,
       courtId:         args.courtId,
       date:            args.date,
@@ -93,16 +107,42 @@ export const create = mutation({
       clientName:      args.clientName,
       clientPhone:     args.clientPhone,
       totalAmount:     args.totalAmount,
-      status:          args.status ?? 'deposit_paid',
+      depositAmount,
+      status,
       notes:           args.notes,
       createdByUserId: user._id,
     })
+
+    // Insert payment record when a payment method is provided
+    if (args.paymentMethod !== undefined && depositAmount !== undefined) {
+      if (status === 'deposit_paid') {
+        await ctx.db.insert('payments', {
+          reservationId,
+          type:      'deposit',
+          amount:    depositAmount,
+          method:    args.paymentMethod,
+          status:    'completed',
+          timestamp: Date.now(),
+        })
+      } else if (status === 'paid') {
+        await ctx.db.insert('payments', {
+          reservationId,
+          type:      'full',
+          amount:    args.totalAmount,
+          method:    args.paymentMethod,
+          status:    'completed',
+          timestamp: Date.now(),
+        })
+      }
+    }
+
+    return reservationId
   },
 })
 
 export const updateStatus = mutation({
   args: {
-    reservationId: v.id('reservations'),
+    reservationId:  v.id('reservations'),
     status: v.union(
       v.literal('deposit_paid'),
       v.literal('on_court'),
@@ -113,13 +153,37 @@ export const updateStatus = mutation({
       v.literal('played'),
       v.literal('event'),
     ),
+    paymentMethod: v.optional(v.union(v.literal('cash'), v.literal('online'))),
+    // deprecated — backend recalculates from depositAmount; kept for API compatibility
+    paymentAmount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Read reservation BEFORE patching so we have the current status for type resolution
     const reservation = await ctx.db.get(args.reservationId)
     if (!reservation) throw new ConvexError('not_found')
 
     await assertVenueAccess(ctx, reservation.venueId)
 
     await ctx.db.patch(args.reservationId, { status: args.status })
+
+    // No payment inserted on absent transitions — existing deposit payment serves as retention evidence
+    if (args.status === 'absent') return
+
+    if (args.paymentMethod !== undefined) {
+      const paymentType   = resolvePaymentType(reservation.status)
+      const pendingBalance = reservation.depositAmount != null
+        ? reservation.totalAmount - reservation.depositAmount
+        : reservation.totalAmount
+      const amount = paymentType === 'balance' ? pendingBalance : reservation.totalAmount
+
+      await ctx.db.insert('payments', {
+        reservationId: args.reservationId,
+        type:          paymentType,
+        amount,
+        method:        args.paymentMethod,
+        status:        'completed',
+        timestamp:     Date.now(),
+      })
+    }
   },
 })

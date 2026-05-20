@@ -102,7 +102,8 @@ export function ConfigHorarios({ formId, onDirtyChange, onSaved, initialData, on
     const adapted = adaptInitialDataToForm(initialData)
     serverSnapshot.current = adapted
     setHorarios(adapted)
-  }, [initialData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(initialData)])
 
   useEffect(() => {
     if (serverSnapshot.current === null) {

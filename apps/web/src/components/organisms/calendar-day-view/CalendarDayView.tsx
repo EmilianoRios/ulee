@@ -49,7 +49,7 @@ interface CalendarDayViewProps {
   courts:           Court[]
   reservations:     CalendarReservation[]
   onSlotClick?:     (courtId: string, time: string) => void
-  onUpdateStatus?:  (reservationId: string, status: ReservationBackendStatus) => void
+  onUpdateStatus?:  (reservationId: string, status: ReservationBackendStatus, paymentMethod?: 'cash' | 'online', amount?: number) => void
   mockNow?:         Date
 }
 

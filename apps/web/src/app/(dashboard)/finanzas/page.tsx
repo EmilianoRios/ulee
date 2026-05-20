@@ -49,16 +49,17 @@ function computePeriodRange(period: Period): { dateFrom: string; dateTo: string 
 }
 
 type FinanceRowShape = {
-  _id: Id<'reservations'>
-  clientName: string
-  courtName: string
-  date: string
-  startTime: string
-  endTime: string
-  mercadoPago: number
-  senia: number
-  efectivo: number
-  total: number
+  _id:          Id<'reservations'>
+  clientName:   string
+  courtName:    string
+  date:         string
+  startTime:    string
+  endTime:      string
+  online:       number
+  cash:         number
+  total:        number
+  depositTotal: number
+  paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
 }
 
 function toTransaction(row: FinanceRowShape): Transaction {
@@ -69,8 +70,9 @@ function toTransaction(row: FinanceRowShape): Transaction {
     cancha:       row.courtName,
     diayhorario:  `${dayLabel} ${row.startTime} – ${row.endTime}`,
     fechaReserva: row.date.split('-').reverse().join('/'),
-    mercadoPago:  row.mercadoPago,
-    seña:         row.senia,
+    online:       row.online,
+    cash:         row.cash,
+    paymentType:  row.paymentType,
     total:        row.total,
   }
 }
@@ -120,10 +122,10 @@ export default function FinanzasPage() {
   const canchaOptions = [...new Set((allRows ?? []).map((r) => r.courtName))].sort()
 
   // KPIs — derived client-side from filtered rows
-  const totalMP       = filtered.reduce((s, r) => s + r.mercadoPago, 0)
-  const totalSeña     = filtered.reduce((s, r) => s + r.senia,       0)
-  const totalEfectivo = filtered.reduce((s, r) => s + r.efectivo,    0)
-  const totalGeneral  = filtered.reduce((s, r) => s + r.total,       0)
+  const totalOnline   = filtered.reduce((s, r) => s + r.online, 0)
+  const totalCash     = filtered.reduce((s, r) => s + r.cash,   0)
+  const totalSenias   = filtered.reduce((s, r) => s + r.depositTotal, 0)
+  const totalGeneral  = filtered.reduce((s, r) => s + r.total,  0)
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toTransaction)
@@ -141,10 +143,10 @@ export default function FinanzasPage() {
   }, [])
 
   const KPIS = [
-    { value: fmt(totalMP),       label: 'Mercado Pago' },
-    { value: fmt(totalEfectivo), label: 'Efectivo'     },
-    { value: fmt(totalSeña),     label: 'Señas'        },
-    { value: fmt(totalGeneral),  label: 'Total', bold: true },
+    { value: fmt(totalOnline),  label: 'Mercado Pago' },
+    { value: fmt(totalCash),    label: 'Efectivo'     },
+    { value: fmt(totalSenias),  label: 'Señas'        },
+    { value: fmt(totalGeneral), label: 'Total', bold: true },
   ]
 
   const strip = (

@@ -95,12 +95,13 @@ export function ConfigGeneral({ formId, onDirtyChange, onSaved, initialData, onS
     initialData ? adaptInitialDataToForm(initialData) : null
   )
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (initialData === null) return
     const adapted = adaptInitialDataToForm(initialData)
     serverSnapshot.current = adapted
     setForm(adapted)
-  }, [initialData])
+  }, [JSON.stringify(initialData)])
 
   useEffect(() => {
     if (serverSnapshot.current === null) {

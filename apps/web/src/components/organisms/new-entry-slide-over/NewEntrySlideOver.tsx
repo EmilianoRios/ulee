@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTheme } from 'tamagui'
-import { X, ChevronDown } from 'lucide-react'
+import { X, ChevronDown, Banknote, CreditCard } from 'lucide-react'
 import { useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
@@ -11,14 +11,15 @@ import type { Court } from '@/components/atoms/reservation-card'
 export type EntryType = 'reserva' | 'mantenimiento' | 'evento' | 'recurrente'
 
 interface NewEntrySlideOverProps {
-  open:            boolean
-  defaultType?:    EntryType
-  initialTime?:    string
-  initialCourtId?: string
-  courts:          Court[]
-  initialDate:     Date
-  venueId:         Id<'venues'> | null
-  onClose:         () => void
+  open:                boolean
+  defaultType?:        EntryType
+  initialTime?:        string
+  initialCourtId?:     string
+  courts:              Court[]
+  initialDate:         Date
+  venueId:             Id<'venues'> | null
+  venuePricePerHour?:  number
+  onClose:             () => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -223,6 +224,42 @@ function SelectInput({ value, onChange, options, error }: {
   )
 }
 
+function PaymentMethodButton({ label, icon, selected, onClick }: {
+  label:    string
+  icon:     React.ReactNode
+  selected: boolean
+  onClick:  () => void
+}) {
+  const t = useTheme()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flex:            1,
+        padding:         '9px 12px',
+        borderRadius:    7,
+        border:          `2px solid ${selected ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
+        backgroundColor: selected ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
+        color:           selected ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
+        fontSize:        13,
+        fontWeight:      selected ? 600 : 500,
+        fontFamily:      'inherit',
+        cursor:          'pointer',
+        display:         'flex',
+        alignItems:      'center',
+        justifyContent:  'center',
+        gap:             6,
+        lineHeight:      1.3,
+        transition:      'border-color 120ms ease-out, background-color 120ms ease-out',
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
 function TxtArea({ value, onChange, placeholder, error }: {
   value: string; onChange: (v: string) => void; placeholder?: string; error?: string
 }) {
@@ -308,14 +345,15 @@ function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin }:
 
 // ─── Form content ─────────────────────────────────────────────────────────────
 
-function FormContent({ type, courts, initialDate, initialTime, initialCourtId, venueId, onClose }: {
-  type:            EntryType
-  courts:          Court[]
-  initialDate:     Date
-  initialTime?:    string
-  initialCourtId?: string
-  venueId:         Id<'venues'> | null
-  onClose:         () => void
+function FormContent({ type, courts, initialDate, initialTime, initialCourtId, venueId, venuePricePerHour, onClose }: {
+  type:                EntryType
+  courts:              Court[]
+  initialDate:         Date
+  initialTime?:        string
+  initialCourtId?:     string
+  venueId:             Id<'venues'> | null
+  venuePricePerHour?:  number
+  onClose:             () => void
 }) {
   const t = useTheme()
 
@@ -337,10 +375,11 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [notas,      setNotas]      = useState('')
 
   // Reserva
-  const [cliente,  setCliente]  = useState('')
-  const [telefono, setTelefono] = useState('')
-  const [monto,    setMonto]    = useState('')
-  const [estado,   setEstado]   = useState<'señado' | 'pagado'>('señado')
+  const [cliente,       setCliente]       = useState('')
+  const [telefono,      setTelefono]      = useState('')
+  const [monto,         setMonto]         = useState('')
+  const [estado,        setEstado]        = useState<'señado' | 'pagado'>('señado')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash')
 
   // Mantenimiento
   const [descripcion, setDescripcion] = useState('')
@@ -348,6 +387,19 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   // Evento
   const [nombreEvento, setNombreEvento] = useState('')
   const [montoEvento,  setMontoEvento]  = useState('')
+
+  // Auto-fill monto based on court price + duration
+  useEffect(() => {
+    if (type !== 'reserva' && type !== 'recurrente') return
+    const court        = courts.find((c) => c.id === courtId)
+    const pricePerHour = court?.priceOverride ?? venuePricePerHour
+    if (!pricePerHour) return
+    const [sh, sm] = horaInicio.split(':').map(Number)
+    const [eh, em] = horaFin.split(':').map(Number)
+    const durationMins = (eh * 60 + em) - (sh * 60 + sm)
+    if (durationMins <= 0) return
+    setMonto(String(Math.round(pricePerHour * durationMins / 60)))
+  }, [courtId, horaInicio, horaFin, courts, venuePricePerHour, type])
 
   // Recurrente
   const [frecuencia,     setFrecuencia]     = useState<'semanal' | 'mensual' | 'anual'>('semanal')
@@ -401,15 +453,16 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       if (type === 'reserva' || type === 'recurrente') {
         await createReservation({
           venueId,
-          courtId:     courtId as Id<'courts'>,
-          date:        fecha,
-          startTime:   horaInicio,
-          endTime:     horaFin,
-          clientName:  cliente,
-          clientPhone: telefono,
-          totalAmount: Number(monto),
-          status:      STATE_TO_STATUS[estado],
-          notes:       notas || undefined,
+          courtId:       courtId as Id<'courts'>,
+          date:          fecha,
+          startTime:     horaInicio,
+          endTime:       horaFin,
+          clientName:    cliente,
+          clientPhone:   telefono,
+          totalAmount:   Number(monto),
+          status:        STATE_TO_STATUS[estado],
+          notes:         notas || undefined,
+          paymentMethod: paymentMethod,
         })
       } else if (type === 'mantenimiento') {
         await createReservation({
@@ -508,6 +561,23 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                   />
                 </Field>
               </div>
+
+              <Field label="Método de pago" required>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <PaymentMethodButton
+                    label="Efectivo"
+                    icon={<Banknote size={14} strokeWidth={2} />}
+                    selected={paymentMethod === 'cash'}
+                    onClick={() => setPaymentMethod('cash')}
+                  />
+                  <PaymentMethodButton
+                    label="Mercado Pago"
+                    icon={<CreditCard size={14} strokeWidth={2} />}
+                    selected={paymentMethod === 'online'}
+                    onClick={() => setPaymentMethod('online')}
+                  />
+                </div>
+              </Field>
 
               {notasBlock}
             </>
@@ -657,6 +727,23 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 </Field>
               </div>
 
+              <Field label="Método de pago" required>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <PaymentMethodButton
+                    label="Efectivo"
+                    icon={<Banknote size={14} strokeWidth={2} />}
+                    selected={paymentMethod === 'cash'}
+                    onClick={() => setPaymentMethod('cash')}
+                  />
+                  <PaymentMethodButton
+                    label="Mercado Pago"
+                    icon={<CreditCard size={14} strokeWidth={2} />}
+                    selected={paymentMethod === 'online'}
+                    onClick={() => setPaymentMethod('online')}
+                  />
+                </div>
+              </Field>
+
               {notasBlock}
             </>
           )}
@@ -712,7 +799,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
 export function NewEntrySlideOver({
   open, defaultType = 'reserva', initialTime, initialCourtId,
-  courts, initialDate, venueId, onClose,
+  courts, initialDate, venueId, venuePricePerHour, onClose,
 }: NewEntrySlideOverProps) {
   const t = useTheme()
 
@@ -848,6 +935,7 @@ export function NewEntrySlideOver({
               initialTime={initialTime}
               initialCourtId={initialCourtId}
               venueId={venueId}
+              venuePricePerHour={venuePricePerHour}
               onClose={onClose}
             />
           </>

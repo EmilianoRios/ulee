@@ -5,8 +5,9 @@ import { useTheme } from 'tamagui'
 export type CalendarReservationState = 'señado' | 'en-cancha' | 'ausente' | 'pagado' | 'mantenimiento' | 'recurrente' | 'jugado' | 'evento'
 
 export interface Court {
-  id: string
-  name: string
+  id:             string
+  name:           string
+  priceOverride?: number
 }
 
 export interface CalendarReservation {
@@ -17,6 +18,7 @@ export interface CalendarReservation {
   endTime: string
   state: CalendarReservationState
   amount: number
+  depositAmount?: number
   courtId: string
   notes?: string
 }

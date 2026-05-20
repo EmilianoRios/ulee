@@ -281,7 +281,8 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved, initialData, on
     const adapted = adaptInitialDataToForm(initialData)
     serverSnapshot.current = adapted
     setFeriados(adapted)
-  }, [initialData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(initialData)])
 
   const closedDates = feriados.map(f => f.fecha)
 

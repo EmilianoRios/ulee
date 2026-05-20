@@ -9,8 +9,9 @@ export interface Transaction {
   cancha:       string
   diayhorario:  string
   fechaReserva: string
-  mercadoPago:  number
-  seña:         number
+  online:       number
+  cash:         number
+  paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
   total:        number
 }
 
@@ -27,9 +28,45 @@ const COLS: { label: string; width?: number; align?: 'left' | 'right' }[] = [
   { label: 'Día y horario',    width: 178 },
   { label: 'Fecha de reserva', width: 130 },
   { label: 'Mercado Pago',     width: 122, align: 'right' },
-  { label: 'Seña',             width: 100, align: 'right' },
+  { label: 'Efectivo',         width: 100, align: 'right' },
+  { label: 'Tipo',             width: 130 },
   { label: 'Total',            width: 100, align: 'right' },
 ]
+
+const PAYMENT_TYPE_LABELS: Record<Transaction['paymentType'], string> = {
+  deposit: 'Seña',
+  balance: 'Saldo',
+  full:    'Pago completo',
+  mixed:   'Seña + Saldo',
+  none:    'Pendiente',
+}
+
+const PAYMENT_TYPE_COLORS: Record<Transaction['paymentType'], { bg: string; text: string }> = {
+  deposit: { bg: 'oklch(92% 0.04 230)',  text: 'oklch(35% 0.10 230)'  },
+  balance: { bg: 'oklch(92% 0.05 160)',  text: 'oklch(35% 0.12 160)'  },
+  full:    { bg: 'oklch(91% 0.06 145)',  text: 'oklch(32% 0.14 145)'  },
+  mixed:   { bg: 'oklch(93% 0.04 290)',  text: 'oklch(38% 0.10 290)'  },
+  none:    { bg: 'oklch(91% 0.00 0)',    text: 'oklch(50% 0.00 0)'    },
+}
+
+function PaymentTypeBadge({ type }: { type: Transaction['paymentType'] }) {
+  const { bg, text } = PAYMENT_TYPE_COLORS[type]
+  return (
+    <span style={{
+      display:       'inline-block',
+      padding:       '2px 8px',
+      borderRadius:  4,
+      fontSize:      11,
+      fontWeight:    600,
+      letterSpacing: '0.02em',
+      backgroundColor: bg,
+      color:           text,
+      whiteSpace:    'nowrap',
+    }}>
+      {PAYMENT_TYPE_LABELS[type]}
+    </span>
+  )
+}
 
 function fmt(n: number): string {
   return '$' + n.toLocaleString('es-AR')
@@ -95,7 +132,7 @@ export function FinancesTable({ rows, page, totalPages, totalRows, onPageChange 
       ) : (
         <>
           <div style={{ flex: 1, overflow: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 730, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', minWidth: 830, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 {COLS.map((col) => (
                   <col key={col.label} style={{ width: col.width ?? undefined }} />
@@ -119,16 +156,19 @@ export function FinancesTable({ rows, page, totalPages, totalRows, onPageChange 
                     <td style={{ ...td, color: t.textoMuted.val }}>{row.diayhorario}</td>
                     <td style={{ ...td, color: t.textoMuted.val }}>{row.fechaReserva}</td>
                     <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.mercadoPago > 0
-                        ? fmt(row.mercadoPago)
+                      {row.online > 0
+                        ? fmt(row.online)
                         : <span style={{ color: t.textoInactivo.val }}>—</span>
                       }
                     </td>
                     <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.seña > 0
-                        ? fmt(row.seña)
+                      {row.cash > 0
+                        ? fmt(row.cash)
                         : <span style={{ color: t.textoInactivo.val }}>—</span>
                       }
+                    </td>
+                    <td style={td}>
+                      <PaymentTypeBadge type={row.paymentType} />
                     </td>
                     <td style={{ ...td, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {fmt(row.total)}

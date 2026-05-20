@@ -108,6 +108,13 @@ export default function CalendarioPage() {
       : 'skip'
   )
 
+  const venueRaw = useQuery(
+    api.functions.venues.queries.getById,
+    activeVenueId !== null
+      ? { venueId: activeVenueId }
+      : 'skip'
+  )
+
   const stats = useQuery(
     api.functions.reservations.queries.statsByVenueAndDate,
     activeVenueId !== null
@@ -118,18 +125,25 @@ export default function CalendarioPage() {
   const isLoading = activeVenueId !== null && (reservationsRaw === undefined || courtsRaw === undefined)
 
   // ── Shape adaptation ───────────────────────────────────────────────────────
-  const courts: Court[] = courtsRaw?.map((c) => ({ id: c._id as string, name: c.name })) ?? []
+  const courts: Court[] = courtsRaw?.map((c) => ({
+    id:             c._id as string,
+    name:           c.name,
+    priceOverride:  c.priceOverride ?? undefined,
+  })) ?? []
+
+  const venuePricePerHour = venueRaw?.pricingConfig?.pricePerHour
 
   const reservations: CalendarReservation[] = (reservationsRaw ?? []).map((r) => ({
-    id:         r._id,
-    clientName: r.clientName,
-    phone:      r.clientPhone || undefined,
-    startTime:  r.startTime,
-    endTime:    r.endTime,
-    state:      STATUS_TO_STATE[r.status],
-    amount:     r.totalAmount,
-    courtId:    r.courtId as string,
-    notes:      r.notes,
+    id:            r._id,
+    clientName:    r.clientName,
+    phone:         r.clientPhone || undefined,
+    startTime:     r.startTime,
+    endTime:       r.endTime,
+    state:         STATUS_TO_STATE[r.status],
+    amount:        r.totalAmount,
+    depositAmount: r.depositAmount,
+    courtId:       r.courtId as string,
+    notes:         r.notes,
   }))
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -400,8 +414,14 @@ export default function CalendarioPage() {
                   setInitialSlotCourt(courtId)
                   setSlideOverOpen(true)
                 }}
-                onUpdateStatus={(reservationId, status) => {
-                  void updateStatus({ reservationId: reservationId as Id<'reservations'>, status })
+                onUpdateStatus={(reservationId, status, paymentMethod, amount) => {
+                  void updateStatus({
+                    reservationId: reservationId as Id<'reservations'>,
+                    status,
+                    ...(paymentMethod !== undefined && amount !== undefined
+                      ? { paymentMethod, paymentAmount: amount }
+                      : {}),
+                  })
                 }}
               />
             </div>
@@ -417,6 +437,7 @@ export default function CalendarioPage() {
         courts={courts}
         initialDate={currentDate}
         venueId={activeVenueId}
+        venuePricePerHour={venuePricePerHour}
         onClose={() => setSlideOverOpen(false)}
       />
     </>

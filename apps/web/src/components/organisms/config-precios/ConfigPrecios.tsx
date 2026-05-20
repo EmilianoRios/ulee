@@ -203,7 +203,8 @@ export function ConfigPrecios({ formId, onDirtyChange, onSaved, initialData, onS
     const adapted = adaptInitialDataToForm(initialData)
     serverSnapshot.current = adapted
     setForm(adapted)
-  }, [initialData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(initialData)])
 
   useEffect(() => {
     if (serverSnapshot.current === null) {

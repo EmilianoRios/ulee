@@ -11,19 +11,21 @@ import { ConfigGeneral  } from '@/components/organisms/config-general'
 import { ConfigHorarios } from '@/components/organisms/config-horarios'
 import { ConfigPrecios  } from '@/components/organisms/config-precios'
 import { ConfigFeriados } from '@/components/organisms/config-feriados'
+import { EmployeeInvitePanelOrganism } from '@/components/organisms/onboarding/EmployeeInvitePanelOrganism'
 import type { GeneralInitialData  } from '@/components/organisms/config-general'
 import type { ScheduleEntry       } from '@/components/organisms/config-horarios'
 import type { PricingInitialData  } from '@/components/organisms/config-precios'
 import type { HolidayEntry        } from '@/components/organisms/config-feriados'
 import { useActiveVenue } from '@/context/active-venue'
 
-type Tab = 'general' | 'horarios' | 'precios' | 'feriados'
+type Tab = 'general' | 'horarios' | 'precios' | 'feriados' | 'equipo'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'general',  label: 'Información general' },
   { id: 'horarios', label: 'Horarios'             },
   { id: 'precios',  label: 'Precios y pagos'      },
   { id: 'feriados', label: 'Feriados'             },
+  { id: 'equipo',   label: 'Equipo'               },
 ]
 
 // ─── Adapter functions (pure, module-scope) ────────────────────────────────────
@@ -312,6 +314,9 @@ export default function ConfiguracionPage() {
               initialData={venue ? venueToHolidaysData(venue) : null}
               onSubmit={handleHolidaysSubmit}
             />
+          )}
+          {activeTab === 'equipo' && (
+            <EmployeeInvitePanelOrganism />
           )}
         </div>
       </div>

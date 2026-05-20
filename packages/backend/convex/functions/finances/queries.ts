@@ -1,29 +1,32 @@
 import { query } from '../../_generated/server'
 import { ConvexError, v } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
+import { aggregatePayments } from '../../lib/payments'
+import type { PaymentSummary } from '../../lib/payments'
 import type { Id } from '../../_generated/dataModel'
 import type { QueryCtx } from '../../_generated/server'
 
 // ─── Return types ──────────────────────────────────────────────────────────────
 
 export interface FinanceRow {
-  _id:         Id<'reservations'>
-  clientName:  string
-  courtName:   string
-  date:        string        // "YYYY-MM-DD"
-  startTime:   string        // "HH:MM"
-  endTime:     string        // "HH:MM"
-  mercadoPago: number        // sum(payments where method='mercadopago' AND status='completed')
-  senia:       number        // sum(payments where type='deposit' AND status='completed')
-  efectivo:    number        // totalAmount - mercadoPago - senia (>= 0 clamped)
-  total:       number        // reservation.totalAmount
+  _id:          Id<'reservations'>
+  clientName:   string
+  courtName:    string
+  date:         string        // "YYYY-MM-DD"
+  startTime:    string        // "HH:MM"
+  endTime:      string        // "HH:MM"
+  online:       number        // sum of completed payments where normalizeMethod === 'online'
+  cash:         number        // sum of completed payments where normalizeMethod === 'cash'
+  total:        number        // online + cash (NOT reservation.totalAmount)
+  depositTotal: number        // sum of completed payments where type === 'deposit'
+  paymentType:  PaymentSummary['paymentType']
 }
 
 export interface FinanceStats {
-  totalMP:       number
-  totalSeña:     number
-  totalEfectivo: number
-  totalGeneral:  number
+  totalOnline:   number    // sum of row.online
+  totalCash:     number    // sum of row.cash
+  totalDeposits: number    // sum of row.total where paymentType === 'deposit'
+  totalGeneral:  number    // sum of row.total
 }
 
 // ─── Shared args ───────────────────────────────────────────────────────────────
@@ -59,23 +62,19 @@ async function fetchRows(
   const courts = await Promise.all(courtIds.map((id) => ctx.db.get(id)))
   const courtMap = new Map(courts.filter(Boolean).map((c) => [c!._id, c!.name]))
 
-  // Batch payment lookup — one query per reservation, all in parallel
+  // Batch payment lookup — all payments per reservation (not pre-filtered by status)
+  // aggregatePayments handles status filtering internally
   const paymentSets = await Promise.all(
     reservations.map((r) =>
       ctx.db
         .query('payments')
         .withIndex('by_reservationId', (q) => q.eq('reservationId', r._id))
-        .filter((q) => q.eq(q.field('status'), 'completed'))
         .collect()
     )
   )
 
   return reservations.map((r, i) => {
-    const pmts     = paymentSets[i]
-    const sumMP    = pmts.filter((p) => p.method === 'mercadopago').reduce((s, p) => s + p.amount, 0)
-    const sumSenia = pmts.filter((p) => p.type === 'deposit').reduce((s, p) => s + p.amount, 0)
-    const efectivo = Math.max(0, r.totalAmount - sumMP - sumSenia)
-
+    const summary = aggregatePayments(paymentSets[i])
     return {
       _id:         r._id,
       clientName:  r.clientName,
@@ -83,10 +82,11 @@ async function fetchRows(
       date:        r.date,
       startTime:   r.startTime,
       endTime:     r.endTime,
-      mercadoPago: sumMP,
-      senia:       sumSenia,
-      efectivo,
-      total:       r.totalAmount,
+      online:       summary.online,
+      cash:         summary.cash,
+      total:        summary.total,
+      depositTotal: summary.depositTotal,
+      paymentType:  summary.paymentType,
     }
   })
 }
@@ -110,10 +110,10 @@ export const statsByVenueAndPeriod = query({
     await getCurrentUser(ctx)
     const rows = await fetchRows(ctx, args.venueId, args.dateFrom, args.dateTo)
     return {
-      totalMP:       rows.reduce((s, r) => s + r.mercadoPago, 0),
-      totalSeña:     rows.reduce((s, r) => s + r.senia,       0),
-      totalEfectivo: rows.reduce((s, r) => s + r.efectivo,    0),
-      totalGeneral:  rows.reduce((s, r) => s + r.total,       0),
+      totalOnline:   rows.reduce((s, r) => s + r.online, 0),
+      totalCash:     rows.reduce((s, r) => s + r.cash,   0),
+      totalDeposits: rows.filter((r) => r.paymentType === 'deposit').reduce((s, r) => s + r.total, 0),
+      totalGeneral:  rows.reduce((s, r) => s + r.total,  0),
     }
   },
 })
