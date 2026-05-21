@@ -2,6 +2,7 @@ import { query } from '../../_generated/server'
 import { v } from 'convex/values'
 import { paginationOptsValidator } from 'convex/server'
 import { getCurrentUser } from '../../lib/auth'
+import { addDays } from '../../lib/schedule'
 import type { Doc, Id } from '../../_generated/dataModel'
 
 // ---------------------------------------------------------------------------
@@ -19,18 +20,24 @@ export interface ReservationRow {
   totalAmount: number
 }
 
-export interface ReservationCalRow {
-  _id:         Id<'reservations'>
-  courtId:     Id<'courts'>
-  courtName:   string   // denormalized — resolved via court lookup
-  clientName:  string
-  clientPhone: string
-  startTime:   string
-  endTime:     string
-  date:        string
-  status:      Doc<'reservations'>['status']
-  totalAmount: number
-  notes?:      string
+export interface CalReservation {
+  _id:          Id<'reservations'>
+  courtId:      Id<'courts'>
+  courtName:    string
+  clientName:   string
+  clientPhone:  string
+  startTime:    number   // absolute minutes from midnight of `date` (INV-2)
+  endTime:      number   // may be > 1440 for overnight reservations (INV-3)
+  date:         string
+  status:       Doc<'reservations'>['status']
+  totalAmount:  number
+  depositAmount?: number
+  notes?:       string
+}
+
+export interface CalListResult {
+  reservations: CalReservation[]   // start on `date`
+  spillovers:   CalReservation[]   // started on date-1, end projected to [0, endTime-1440]
 }
 
 export interface ReservationStats {
@@ -88,36 +95,62 @@ export const listAllByVenueAndDate = query({
     venueId: v.id('venues'),
     date:    v.string(),   // "YYYY-MM-DD"
   },
-  handler: async (ctx, args): Promise<ReservationCalRow[]> => {
+  handler: async (ctx, args): Promise<CalListResult> => {
     await getCurrentUser(ctx)
 
-    const reservations = await ctx.db
-      .query('reservations')
-      .withIndex('by_venueId_date', (q) =>
-        q.eq('venueId', args.venueId).eq('date', args.date)
-      )
-      .collect()
+    const prevDate = addDays(args.date, -1)
 
-    // Denormalize courtName — batch lookup courts
-    const courtIds = [...new Set(reservations.map((r) => r.courtId))]
+    // Fetch current day and previous day in parallel
+    const [ownDay, prevDay] = await Promise.all([
+      ctx.db
+        .query('reservations')
+        .withIndex('by_venueId_date', (q) =>
+          q.eq('venueId', args.venueId).eq('date', args.date)
+        )
+        .collect(),
+      ctx.db
+        .query('reservations')
+        .withIndex('by_venueId_date', (q) =>
+          q.eq('venueId', args.venueId).eq('date', prevDate)
+        )
+        .collect(),
+    ])
+
+    // Batch court lookup across both sets
+    const allRows = [...ownDay, ...prevDay]
+    const courtIds = [...new Set(allRows.map((r) => r.courtId))]
     const courts = await Promise.all(courtIds.map((id) => ctx.db.get(id)))
     const courtMap = new Map(
       courts.filter(Boolean).map((c) => [c!._id, c!.name])
     )
 
-    return reservations.map((r) => ({
-      _id:         r._id,
-      courtId:     r.courtId,
-      courtName:   courtMap.get(r.courtId) ?? '',
-      clientName:  r.clientName,
-      clientPhone: r.clientPhone,
-      startTime:   r.startTime,
-      endTime:     r.endTime,
-      date:        r.date,
-      status:      r.status,
-      totalAmount: r.totalAmount,
-      notes:       r.notes,
-    }))
+    const toCalReservation = (r: typeof ownDay[number]): CalReservation => ({
+      _id:          r._id,
+      courtId:      r.courtId,
+      courtName:    courtMap.get(r.courtId) ?? '',
+      clientName:   r.clientName,
+      clientPhone:  r.clientPhone,
+      startTime:    r.startTime,
+      endTime:      r.endTime,
+      date:         r.date,
+      status:       r.status,
+      totalAmount:  r.totalAmount,
+      depositAmount: r.depositAmount,
+      notes:        r.notes,
+    })
+
+    const reservations = ownDay.map(toCalReservation)
+
+    // Spillovers: prev-day reservations that cross midnight into today
+    const spillovers = prevDay
+      .filter((r) => r.endTime > 1440)
+      .map((r) => ({
+        ...toCalReservation(r),
+        startTime: 0,               // begins at 00:00 in today's view
+        endTime:   r.endTime - 1440, // projected to today's axis
+      }))
+
+    return { reservations, spillovers }
   },
 })
 

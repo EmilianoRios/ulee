@@ -17,8 +17,8 @@ export type ReservationBackendStatus =
   | 'event'
 
 export interface ReservationUpdateFields {
-  startTime?:   string
-  endTime?:     string
+  startTime?:   number   // absolute minutes since midnight
+  endTime?:     number   // absolute minutes; may be > 1440 for overnight
   clientName?:  string
   clientPhone?: string
   totalAmount?: number
@@ -39,16 +39,19 @@ interface ReservationSlideOverProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function parseMins(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
+function minutesToTime(mins: number): string {
+  const h = Math.floor(mins / 60) % 24
+  const m = mins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-function addMins(time: string, mins: number): string {
-  const total = parseMins(time) + mins
-  const h = Math.floor(total / 60) % 24
-  const m = total % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+function timeToMins(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
+}
+
+function addMins(totalMins: number, mins: number): number {
+  return totalMins + mins
 }
 
 function fmtDuration(mins: number): string {
@@ -66,12 +69,9 @@ function isSlotFree(
   reservations: CalendarReservation[],
   excludeId:    string,
 ): boolean {
-  if (endMins > 24 * 60) return false
   return !reservations.some((r) => {
     if (r.id === excludeId || r.courtId !== courtId) return false
-    const rS = parseMins(r.startTime)
-    const rE = parseMins(r.endTime)
-    return rS < endMins && rE > startMins
+    return r.startTime < endMins && r.endTime > startMins
   })
 }
 
@@ -259,6 +259,13 @@ function EditForm({ reservation, fields, onChange, onConfirm, onCancel }: {
 }) {
   const t = useTheme()
 
+  // Derive display strings from numeric fields (% 1440 for clock face display)
+  const effectiveStart = fields.startTime ?? reservation.startTime
+  const effectiveEnd   = fields.endTime   ?? reservation.endTime
+  const editStartStr   = minutesToTime(effectiveStart % 1440)
+  const editEndStr     = minutesToTime(effectiveEnd   % 1440)
+  const editIsOvernight = effectiveEnd >= 1440
+
   const inputStyle: React.CSSProperties = {
     width:           '100%',
     padding:         '7px 10px',
@@ -288,15 +295,20 @@ function EditForm({ reservation, fields, onChange, onConfirm, onCancel }: {
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Inicio</label>
           <TimeSelect
-            value={fields.startTime ?? reservation.startTime}
-            onChange={(v) => onChange({ ...fields, startTime: v })}
+            value={editStartStr}
+            onChange={(v) => onChange({ ...fields, startTime: timeToMins(v) })}
           />
         </div>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Fin</label>
           <TimeSelect
-            value={fields.endTime ?? reservation.endTime}
-            onChange={(v) => onChange({ ...fields, endTime: v })}
+            value={editEndStr}
+            onChange={(v) => {
+              const m = timeToMins(v)
+              const startRef = fields.startTime ?? reservation.startTime
+              onChange({ ...fields, endTime: m <= startRef ? m + 1440 : m })
+            }}
+            nextDay={editIsOvernight}
           />
         </div>
       </div>
@@ -371,8 +383,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
   const _now         = nowProp ?? new Date()
   const nowMins      = _now.getHours() * 60 + _now.getMinutes()
-  const startMins    = reservation ? parseMins(reservation.startTime) : 0
-  const endMins      = reservation ? parseMins(reservation.endTime)   : 0
+  const startMins    = reservation ? reservation.startTime : 0
+  const endMins      = reservation ? reservation.endTime   : 0
   const durationMins = endMins - startMins
   const elapsed      = Math.max(0, nowMins - startMins)
   const remaining    = Math.max(0, endMins - nowMins)
@@ -381,7 +393,13 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const can60 = reservation ? isSlotFree(reservation.courtId, endMins, endMins + 60, reservations, reservation.id) : false
 
   const extraCharge  = reservation && durationMins > 0 ? Math.round(reservation.amount / durationMins * extendMins) : 0
-  const newEndTime   = reservation && extendMins > 0 ? addMins(reservation.endTime, extendMins) : ''
+  const newEndTime   = reservation && extendMins > 0 ? minutesToTime(addMins(reservation.endTime, extendMins)) : ''
+
+  const pendingBalance = reservation
+    ? Math.max(0, reservation.depositAmount != null
+        ? reservation.amount - reservation.depositAmount
+        : reservation.amount)
+    : 0
 
   // Edit/delete visibility guards (based on display state)
   const canEdit   = reservation?.state === 'señado' || reservation?.state === 'pagado' || reservation?.state === 'ausente'
@@ -512,7 +530,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 <DetailRow
                   icon={<Clock size={14} strokeWidth={2} color={t.textoMuted.val} />}
                   label="Horario"
-                  value={`${reservation.startTime} – ${reservation.endTime} · ${fmtDuration(durationMins)}`}
+                  value={`${minutesToTime(reservation.startTime)} – ${minutesToTime(reservation.endTime)} · ${fmtDuration(durationMins)}`}
                 />
                 <DetailRow
                   icon={<span style={{ width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>🏟</span>}
@@ -638,18 +656,13 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       <PaymentMethodButton label="Efectivo"     icon={<Banknote size={14} strokeWidth={2} />}    selected={selectedPayment === 'cash'}    onClick={() => setSelectedPayment(p => p === 'cash'    ? null : 'cash')}    />
                       <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />}  selected={selectedPayment === 'online'} onClick={() => setSelectedPayment(p => p === 'online' ? null : 'online')} />
                     </div>
-                    {selectedPayment && (() => {
-                      const pendingBalance = reservation.depositAmount != null
-                        ? reservation.amount - reservation.depositAmount
-                        : reservation.amount
-                      return (
-                        <ActionButton
-                          label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
-                          onClick={() => { onUpdateStatus?.(reservation.id, 'paid', selectedPayment ?? undefined, pendingBalance); onClose() }}
-                          variant="primary"
-                        />
-                      )
-                    })()}
+                    {selectedPayment && (
+                      <ActionButton
+                        label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', selectedPayment ?? undefined, pendingBalance); onClose() }}
+                        variant="primary"
+                      />
+                    )}
                     <ActionButton
                       label="Cancelar y retener seña"
                       onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
@@ -683,7 +696,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                           <span style={{ fontSize: 12, color: t.textoMuted.val }}>Nuevo horario</span>
                           <span style={{ fontSize: 13, fontWeight: 600, color: t.textoNav.val }}>
-                            {reservation.startTime} – {newEndTime}
+                            {minutesToTime(reservation.startTime)} – {newEndTime}
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

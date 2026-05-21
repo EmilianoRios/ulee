@@ -1,7 +1,7 @@
 import { mutation } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
-import { addDays } from '../../lib/schedule'
+import { addDays, normalizeDaySchedule } from '../../lib/schedule'
 import type { ScheduleVersion } from '../../lib/schedule'
 import type { MutationCtx } from '../../_generated/server'
 import type { Id } from '../../_generated/dataModel'
@@ -43,8 +43,8 @@ async function assertVenueAccess(
 const dayScheduleValidator = v.object({
   dayOfWeek: v.number(),
   active: v.boolean(),
-  openTime: v.string(),
-  closeTime: v.string(),
+  openTime: v.number(),
+  closeTime: v.number(),
 })
 
 const pricingConfigValidator = v.object({
@@ -52,7 +52,7 @@ const pricingConfigValidator = v.object({
   currency: v.literal('ARS'),
   depositPercentage: v.optional(v.number()),
   nightRatePrice: v.optional(v.number()),
-  nightRateStart: v.optional(v.string()),
+  nightRateStart: v.optional(v.number()),
   chargePolicy: v.optional(v.union(
     v.literal('on_arrival'),
     v.literal('on_booking_deposit'),
@@ -94,7 +94,7 @@ export const create = mutation({
       phone: args.phone,
       description: args.description,
       email: args.email,
-      schedule: args.schedule,
+      schedule: args.schedule.map(normalizeDaySchedule),
       pricingConfig: args.pricingConfig,
     })
 
@@ -161,11 +161,13 @@ export const updateSchedule = mutation({
         : entry
     )
 
+    const normalizedSchedule = args.schedule.map(normalizeDaySchedule)
+
     // Append new entry starting tomorrow
-    updated.push({ validFrom: tomorrow, schedule: args.schedule })
+    updated.push({ validFrom: tomorrow, schedule: normalizedSchedule })
 
     await ctx.db.patch(args.venueId, {
-      schedule:        args.schedule,
+      schedule:        normalizedSchedule,
       scheduleHistory: updated,
     })
   },

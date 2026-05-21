@@ -8,7 +8,7 @@ export interface ScheduleVersion {
 
 /**
  * Adds n days to a "YYYY-MM-DD" date string using UTC arithmetic.
- * n must be a positive integer.
+ * n may be any integer (positive or negative).
  */
 export function addDays(dateStr: string, n: number): string {
   // T12:00:00Z anchors to noon UTC so that DST transitions (±1h) never shift the date
@@ -32,6 +32,14 @@ export function addDays(dateStr: string, n: number): string {
  * NOTE: a same-day double-save produces a zero-width entry (validFrom === validTo).
  * The condition `date < entry.validTo` correctly excludes it.
  */
+/**
+ * Normalizes a DaySchedule so closeTime uses absolute minutes.
+ * If closeTime <= openTime, the venue closes past midnight → closeTime += 1440 (INV-5).
+ */
+export function normalizeDaySchedule(d: DaySchedule): DaySchedule {
+  return d.closeTime <= d.openTime ? { ...d, closeTime: d.closeTime + 1440 } : d
+}
+
 export function resolveScheduleForDate(
   history:         ScheduleVersion[] | undefined,
   currentSchedule: DaySchedule[],

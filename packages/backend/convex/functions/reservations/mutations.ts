@@ -1,10 +1,11 @@
 import { mutation, MutationCtx } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
-import { hasConflict, isWithinSchedule } from '../../lib/conflicts'
+import { hasConflict, isWithinSchedule, buildConflictWindow } from '../../lib/conflicts'
 import { isoWeekday } from '../../lib/dates'
 import { resolvePaymentType } from '../../lib/payments'
 import { resolveScheduleForDate } from '../../lib/schedule'
+import { addMinutes } from '../../lib/time'
 import type { Id } from '../../_generated/dataModel'
 
 // ---------------------------------------------------------------------------
@@ -52,8 +53,8 @@ export const create = mutation({
     venueId:     v.id('venues'),
     courtId:     v.id('courts'),
     date:        v.string(),   // "YYYY-MM-DD"
-    startTime:   v.string(),   // "HH:MM"
-    endTime:     v.string(),   // "HH:MM"
+    startTime:   v.number(),   // minutes since midnight (0–2879)
+    endTime:     v.number(),   // minutes since midnight (0–2879)
     clientName:  v.string(),
     clientPhone: v.string(),
     totalAmount: v.number(),
@@ -73,21 +74,26 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const user = await assertVenueAccess(ctx, args.venueId)
 
+    // INV-1/2/8: validate time bounds
+    if (args.startTime < 0 || args.startTime > 1439)      throw new ConvexError('invalid_start')
+    if (args.endTime > 2879)                               throw new ConvexError('invalid_end')
+    if (args.endTime <= args.startTime)                    throw new ConvexError('end_before_start')
+
     // Verify court belongs to the declared venue
     const court = await ctx.db.get(args.courtId)
     if (!court || court.venueId !== args.venueId) {
       throw new ConvexError('court_not_in_venue')
     }
 
-    // Conflict detection — fetch existing reservations for this court + date
+    // Conflict detection — cross-day window [date-1, date, date+1]
     const existing = await ctx.db
       .query('reservations')
       .withIndex('by_courtId', (q) => q.eq('courtId', args.courtId))
       .collect()
 
-    const sameDay = existing.filter((r) => r.date === args.date)
+    const conflictWindow = buildConflictWindow(existing, args.date)
 
-    if (hasConflict(sameDay, args.startTime, args.endTime)) {
+    if (hasConflict(conflictWindow, args.startTime, args.endTime)) {
       throw new ConvexError('time_conflict')
     }
 
@@ -158,16 +164,6 @@ export const create = mutation({
   },
 })
 
-// ---------------------------------------------------------------------------
-// Private time helper
-// ---------------------------------------------------------------------------
-
-function addMinutesToTime(time: string, minutes: number): string {
-  const [h, m] = time.split(':').map(Number)
-  const total = h * 60 + m + minutes
-  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
-}
-
 export const updateStatus = mutation({
   args: {
     reservationId:  v.id('reservations'),
@@ -225,6 +221,7 @@ export const extendReservation = mutation({
     reservationId:     v.id('reservations'),
     additionalMinutes: v.union(v.literal(30), v.literal(60)),
     overrideSchedule:  v.optional(v.boolean()),
+    paymentMethod:     v.optional(v.union(v.literal('cash'), v.literal('online'))),
   },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId)
@@ -232,11 +229,11 @@ export const extendReservation = mutation({
 
     await assertVenueAccess(ctx, reservation.venueId)
 
-    if (reservation.status !== 'on_court') {
+    if (reservation.status !== 'on_court' && reservation.status !== 'paid' && reservation.status !== 'deposit_paid') {
       throw new ConvexError('Solo se puede extender una reserva en curso')
     }
 
-    const newEndTime = addMinutesToTime(reservation.endTime, args.additionalMinutes)
+    const newEndTime = addMinutes(reservation.endTime, args.additionalMinutes)
 
     const court = await ctx.db.get(reservation.courtId)
     const venue = await ctx.db.get(reservation.venueId)
@@ -257,18 +254,49 @@ export const extendReservation = mutation({
       }
     }
 
-    // Conflict check always runs regardless of overrideSchedule
+    // Conflict check always runs regardless of overrideSchedule — cross-day window
     const existing = await ctx.db
       .query('reservations')
       .withIndex('by_courtId', (q) => q.eq('courtId', reservation.courtId))
       .collect()
-    const sameDay = existing.filter((r) => r.date === reservation.date)
+    const conflictWindow = buildConflictWindow(existing, reservation.date)
 
-    if (hasConflict(sameDay, reservation.startTime, newEndTime, args.reservationId)) {
+    if (hasConflict(conflictWindow, reservation.startTime, newEndTime, args.reservationId)) {
       throw new ConvexError('La cancha ya tiene una reserva en ese horario')
     }
 
-    await ctx.db.patch(args.reservationId, { endTime: newEndTime })
+    // Extra charge based on the extension window (current endTime → newEndTime)
+    const pricePerHour   = court?.priceOverride ?? venue?.pricingConfig?.pricePerHour ?? 0
+    const nightRatePrice = venue?.pricingConfig?.nightRatePrice
+    const nightRateStart = venue?.pricingConfig?.nightRateStart
+
+    const extStartMin = reservation.endTime
+    const extEndMin   = extStartMin + args.additionalMinutes
+
+    let extraCharge: number
+    if (nightRatePrice && nightRateStart) {
+      const dayPart   = Math.max(0, Math.min(extEndMin, nightRateStart) - extStartMin)
+      const nightPart = Math.max(0, extEndMin - Math.max(extStartMin, nightRateStart))
+      extraCharge = Math.round(pricePerHour * dayPart / 60 + nightRatePrice * nightPart / 60)
+    } else {
+      extraCharge = Math.round(pricePerHour * args.additionalMinutes / 60)
+    }
+
+    await ctx.db.patch(args.reservationId, {
+      endTime:     newEndTime,
+      totalAmount: reservation.totalAmount + extraCharge,
+    })
+
+    if (args.paymentMethod && extraCharge > 0) {
+      await ctx.db.insert('payments', {
+        reservationId: args.reservationId,
+        type:          'balance',
+        amount:        extraCharge,
+        method:        args.paymentMethod,
+        status:        'completed',
+        timestamp:     Date.now(),
+      })
+    }
   },
 })
 
@@ -279,8 +307,8 @@ export const extendReservation = mutation({
 export const updateReservation = mutation({
   args: {
     reservationId: v.id('reservations'),
-    startTime:     v.optional(v.string()),
-    endTime:       v.optional(v.string()),
+    startTime:     v.optional(v.number()),
+    endTime:       v.optional(v.number()),
     clientName:    v.optional(v.string()),
     clientPhone:   v.optional(v.string()),
     totalAmount:   v.optional(v.number()),
@@ -307,6 +335,11 @@ export const updateReservation = mutation({
       const newStart = fields.startTime ?? reservation.startTime
       const newEnd   = fields.endTime   ?? reservation.endTime
 
+      // INV-1/2/8: validate updated time bounds
+      if (newStart < 0 || newStart > 1439) throw new ConvexError('invalid_start')
+      if (newEnd > 2879)                   throw new ConvexError('invalid_end')
+      if (newEnd <= newStart)              throw new ConvexError('end_before_start')
+
       const court = await ctx.db.get(reservation.courtId)
       const venue = await ctx.db.get(reservation.venueId)
       const scheduleForDate = court?.scheduleOverride
@@ -322,16 +355,16 @@ export const updateReservation = mutation({
         .query('reservations')
         .withIndex('by_courtId', (q) => q.eq('courtId', reservation.courtId))
         .collect()
-      const sameDay = existing.filter((r) => r.date === reservation.date)
+      const conflictWindow = buildConflictWindow(existing, reservation.date)
 
-      if (hasConflict(sameDay, newStart, newEnd, reservationId)) {
+      if (hasConflict(conflictWindow, newStart, newEnd, reservationId)) {
         throw new ConvexError('La cancha ya tiene una reserva en ese horario')
       }
     }
 
     const patch: Partial<{
-      startTime:   string
-      endTime:     string
+      startTime:   number
+      endTime:     number
       clientName:  string
       clientPhone: string
       totalAmount: number

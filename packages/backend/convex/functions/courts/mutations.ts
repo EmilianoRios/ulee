@@ -11,8 +11,8 @@ import type { Id } from '../../_generated/dataModel'
 const dayScheduleValidator = v.object({
   dayOfWeek: v.number(),
   active:    v.boolean(),
-  openTime:  v.string(),
-  closeTime: v.string(),
+  openTime:  v.number(),
+  closeTime: v.number(),
 })
 
 // ---------------------------------------------------------------------------

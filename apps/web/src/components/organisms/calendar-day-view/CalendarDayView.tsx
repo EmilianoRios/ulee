@@ -20,30 +20,20 @@ const TIME_AXIS_WIDTH     = 64    // px
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// When a schedule starts in the evening (dayStart >= 12) and a time hour is
-// before the start and clearly early morning (< 12), it belongs to the next
-// calendar day — represent it as hour + 24 so grid arithmetic stays linear.
-function toVirtualHour(h: number, dayStart: number): number {
-  return dayStart >= 12 && h < dayStart && h < 12 ? h + 24 : h
+function minutesToTime(mins: number): string {
+  const h = Math.floor(mins / 60) % 24
+  const m = mins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-function parseMins(time: string, dayStart = 0): number {
-  const [h, m] = time.split(':').map(Number)
-  return toVirtualHour(h, dayStart) * 60 + m
+function timeToRowStart(min: number, dayStartMin: number): number {
+  return 2 + Math.floor((min - dayStartMin) / SLOT_MINUTES)
 }
 
-function timeToRowStart(time: string, dayStart: number): number {
-  const [h, m] = time.split(':').map(Number)
-  const vh = toVirtualHour(h, dayStart)
-  return 2 + (vh - dayStart) * 2 + Math.floor(m / SLOT_MINUTES)
-}
-
-function generateTimeLabels(dayStart: number, dayEnd: number): string[] {
+function generateTimeLabels(dayStartMin: number, dayEndMin: number): string[] {
   const labels: string[] = []
-  for (let h = dayStart; h < dayEnd; h++) {
-    const d = h % 24
-    labels.push(`${String(d).padStart(2, '0')}:00`)
-    labels.push(`${String(d).padStart(2, '0')}:30`)
+  for (let min = dayStartMin; min < dayEndMin; min += SLOT_MINUTES) {
+    labels.push(minutesToTime(min))
   }
   return labels
 }
@@ -70,6 +60,7 @@ function getArgentinaDateString(date: Date): string {
 interface CalendarDayViewProps {
   courts:                    Court[]
   reservations:              CalendarReservation[]
+  spillovers?:               CalendarReservation[]
   schedule:                  DaySchedule[]
   scheduleHistory:           ScheduleVersion[]
   selectedDate:              Date
@@ -86,7 +77,7 @@ interface CalendarDayViewProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations, schedule, scheduleHistory, selectedDate, scheduleOverrideNeeded, onExtendConfirmOverride, onExtendCancelOverride, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, mockNow }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, selectedDate, scheduleOverrideNeeded, onExtendConfirmOverride, onExtendCancelOverride, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -119,42 +110,43 @@ export function CalendarDayView({ courts, reservations, schedule, scheduleHistor
     [scheduleHistory, schedule, dateStr],
   )
 
-  const { DAY_START, DAY_END } = useMemo(() => {
+  const { DAY_START_MIN, DAY_END_MIN } = useMemo(() => {
     const entry = scheduleForDate.find((s) => s.dayOfWeek === dayOfWeek && s.active)
-    const rawStart = entry ? Number(entry.openTime.split(':')[0]) : 9
-    let start = rawStart
-    let end   = entry
-      ? (() => {
-          const [ch, cm] = entry.closeTime.split(':').map(Number)
-          const closeHour = cm > 0 ? ch + 1 : ch
-          // Midnight-crossing: close hour is "before" open → add 24
-          return closeHour <= rawStart ? closeHour + 24 : closeHour
-        })()
-      : 24
 
-    // Extend bounds to cover reservations that fall outside the configured schedule
-    for (const r of reservations) {
-      const [sh]     = r.startTime.split(':').map(Number)
-      const [eh, em] = r.endTime.split(':').map(Number)
-      const vsh = toVirtualHour(sh, rawStart)
-      const veh = toVirtualHour(eh, rawStart)
-      start = Math.min(start, vsh)
-      end   = Math.max(end, em > 0 ? veh + 1 : veh)
+    let startMin: number
+    let endMin: number
+
+    if (entry) {
+      // openTime and closeTime are already in absolute minutes (from schema)
+      startMin = entry.openTime
+      endMin   = entry.closeTime <= entry.openTime ? entry.closeTime + 1440 : entry.closeTime
+    } else {
+      startMin = 9 * 60
+      endMin   = 24 * 60
     }
 
-    return { DAY_START: start, DAY_END: end }
-  }, [scheduleForDate, dayOfWeek, reservations])
+    // Extend bounds to cover reservations outside the configured schedule
+    for (const r of reservations) {
+      startMin = Math.min(startMin, r.startTime)
+      endMin   = Math.max(endMin,   r.endTime)
+    }
+    for (const r of spillovers) {
+      endMin = Math.max(endMin, r.endTime)
+    }
+
+    return { DAY_START_MIN: startMin, DAY_END_MIN: endMin }
+  }, [scheduleForDate, dayOfWeek, reservations, spillovers])
 
   const isInactiveDay = useMemo(() => {
     const entry = scheduleForDate.find((s) => s.dayOfWeek === dayOfWeek)
     return entry !== undefined && !entry.active
   }, [scheduleForDate, dayOfWeek])
 
-  const TOTAL_SLOTS = (DAY_END - DAY_START) * 2
+  const TOTAL_SLOTS = Math.ceil((DAY_END_MIN - DAY_START_MIN) / SLOT_MINUTES)
 
   const TIME_LABELS = useMemo(
-    () => generateTimeLabels(DAY_START, DAY_END),
-    [DAY_START, DAY_END],
+    () => generateTimeLabels(DAY_START_MIN, DAY_END_MIN),
+    [DAY_START_MIN, DAY_END_MIN],
   )
 
   // ── Argentina timezone helpers ──────────────────────────────────────────────
@@ -165,8 +157,8 @@ export function CalendarDayView({ courts, reservations, schedule, scheduleHistor
     const el = scrollRef.current
     if (!el) return
     const { hours: scrollH, minutes: scrollM } = getArgentinaTime(now)
-    const vScrollH = toVirtualHour(scrollH, DAY_START)
-    const minutesFromStart = (vScrollH - DAY_START) * 60 + scrollM
+    const nowTotalMin      = scrollH * 60 + scrollM
+    const minutesFromStart = nowTotalMin - DAY_START_MIN
     if (minutesFromStart < 0) return
     const pixelFromSlotStart = (minutesFromStart / SLOT_MINUTES) * SLOT_HEIGHT
     const visibleSlotHeight  = el.clientHeight - COURT_HEADER_HEIGHT
@@ -181,22 +173,21 @@ export function CalendarDayView({ courts, reservations, schedule, scheduleHistor
   )
 
   // ── Effective reservations (auto-transition señado/en-cancha → jugado when past end) ──
-  const nowVH        = toVirtualHour(nowH, DAY_START)
-  const nowTotalMins = nowVH * 60 + nowM
+  const nowTotalMins = nowH * 60 + nowM
   const effectiveReservations = reservations.map((r) => {
-    if (nowTotalMins > parseMins(r.endTime, DAY_START) && (r.state === 'señado' || r.state === 'en-cancha')) {
+    if (nowTotalMins > r.endTime && (r.state === 'señado' || r.state === 'en-cancha')) {
       return { ...r, state: 'jugado' as const }
     }
-    if (nowTotalMins >= parseMins(r.startTime, DAY_START) && nowTotalMins < parseMins(r.endTime, DAY_START) && r.state === 'señado') {
+    if (nowTotalMins >= r.startTime && nowTotalMins < r.endTime && r.state === 'señado') {
       return { ...r, state: 'en-cancha' as const }
     }
     return r
   })
 
   // ── Current time line ───────────────────────────────────────────────────────
-  const withinDay   = nowVH >= DAY_START && nowVH < DAY_END
-  const nowSlotIdx  = withinDay ? Math.floor(((nowVH - DAY_START) * 60 + nowM) / SLOT_MINUTES) : -1
-  const nowFraction = withinDay ? ((nowVH - DAY_START) * 60 + nowM) % SLOT_MINUTES / SLOT_MINUTES : 0
+  const withinDay   = nowTotalMins >= DAY_START_MIN && nowTotalMins < DAY_END_MIN
+  const nowSlotIdx  = withinDay ? Math.floor((nowTotalMins - DAY_START_MIN) / SLOT_MINUTES) : -1
+  const nowFraction = withinDay ? (nowTotalMins - DAY_START_MIN) % SLOT_MINUTES / SLOT_MINUTES : 0
   const nowGridRow  = withinDay ? 2 + nowSlotIdx : -1
   const nowMarginTop = nowFraction * SLOT_HEIGHT
 
@@ -397,7 +388,7 @@ export function CalendarDayView({ courts, reservations, schedule, scheduleHistor
                       key={`slot-${rowIdx}-${colIdx}`}
                       onMouseEnter={() => setHoveredSlot(slotKey)}
                       onMouseLeave={() => setHoveredSlot(null)}
-                      onClick={() => onSlotClick?.(court.id, TIME_LABELS[rowIdx])}
+                      onClick={() => onSlotClick?.(court.id, TIME_LABELS[rowIdx] ?? '')}
                       style={{
                         gridRow,
                         gridColumn:      colIdx + 2,
@@ -421,12 +412,12 @@ export function CalendarDayView({ courts, reservations, schedule, scheduleHistor
 
           {/* ── Reservation cards ────────────────────────────────────────────── */}
           {effectiveReservations.map((res) => {
-            const courtIdx   = courts.findIndex((c) => c.id === res.courtId)
+            const courtIdx  = courts.findIndex((c) => c.id === res.courtId)
             if (courtIdx === -1) return null
 
-            const rowStart   = timeToRowStart(res.startTime, DAY_START)
-            const rowEnd     = timeToRowStart(res.endTime, DAY_START)
-            const slotCount  = rowEnd - rowStart
+            const rowStart  = timeToRowStart(res.startTime, DAY_START_MIN)
+            const rowEnd    = timeToRowStart(res.endTime, DAY_START_MIN)
+            const slotCount = rowEnd - rowStart
 
             return (
               <div
@@ -444,6 +435,38 @@ export function CalendarDayView({ courts, reservations, schedule, scheduleHistor
                   slotCount={slotCount}
                   now={now}
                   onClick={() => setSelected(res)}
+                />
+              </div>
+            )
+          })}
+
+          {/* ── Spillover overlays (overnight tail from previous day) ─────────── */}
+          {spillovers.map((res) => {
+            const courtIdx = courts.findIndex((c) => c.id === res.courtId)
+            if (courtIdx === -1) return null
+
+            const rowStart  = timeToRowStart(DAY_START_MIN, DAY_START_MIN)
+            const rowEnd    = timeToRowStart(res.endTime, DAY_START_MIN)
+            if (rowEnd <= rowStart) return null
+
+            return (
+              <div
+                key={`spillover-${res.id}`}
+                style={{
+                  gridRow:         `${rowStart} / ${rowEnd}`,
+                  gridColumn:      courtIdx + 2,
+                  position:        'relative',
+                  zIndex:          1,
+                  opacity:         0.4,
+                  pointerEvents:   'none',
+                }}
+              >
+                <ReservationCard
+                  reservation={res}
+                  slotHeight={SLOT_HEIGHT}
+                  slotCount={rowEnd - rowStart}
+                  now={now}
+                  onClick={() => {}}
                 />
               </div>
             )

@@ -18,6 +18,7 @@ import type { CalendarViewMode }           from '@/components/molecules/calendar
 import type { Court, CalendarReservation, CalendarReservationState } from '@/components/atoms/reservation-card'
 import { useActiveVenue } from '@/context/active-venue'
 import type { DaySchedule } from '@canchero/backend'
+import { minutesToTime } from '@canchero/backend'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,11 +145,16 @@ export default function CalendarioPage() {
 
   const venuePricePerHour  = venueRaw?.pricingConfig?.pricePerHour
   const venueNightRate      = venueRaw?.pricingConfig?.nightRatePrice
-  const venueNightRateStart = venueRaw?.pricingConfig?.nightRateStart
+  const venueNightRateStart = venueRaw?.pricingConfig?.nightRateStart !== undefined
+    ? minutesToTime(venueRaw.pricingConfig.nightRateStart)
+    : undefined
   const venueSchedule: DaySchedule[] = venueRaw?.schedule ?? []
   const venueScheduleHistory: ScheduleVersion[] = venueRaw?.scheduleHistory ?? []
 
-  const reservations: CalendarReservation[] = (reservationsRaw ?? []).map((r) => ({
+  const rawReservations = reservationsRaw?.reservations ?? []
+  const rawSpillovers   = reservationsRaw?.spillovers   ?? []
+
+  const mapReservation = (r: typeof rawReservations[number]): CalendarReservation => ({
     id:            r._id,
     clientName:    r.clientName,
     phone:         r.clientPhone || undefined,
@@ -159,6 +165,13 @@ export default function CalendarioPage() {
     depositAmount: r.depositAmount,
     courtId:       r.courtId as string,
     notes:         r.notes,
+  })
+
+  const reservations: CalendarReservation[] = rawReservations.map(mapReservation)
+  const spillovers:   CalendarReservation[] = rawSpillovers.map((r) => ({
+    ...mapReservation(r),
+    startTime: 0,
+    endTime:   r.endTime - 1440,
   }))
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -447,6 +460,7 @@ export default function CalendarioPage() {
                   <CalendarDayView
                     courts={courts}
                     reservations={reservations}
+                    spillovers={spillovers}
                     schedule={venueSchedule}
                     scheduleHistory={venueScheduleHistory}
                     selectedDate={currentDate}
@@ -487,7 +501,12 @@ export default function CalendarioPage() {
                     onUpdate={(reservationId, fields: ReservationUpdateFields) => {
                       void updateReservation({
                         reservationId: reservationId as Id<'reservations'>,
-                        ...fields,
+                        ...(fields.startTime   !== undefined ? { startTime:   fields.startTime   } : {}),
+                        ...(fields.endTime     !== undefined ? { endTime:     fields.endTime     } : {}),
+                        ...(fields.clientName  !== undefined ? { clientName:  fields.clientName  } : {}),
+                        ...(fields.clientPhone !== undefined ? { clientPhone: fields.clientPhone } : {}),
+                        ...(fields.totalAmount !== undefined ? { totalAmount: fields.totalAmount } : {}),
+                        ...(fields.notes       !== undefined ? { notes:       fields.notes       } : {}),
                       }).catch((err) => console.error('updateReservation failed:', err))
                     }}
                     onDelete={(reservationId) => {

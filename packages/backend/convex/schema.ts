@@ -9,8 +9,8 @@ import { v } from 'convex/values'
 const daySchedule = v.object({
   dayOfWeek: v.number(), // ISO 8601: 1=Monday … 7=Sunday
   active: v.boolean(),
-  openTime: v.string(),  // "HH:MM"
-  closeTime: v.string(), // "HH:MM"
+  openTime: v.number(),  // minutes since midnight (0–2879)
+  closeTime: v.number(), // minutes since midnight; may be > 1440 for overnight
 })
 
 // Versioned schedule entry — one per schedule change, append-only
@@ -26,7 +26,7 @@ const pricingConfig = v.object({
   currency: v.literal('ARS'),
   depositPercentage: v.optional(v.number()), // 0–100; only used when policy = deposit
   nightRatePrice: v.optional(v.number()),    // ARS float pesos — NOT cents
-  nightRateStart: v.optional(v.string()),    // "HH:MM"
+  nightRateStart: v.optional(v.number()),    // minutes since midnight (0–1439)
   chargePolicy: v.optional(v.union(
     v.literal('on_arrival'),
     v.literal('on_booking_deposit'),
@@ -131,8 +131,8 @@ export default defineSchema({
     courtId: v.id('courts'),
     venueId: v.id('venues'),           // denormalized
     date: v.string(),                  // "YYYY-MM-DD" — timezone AR UTC-3 handled at function layer
-    startTime: v.string(),             // "HH:MM"
-    endTime: v.string(),               // "HH:MM"
+    startTime: v.number(),             // minutes since midnight (0–2879)
+    endTime: v.number(),               // minutes since midnight (0–2879)
     clientName: v.string(),
     clientPhone: v.string(),
     status: v.union(
@@ -202,8 +202,8 @@ export default defineSchema({
       v.literal(1),
       v.literal(2),
     ),
-    startTime: v.string(),             // "HH:MM"
-    endTime: v.string(),               // "HH:MM"
+    startTime: v.number(),             // minutes since midnight (0–2879)
+    endTime: v.number(),               // minutes since midnight (0–2879)
     startDate: v.string(),             // "YYYY-MM-DD"
     endDate: v.optional(v.string()),   // "YYYY-MM-DD" — null = indefinite
     clientName: v.string(),

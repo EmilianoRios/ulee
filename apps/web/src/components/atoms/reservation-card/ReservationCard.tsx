@@ -14,8 +14,8 @@ export interface CalendarReservation {
   id: string
   clientName: string
   phone?: string
-  startTime: string
-  endTime: string
+  startTime: number   // absolute minutes since midnight of reservation date
+  endTime: number     // may be > 1440 for overnight reservations
   state: CalendarReservationState
   amount: number
   depositAmount?: number
@@ -42,9 +42,10 @@ interface ReservationCardProps {
   onClick: () => void
 }
 
-function parseMins(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
+function minutesToTime(mins: number): string {
+  const h = Math.floor(mins / 60) % 24
+  const m = mins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function fmtDuration(mins: number): string {
@@ -114,8 +115,8 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
   const isCompact = heightPx < 72
 
   const nowMins   = now.getHours() * 60 + now.getMinutes()
-  const startMins = parseMins(reservation.startTime)
-  const endMins   = parseMins(reservation.endTime)
+  const startMins = reservation.startTime
+  const endMins   = reservation.endTime > 1440 ? reservation.endTime - 1440 : reservation.endTime
 
   const elapsed   = Math.max(0, nowMins - startMins)
   const remaining = Math.max(0, endMins - nowMins)
@@ -185,8 +186,19 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
       </div>
 
       {!isCompact && (
-        <span style={{ fontSize: 11, color: palette.text, opacity: 0.65, lineHeight: 1.3 }}>
-          {reservation.startTime} – {reservation.endTime}
+        <span style={{ fontSize: 11, color: palette.text, opacity: 0.65, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+          {minutesToTime(reservation.startTime)} – {minutesToTime(reservation.endTime)}
+          {reservation.endTime > 1440 && (
+            <span style={{
+              fontSize:        9,
+              fontWeight:      600,
+              color:           'oklch(44% 0.12 275)',
+              backgroundColor: 'oklch(92% 0.04 275)',
+              borderRadius:    3,
+              padding:         '1px 3px',
+              lineHeight:      1.4,
+            }}>+1</span>
+          )}
         </span>
       )}
 

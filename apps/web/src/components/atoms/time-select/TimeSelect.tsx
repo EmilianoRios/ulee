@@ -130,12 +130,13 @@ function TimeSegment({ value, min, max, onChange, onNext, onPrev, inputRef, disa
 
 // ─── TimeSelect ───────────────────────────────────────────────────────────────
 
-export function TimeSelect({ value, onChange, error, disabled, style }: {
+export function TimeSelect({ value, onChange, error, disabled, style, nextDay }: {
   value:     string
   onChange:  (v: string) => void
   error?:    string
   disabled?: boolean
   style?:    CSSProperties
+  nextDay?:  boolean
 }) {
   const t = useTheme()
   const [focused, setFocused] = useState(false)
@@ -207,6 +208,21 @@ export function TimeSelect({ value, onChange, error, disabled, style }: {
         onChange={(v) => onChange(`${pad(hh)}:${pad(v)}`)}
         onPrev={() => hourRef.current?.focus()}
       />
+      {nextDay && (
+        <span style={{
+          fontSize:        10,
+          fontWeight:      600,
+          color:           'oklch(44% 0.12 275)',
+          backgroundColor: 'oklch(92% 0.04 275)',
+          borderRadius:    3,
+          padding:         '1px 4px',
+          marginLeft:      4,
+          lineHeight:      1.4,
+          flexShrink:      0,
+        }}>
+          +1
+        </span>
+      )}
     </div>
   )
 }

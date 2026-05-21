@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useTheme } from 'tamagui'
 import { X, ChevronDown, Banknote, CreditCard } from 'lucide-react'
 import { useMutation } from 'convex/react'
-import { api } from '@canchero/backend'
+import { api, timeToMinutes } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
 import type { Court } from '@/components/atoms/reservation-card'
 import { TimeSelect } from '@/components/atoms/time-select'
@@ -35,7 +35,7 @@ function toInputDate(d: Date): string {
   ].join('-')
 }
 
-function addMinutes(time: string, mins: number): string {
+function shiftTimeString(time: string, mins: number): string {
   const [h, m] = time.split(':').map(Number)
   const total = h * 60 + m + mins
   return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
@@ -185,10 +185,10 @@ function DateInput({ value, onChange, error }: {
   )
 }
 
-function TimeInput({ value, onChange, error }: {
-  value: string; onChange: (v: string) => void; error?: string
+function TimeInput({ value, onChange, error, nextDay }: {
+  value: string; onChange: (v: string) => void; error?: string; nextDay?: boolean
 }) {
-  return <TimeSelect value={value} onChange={onChange} error={error} style={{ width: '100%' }} />
+  return <TimeSelect value={value} onChange={onChange} error={error} nextDay={nextDay} style={{ width: '100%' }} />
 }
 
 function SelectInput({ value, onChange, options, error }: {
@@ -319,10 +319,10 @@ function RadioGroup({ value, onChange, options }: {
 
 // ─── Compound field: time range ───────────────────────────────────────────────
 
-function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin }: {
+function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin, finNextDay }: {
   inicio: string; onInicio: (v: string) => void
   fin: string;   onFin:    (v: string) => void
-  errorInicio?: string; errorFin?: string
+  errorInicio?: string; errorFin?: string; finNextDay?: boolean
 }) {
   const t = useTheme()
   return (
@@ -333,7 +333,7 @@ function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin }:
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ flex: 1 }}><TimeInput value={inicio} onChange={onInicio} error={errorInicio} /></div>
         <span style={{ color: t.textoMuted.val, fontSize: 13, flexShrink: 0, userSelect: 'none' }}>→</span>
-        <div style={{ flex: 1 }}><TimeInput value={fin} onChange={onFin} error={errorFin} /></div>
+        <div style={{ flex: 1 }}><TimeInput value={fin} onChange={onFin} error={errorFin} nextDay={finNextDay} /></div>
       </div>
       {(errorInicio || errorFin) && (
         <div style={{ fontSize: 11, color: 'oklch(50% 0.18 25)', marginTop: 4 }}>
@@ -364,7 +364,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
   const defaultCourtId  = initialCourtId ?? courts[0]?.id ?? ''
   const defaultInicio   = initialTime ?? '09:00'
-  const defaultFin      = initialTime ? addMinutes(initialTime, 90) : '10:30'
+  const defaultFin      = initialTime ? shiftTimeString(initialTime, 90) : '10:30'
 
   const [errors,      setErrors]      = useState<Record<string, string>>({})
   const [submitting,  setSubmitting]  = useState(false)
@@ -393,6 +393,11 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
   const [rateMode, setRateMode] = useState<'day' | 'mixed' | 'night'>('day')
 
+  const isOvernight = Boolean(
+    horaInicio && horaFin && horaInicio !== horaFin &&
+    timeToMinutes(horaFin) <= timeToMinutes(horaInicio)
+  )
+
   // Auto-fill monto splitting the slot into day/night tramos when applicable
   useEffect(() => {
     if (type !== 'reserva' && type !== 'recurrente') return
@@ -402,13 +407,13 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
     const [sh, sm] = horaInicio.split(':').map(Number)
     const [eh, em] = horaFin.split(':').map(Number)
     const startMin = sh * 60 + sm
-    const endMin   = eh * 60 + em
+    let endMin     = eh * 60 + em
+    if (endMin <= startMin) endMin += 1440
     const totalMin = endMin - startMin
     if (totalMin <= 0) return
 
     if (venueNightRate && venueNightRateStart) {
-      const [nh, nm]  = venueNightRateStart.split(':').map(Number)
-      const nightMin  = nh * 60 + nm
+      const nightMin  = timeToMinutes(venueNightRateStart)
       const dayPart   = Math.max(0, Math.min(endMin, nightMin) - startMin)
       const nightPart = Math.max(0, endMin - Math.max(startMin, nightMin))
       const total     = Math.round(dayRate * dayPart / 60 + venueNightRate * nightPart / 60)
@@ -458,6 +463,9 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       if (frecuencia === 'semanal' && diasSemana.length === 0) errs.diasSemana = 'Seleccioná al menos un día'
       if (frecuencia === 'mensual' && !diaDelMes)   errs.diaDelMes  = 'Requerido'
     }
+    if (horaInicio && horaFin && horaInicio === horaFin) {
+      errs.horaFin = 'La duración no puede ser cero'
+    }
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -474,8 +482,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           venueId,
           courtId:       courtId as Id<'courts'>,
           date:          fecha,
-          startTime:     horaInicio,
-          endTime:       horaFin,
+          startTime:     timeToMinutes(horaInicio),
+          endTime:       timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
           clientName:    cliente,
           clientPhone:   telefono,
           totalAmount:   hasMonto ? Number(monto) : 0,
@@ -488,8 +496,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           venueId,
           courtId:     courtId as Id<'courts'>,
           date:        fecha,
-          startTime:   horaInicio,
-          endTime:     horaFin,
+          startTime:   timeToMinutes(horaInicio),
+          endTime:     timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
           clientName:  descripcion,
           clientPhone: '',
           totalAmount: 0,
@@ -501,8 +509,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           venueId,
           courtId:     courtId as Id<'courts'>,
           date:        fecha,
-          startTime:   horaInicio,
-          endTime:     horaFin,
+          startTime:   timeToMinutes(horaInicio),
+          endTime:     timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
           clientName:  nombreEvento,
           clientPhone: '',
           totalAmount: montoEvento ? Number(montoEvento) : 0,
@@ -536,6 +544,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
         inicio={horaInicio} onInicio={setHoraInicio}
         fin={horaFin}       onFin={setHoraFin}
         errorInicio={errors.horaInicio} errorFin={errors.horaFin}
+        finNextDay={isOvernight}
       />
     </div>
   )
@@ -659,6 +668,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                   inicio={horaInicio} onInicio={setHoraInicio}
                   fin={horaFin}       onFin={setHoraFin}
                   errorInicio={errors.horaInicio} errorFin={errors.horaFin}
+                  finNextDay={isOvernight}
                 />
               </div>
 
