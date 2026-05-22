@@ -579,7 +579,7 @@ export function Sidebar() {
                 userSelect:    'none',
               }}
             >
-              Canchero
+              Ulee!
             </Text>
             <Text
               fontSize={10}

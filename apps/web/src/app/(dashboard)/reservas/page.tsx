@@ -3,7 +3,7 @@
 import { Plus } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { usePaginatedQuery, useQuery } from 'convex/react'
-import { api } from '@canchero/backend'
+import { api, minutesToTime } from '@canchero/backend'
 import { ReservationsTable, type Reservation } from '@/components/organisms/reservations-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { useActiveVenue } from '@/context/active-venue'
@@ -46,7 +46,7 @@ export default function ReservasPage() {
     id:      r._id,
     cliente: r.clientName,
     cancha:  r.courtName,
-    horario: `${r.startTime} – ${r.endTime}`,
+    horario: `${minutesToTime(r.startTime)} – ${minutesToTime(r.endTime)}`,
     estado:  r.status,
     total:   r.totalAmount,
   }))

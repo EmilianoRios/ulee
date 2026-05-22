@@ -10,25 +10,23 @@ const STEPS = ['Tu sede', 'Tus canchas', 'Listo']
 
 const DEFAULT_SCHEDULE = [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({
   dayOfWeek,
-  active: true,
-  openTime: '08:00',
-  closeTime: '22:00',
+  active:    true,
+  openTime:  480,  // 08:00 in minutes
+  closeTime: 1320, // 22:00 in minutes
 }))
-
-const DEFAULT_PRICING_CONFIG = {
-  pricePerHour: 0,
-  currency: 'ARS' as const,
-}
 
 export function OnboardingSedeOrganism() {
   const router = useRouter()
   const createVenue = useMutation(api.functions.venues.mutations.create)
 
-  const [name, setName]       = useState('')
-  const [address, setAddress] = useState('')
-  const [phone, setPhone]     = useState('')
-  const [error, setError]     = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [name, setName]                   = useState('')
+  const [address, setAddress]             = useState('')
+  const [phone, setPhone]                 = useState('')
+  const [description, setDescription]     = useState('')
+  const [email, setEmail]                 = useState('')
+  const [pricePerHour, setPricePerHour]   = useState('')
+  const [error, setError]                 = useState<string | null>(null)
+  const [loading, setLoading]             = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -42,6 +40,14 @@ export function OnboardingSedeOrganism() {
       setError('La dirección es obligatoria.')
       return
     }
+    if (email.trim() && !email.includes('@')) {
+      setError('Email inválido.')
+      return
+    }
+    if (pricePerHour && parseInt(pricePerHour.replace(/\D/g, ''), 10) < 0) {
+      setError('El precio por hora debe ser un número positivo.')
+      return
+    }
 
     try {
       setLoading(true)
@@ -50,7 +56,12 @@ export function OnboardingSedeOrganism() {
         address:       address.trim(),
         phone:         phone.trim(),
         schedule:      DEFAULT_SCHEDULE,
-        pricingConfig: DEFAULT_PRICING_CONFIG,
+        pricingConfig: {
+          pricePerHour: pricePerHour ? parseInt(pricePerHour.replace(/\D/g, ''), 10) : 0,
+          currency:     'ARS',
+        },
+        description: description.trim() || undefined,
+        email:       email.trim() || undefined,
       })
       router.push(`/onboarding/canchas?venueId=${venueId}`)
     } catch (err) {
@@ -107,6 +118,45 @@ export function OnboardingSedeOrganism() {
             maxLength={20}
             style={inputStyle}
           />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>Descripción</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ej: Club deportivo con 4 canchas de fútbol 5..."
+            maxLength={500}
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>Email de contacto</label>
+          <input
+            type="text"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Ej: info@cancheroclub.com"
+            maxLength={100}
+            style={inputStyle}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>Precio por hora</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={pricePerHour}
+            onChange={(e) => setPricePerHour(e.target.value.replace(/\D/g, ''))}
+            placeholder="Ej: 5000"
+            style={inputStyle}
+          />
+          <span style={{ color: 'oklch(50% 0.01 228)', fontSize: 12 }}>
+            Podés configurarlo después en Configuración
+          </span>
         </div>
 
         {error && (

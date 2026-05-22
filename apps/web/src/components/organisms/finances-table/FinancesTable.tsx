@@ -53,15 +53,18 @@ function PaymentTypeBadge({ type }: { type: Transaction['paymentType'] }) {
   const { bg, text } = PAYMENT_TYPE_COLORS[type]
   return (
     <span style={{
-      display:       'inline-block',
-      padding:       '2px 8px',
-      borderRadius:  4,
-      fontSize:      11,
-      fontWeight:    600,
-      letterSpacing: '0.02em',
+      display:         'inline-flex',
+      alignItems:      'center',
+      padding:         '3px 9px',
+      borderRadius:    9999,
+      fontSize:        11,
+      fontWeight:      500,
+      letterSpacing:   '0.02em',
+      lineHeight:      1.4,
       backgroundColor: bg,
       color:           text,
-      whiteSpace:    'nowrap',
+      border:          `1px solid ${text}33`,
+      whiteSpace:      'nowrap',
     }}>
       {PAYMENT_TYPE_LABELS[type]}
     </span>

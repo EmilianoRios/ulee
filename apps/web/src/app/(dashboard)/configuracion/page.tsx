@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 import { Check } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation } from 'convex/react'
-import { api } from '@canchero/backend'
+import { api, minutesToTime, timeToMinutes } from '@canchero/backend'
 import type { Doc } from '@canchero/backend'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { ConfigGeneral  } from '@/components/organisms/config-general'
@@ -44,8 +44,8 @@ function venueToScheduleData(venue: Doc<'venues'>): ScheduleEntry[] {
   return venue.schedule.map(entry => ({
     dayOfWeek: entry.dayOfWeek,
     active:    entry.active,
-    openTime:  entry.openTime,
-    closeTime: entry.closeTime,
+    openTime:  minutesToTime(entry.openTime),
+    closeTime: minutesToTime(entry.closeTime),
   }))
 }
 
@@ -56,7 +56,7 @@ function venueToPricingData(venue: Doc<'venues'>): PricingInitialData {
     currency:            pc.currency,
     depositPercentage:   pc.depositPercentage,
     nightRatePrice:      pc.nightRatePrice,
-    nightRateStart:      pc.nightRateStart,
+    nightRateStart:      pc.nightRateStart !== undefined ? minutesToTime(pc.nightRateStart) : undefined,
     chargePolicy:        pc.chargePolicy,
     bookingWindowDays:   pc.bookingWindowDays,
     balanceDeadlineDays: pc.balanceDeadlineDays,
@@ -130,12 +130,26 @@ export default function ConfiguracionPage() {
 
   const handleScheduleSubmit = useCallback(async (schedule: ScheduleEntry[]) => {
     if (!activeVenueId) return
-    await updateSchedule({ venueId: activeVenueId, schedule })
+    await updateSchedule({
+      venueId: activeVenueId,
+      schedule: schedule.map(entry => ({
+        dayOfWeek: entry.dayOfWeek,
+        active:    entry.active,
+        openTime:  timeToMinutes(entry.openTime),
+        closeTime: timeToMinutes(entry.closeTime),
+      })),
+    })
   }, [activeVenueId, updateSchedule])
 
   const handlePricingSubmit = useCallback(async (data: PricingInitialData) => {
     if (!activeVenueId) return
-    await updatePricing({ venueId: activeVenueId, pricingConfig: data })
+    await updatePricing({
+      venueId: activeVenueId,
+      pricingConfig: {
+        ...data,
+        nightRateStart: data.nightRateStart !== undefined ? timeToMinutes(data.nightRateStart) : undefined,
+      },
+    })
   }, [activeVenueId, updatePricing])
 
   const handleHolidaysSubmit = useCallback(async (holidays: HolidayEntry[]) => {

@@ -64,12 +64,9 @@ interface CalendarDayViewProps {
   schedule:                  DaySchedule[]
   scheduleHistory:           ScheduleVersion[]
   selectedDate:              Date
-  scheduleOverrideNeeded?:   boolean
-  onExtendConfirmOverride?:  () => void
-  onExtendCancelOverride?:   () => void
   onSlotClick?:              (courtId: string, time: string) => void
   onUpdateStatus?:           (reservationId: string, status: ReservationBackendStatus, paymentMethod?: 'cash' | 'online', amount?: number) => void
-  onExtend?:                 (reservationId: string, minutes: 30 | 60) => void
+  onExtend?:                 (reservationId: string, minutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
   onUpdate?:                 (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:                 (reservationId: string) => void
   mockNow?:                  Date
@@ -77,7 +74,7 @@ interface CalendarDayViewProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, selectedDate, scheduleOverrideNeeded, onExtendConfirmOverride, onExtendCancelOverride, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, mockNow }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, selectedDate, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -223,59 +220,6 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
-      {/* ── Override warning banner ───────────────────────────────────────────── */}
-      {scheduleOverrideNeeded && (
-        <div style={{
-          padding:         '10px 16px',
-          backgroundColor: 'oklch(94% 0.04 42)',
-          display:         'flex',
-          alignItems:      'center',
-          justifyContent:  'space-between',
-          gap:             12,
-          flexShrink:      0,
-        }}>
-          <span style={{ fontSize: 13, color: 'oklch(40% 0.12 42)', lineHeight: 1.4 }}>
-            Esta extensión supera el horario de cierre. ¿Confirmás de todas formas?
-          </span>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button
-              onClick={onExtendCancelOverride}
-              style={{
-                padding:         '5px 12px',
-                borderRadius:    6,
-                border:          '1px solid oklch(75% 0.06 42)',
-                backgroundColor: 'transparent',
-                cursor:          'pointer',
-                fontSize:        12,
-                fontWeight:      500,
-                color:           'oklch(45% 0.10 42)',
-                lineHeight:      1,
-                fontFamily:      'inherit',
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={onExtendConfirmOverride}
-              style={{
-                padding:         '5px 12px',
-                borderRadius:    6,
-                border:          'none',
-                backgroundColor: 'oklch(70% 0.12 42)',
-                cursor:          'pointer',
-                fontSize:        12,
-                fontWeight:      500,
-                color:           'oklch(98% 0.004 42)',
-                lineHeight:      1,
-                fontFamily:      'inherit',
-              }}
-            >
-              Confirmar
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── Scroll container ─────────────────────────────────────────────────── */}
       <div

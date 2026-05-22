@@ -99,10 +99,6 @@ export default function CalendarioPage() {
   const [initialSlotTime,  setInitialSlotTime]  = useState<string | undefined>(undefined)
   const [initialSlotCourt, setInitialSlotCourt] = useState<string | undefined>(undefined)
 
-  // Override flow state — driven by extendReservation throwing outside_schedule_override_required
-  const [scheduleOverrideNeeded, setScheduleOverrideNeeded] = useState(false)
-  const [pendingExtendArgs, setPendingExtendArgs] = useState<{ reservationId: string; minutes: 30 | 60 } | null>(null)
-
   const currentDateStr = dateFromDate(currentDate)
 
   // ── Convex queries — skip when no venue selected ───────────────────────────
@@ -185,22 +181,6 @@ export default function CalendarioPage() {
 
   const isToday = new Date().toDateString() === currentDate.toDateString()
 
-  // ── Override confirm / cancel ──────────────────────────────────────────────
-  const handleExtendConfirmOverride = useCallback(() => {
-    if (!pendingExtendArgs) return
-    setScheduleOverrideNeeded(false)
-    void extendReservation({
-      reservationId:    pendingExtendArgs.reservationId as Id<'reservations'>,
-      additionalMinutes: pendingExtendArgs.minutes,
-      overrideSchedule:  true,
-    }).catch((err) => console.error('extendReservation override failed:', err))
-    setPendingExtendArgs(null)
-  }, [pendingExtendArgs, extendReservation])
-
-  const handleExtendCancelOverride = useCallback(() => {
-    setScheduleOverrideNeeded(false)
-    setPendingExtendArgs(null)
-  }, [])
 
   const navBtn: React.CSSProperties = {
     width:           30,
@@ -464,9 +444,6 @@ export default function CalendarioPage() {
                     schedule={venueSchedule}
                     scheduleHistory={venueScheduleHistory}
                     selectedDate={currentDate}
-                    scheduleOverrideNeeded={scheduleOverrideNeeded}
-                    onExtendConfirmOverride={handleExtendConfirmOverride}
-                    onExtendCancelOverride={handleExtendCancelOverride}
                     onSlotClick={(courtId, time) => {
                       setDefaultType('reserva')
                       setInitialSlotTime(time)
@@ -482,22 +459,13 @@ export default function CalendarioPage() {
                           : {}),
                       })
                     }}
-                    onExtend={(reservationId, minutes) => {
-                      setScheduleOverrideNeeded(false)
-                      setPendingExtendArgs(null)
-                      void extendReservation({
-                        reservationId:    reservationId as Id<'reservations'>,
+                    onExtend={(reservationId, minutes, overrideSchedule) =>
+                      extendReservation({
+                        reservationId:     reservationId as Id<'reservations'>,
                         additionalMinutes: minutes,
-                      }).catch((err: unknown) => {
-                        const data = (err as { data?: { code?: string } }).data
-                        if (data?.code === 'outside_schedule_override_required') {
-                          setScheduleOverrideNeeded(true)
-                          setPendingExtendArgs({ reservationId, minutes })
-                        } else {
-                          console.error('extendReservation failed:', err)
-                        }
+                        overrideSchedule,
                       })
-                    }}
+                    }
                     onUpdate={(reservationId, fields: ReservationUpdateFields) => {
                       void updateReservation({
                         reservationId: reservationId as Id<'reservations'>,

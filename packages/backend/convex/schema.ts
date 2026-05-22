@@ -108,8 +108,24 @@ export default defineSchema({
   courts: defineTable({
     venueId: v.id('venues'),
     name: v.string(),
-    sport: v.string(),
-    surface: v.optional(v.string()),
+    sport: v.union(
+      v.literal('Fútbol 5'),
+      v.literal('Fútbol 7'),
+      v.literal('Fútbol 8'),
+      v.literal('Fútbol 11'),
+      v.literal('Pádel'),
+      v.literal('Tenis'),
+      v.literal('Básquet'),
+      v.literal('Otro'),
+    ),
+    surface: v.optional(v.union(
+      v.literal('Sintético'),
+      v.literal('Tierra'),
+      v.literal('Hormigón'),
+      v.literal('Madera'),
+      v.literal('Cemento'),
+      v.literal('Otro'),
+    )),
     covered: v.optional(v.boolean()),
     status: v.union(
       v.literal('active'),

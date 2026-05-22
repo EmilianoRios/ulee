@@ -5,6 +5,9 @@ import { useTheme } from 'tamagui'
 import { X, Plus, Camera } from 'lucide-react'
 import type { Court } from '../courts-list'
 import type { CourtStatus } from '../../atoms/court-status-chip'
+import { DEFAULT_SPORT, DEFAULT_SURFACE } from '@/lib/constants/courts'
+import { SportSelect } from '@/components/molecules/sport-select'
+import { SurfaceSelect } from '@/components/molecules/surface-select'
 
 interface CourtSlideOverProps {
   court:   Court | null
@@ -14,9 +17,6 @@ interface CourtSlideOverProps {
 }
 
 // ─── Options ──────────────────────────────────────────────────────────────────
-
-const SPORTS   = ['Fútbol 5', 'Fútbol 7', 'Fútbol 8', 'Fútbol 11', 'Pádel', 'Tenis', 'Básquet', 'Otro']
-const SURFACES = ['Sintético', 'Tierra', 'Hormigón', 'Madera', 'Cemento', 'Otro']
 
 const COVERED_OPTIONS = [
   { label: 'Techada',       value: 'true'          },
@@ -31,9 +31,9 @@ const STATUS_OPTIONS: { label: string; value: CourtStatus }[] = [
 
 const DEFAULT_FORM = {
   name:         '',
-  sport:        'Fútbol 5',
-  surface:      'Sintético',
-  covered:      'true',
+  sport:        DEFAULT_SPORT,
+  surface:      DEFAULT_SURFACE,
+  covered:      true,
   pricePerHour: '',
   status:       'active' as CourtStatus,
   images:       [] as string[],
@@ -111,7 +111,7 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
         name:         court.name,
         sport:        court.sport,
         surface:      court.surface,
-        covered:      String(court.covered),
+        covered:      court.covered,
         pricePerHour: String(court.pricePerHour),
         status:       court.status,
         images:       court.images ?? [],
@@ -138,7 +138,7 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
       name:         form.name.trim(),
       sport:        form.sport,
       surface:      form.surface,
-      covered:      form.covered === 'true',
+      covered:      form.covered,
       pricePerHour: price,
       status:       form.status,
       images:       form.images,
@@ -292,34 +292,26 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
           </FormField>
 
           <FormField label="Deporte">
-            <select
+            <SportSelect
               value={form.sport}
-              onChange={(e) => setForm(f => ({ ...f, sport: e.target.value }))}
+              onChange={(v) => setForm(f => ({ ...f, sport: v }))}
               style={selectBase}
-              onFocus={(e) => { (e.currentTarget as HTMLSelectElement).style.borderColor = t.verdeCancha.val }}
-              onBlur={(e)  => { (e.currentTarget as HTMLSelectElement).style.borderColor = t.bordeNeutral.val }}
-            >
-              {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            />
           </FormField>
 
           <FormField label="Superficie">
-            <select
+            <SurfaceSelect
               value={form.surface}
-              onChange={(e) => setForm(f => ({ ...f, surface: e.target.value }))}
+              onChange={(v) => setForm(f => ({ ...f, surface: v }))}
               style={selectBase}
-              onFocus={(e) => { (e.currentTarget as HTMLSelectElement).style.borderColor = t.verdeCancha.val }}
-              onBlur={(e)  => { (e.currentTarget as HTMLSelectElement).style.borderColor = t.bordeNeutral.val }}
-            >
-              {SURFACES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            />
           </FormField>
 
           <FormField label="Cobertura">
             <SegmentedControl
               options={COVERED_OPTIONS}
-              value={form.covered}
-              onChange={(v) => setForm(f => ({ ...f, covered: v }))}
+              value={String(form.covered)}
+              onChange={(v) => setForm(f => ({ ...f, covered: v === 'true' }))}
             />
           </FormField>
 

@@ -19,11 +19,11 @@ export interface VenueSlideOverProps {
 
 // ─── Default form ─────────────────────────────────────────────────────────────
 
-const DEFAULT_SCHEDULE = [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+const DEFAULT_SCHEDULE = [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({
   dayOfWeek,
   active:    true,
-  openTime:  '08:00',
-  closeTime: '22:00',
+  openTime:  480,  // 08:00 in minutes
+  closeTime: 1320, // 22:00 in minutes
 }))
 
 const DEFAULT_FORM = {

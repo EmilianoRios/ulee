@@ -32,7 +32,7 @@ interface ReservationSlideOverProps {
   now?:            Date
   onClose:         () => void
   onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus, paymentMethod?: 'cash' | 'online', amount?: number) => void
-  onExtend?:       (reservationId: string, additionalMinutes: 30 | 60) => void
+  onExtend?:       (reservationId: string, additionalMinutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
   onUpdate?:       (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:       (reservationId: string) => void
 }
@@ -356,11 +356,12 @@ function EditForm({ reservation, fields, onChange, onConfirm, onCancel }: {
 export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose, onUpdateStatus, onExtend, onUpdate, onDelete }: ReservationSlideOverProps) {
   const t = useTheme()
 
-  const [extendMins,      setExtendMins]      = useState<0 | 30 | 60>(0)
-  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'online' | null>(null)
-  const [isEditing,       setIsEditing]       = useState(false)
-  const [editFields,      setEditFields]      = useState<ReservationUpdateFields>({})
-  const [deleteConfirm,   setDeleteConfirm]   = useState(false)
+  const [extendMins,           setExtendMins]           = useState<0 | 30 | 60>(0)
+  const [selectedPayment,      setSelectedPayment]      = useState<'cash' | 'online' | null>(null)
+  const [isEditing,            setIsEditing]            = useState(false)
+  const [editFields,           setEditFields]           = useState<ReservationUpdateFields>({})
+  const [deleteConfirm,        setDeleteConfirm]        = useState(false)
+  const [overrideConfirmPending, setOverrideConfirmPending] = useState(false)
 
   useEffect(() => {
     if (!reservation) return
@@ -376,6 +377,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setIsEditing(false)
     setEditFields({})
     setDeleteConfirm(false)
+    setOverrideConfirmPending(false)
   }, [reservation?.id])
 
   const isOpen = reservation !== null
@@ -687,11 +689,12 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         marginTop:       2,
                         padding:         '14px 16px',
                         borderRadius:    8,
-                        border:          `1px solid ${t.bordeNeutral.val}`,
-                        backgroundColor: t.superficie.val,
+                        border:          `1px solid ${overrideConfirmPending ? 'oklch(75% 0.10 42)' : t.bordeNeutral.val}`,
+                        backgroundColor: overrideConfirmPending ? 'oklch(97% 0.03 42)' : t.superficie.val,
                         display:         'flex',
                         flexDirection:   'column',
                         gap:             10,
+                        transition:      'border-color 150ms ease-out, background-color 150ms ease-out',
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                           <span style={{ fontSize: 12, color: t.textoMuted.val }}>Nuevo horario</span>
@@ -705,17 +708,51 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                             ${extraCharge.toLocaleString('es-AR')}
                           </span>
                         </div>
-                        <p style={{ margin: 0, fontSize: 11, color: t.textoMuted.val, lineHeight: 1.4 }}>
-                          El cargo se cobra al finalizar el turno extendido.
-                        </p>
-                        <ActionButton
-                          label="Confirmar extensión"
-                          onClick={() => {
-                            onExtend?.(reservation.id, extendMins as 30 | 60)
-                            setExtendMins(0)
-                          }}
-                          variant="secondary"
-                        />
+
+                        {overrideConfirmPending ? (
+                          <>
+                            <p style={{ margin: 0, fontSize: 12, color: 'oklch(42% 0.12 42)', lineHeight: 1.4 }}>
+                              Esta extensión supera el horario de cierre de la sede. ¿Confirmás de todas formas?
+                            </p>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <ActionButton
+                                label="Confirmar de todas formas"
+                                onClick={async () => {
+                                  await onExtend?.(reservation.id, extendMins as 30 | 60, true)
+                                  setExtendMins(0)
+                                  setOverrideConfirmPending(false)
+                                }}
+                                variant="secondary"
+                              />
+                              <ActionButton
+                                label="Cancelar"
+                                onClick={() => setOverrideConfirmPending(false)}
+                                variant="secondary"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p style={{ margin: 0, fontSize: 11, color: t.textoMuted.val, lineHeight: 1.4 }}>
+                              El cargo se cobra al finalizar el turno extendido.
+                            </p>
+                            <ActionButton
+                              label="Confirmar extensión"
+                              onClick={async () => {
+                                try {
+                                  await onExtend?.(reservation.id, extendMins as 30 | 60)
+                                  setExtendMins(0)
+                                } catch (err: unknown) {
+                                  const data = (err as { data?: { code?: string } }).data
+                                  if (data?.code === 'outside_schedule_override_required') {
+                                    setOverrideConfirmPending(true)
+                                  }
+                                }
+                              }}
+                              variant="secondary"
+                            />
+                          </>
+                        )}
                       </div>
                     )}
                   </>

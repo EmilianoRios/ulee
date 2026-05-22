@@ -1,6 +1,7 @@
 import { query } from '../../_generated/server'
 import { ConvexError, v } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
+import { minutesToTime } from '../../lib/time'
 import { aggregatePayments } from '../../lib/payments'
 import type { PaymentSummary } from '../../lib/payments'
 import type { Id } from '../../_generated/dataModel'
@@ -80,8 +81,8 @@ async function fetchRows(
       clientName:  r.clientName,
       courtName:   courtMap.get(r.courtId) ?? '',
       date:        r.date,
-      startTime:   r.startTime,
-      endTime:     r.endTime,
+      startTime:   minutesToTime(r.startTime),
+      endTime:     minutesToTime(r.endTime),
       online:       summary.online,
       cash:         summary.cash,
       total:        summary.total,

@@ -1,12 +1,33 @@
 import { mutation } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
+import { normalizeDaySchedule } from '../../lib/schedule'
 import type { MutationCtx } from '../../_generated/server'
 import type { Id } from '../../_generated/dataModel'
 
 // ---------------------------------------------------------------------------
 // Validators reused from schema shapes (cannot import schema validators directly)
 // ---------------------------------------------------------------------------
+
+const sportValidator = v.union(
+  v.literal('Fútbol 5'),
+  v.literal('Fútbol 7'),
+  v.literal('Fútbol 8'),
+  v.literal('Fútbol 11'),
+  v.literal('Pádel'),
+  v.literal('Tenis'),
+  v.literal('Básquet'),
+  v.literal('Otro'),
+)
+
+const surfaceValidator = v.union(
+  v.literal('Sintético'),
+  v.literal('Tierra'),
+  v.literal('Hormigón'),
+  v.literal('Madera'),
+  v.literal('Cemento'),
+  v.literal('Otro'),
+)
 
 const dayScheduleValidator = v.object({
   dayOfWeek: v.number(),
@@ -53,8 +74,8 @@ export const create = mutation({
   args: {
     venueId:          v.id('venues'),
     name:             v.string(),
-    sport:            v.string(),
-    surface:          v.optional(v.string()),
+    sport:            sportValidator,
+    surface:          v.optional(surfaceValidator),
     covered:          v.optional(v.boolean()),
     priceOverride:    v.optional(v.number()),
     scheduleOverride: v.optional(v.array(dayScheduleValidator)),
@@ -71,7 +92,7 @@ export const create = mutation({
       covered:          args.covered,
       status:           'active',
       priceOverride:    args.priceOverride,
-      scheduleOverride: args.scheduleOverride,
+      scheduleOverride: args.scheduleOverride?.map(normalizeDaySchedule),
     })
   },
 })
@@ -80,8 +101,8 @@ export const update = mutation({
   args: {
     courtId:          v.id('courts'),
     name:             v.optional(v.string()),
-    sport:            v.optional(v.string()),
-    surface:          v.optional(v.string()),
+    sport:            v.optional(sportValidator),
+    surface:          v.optional(surfaceValidator),
     covered:          v.optional(v.boolean()),
     status:           v.optional(v.union(
       v.literal('active'),
@@ -99,12 +120,13 @@ export const update = mutation({
 
     await assertVenueAccess(ctx, court.venueId, identity.subject)
 
-    const { courtId, ...fields } = args
+    const { courtId, scheduleOverride, ...fields } = args
     const patch: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(fields)) {
-      if (value !== undefined) {
-        patch[key] = value
-      }
+      if (value !== undefined) patch[key] = value
+    }
+    if (scheduleOverride !== undefined) {
+      patch.scheduleOverride = scheduleOverride.map(normalizeDaySchedule)
     }
 
     if (Object.keys(patch).length > 0) {

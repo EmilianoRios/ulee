@@ -45,6 +45,25 @@ export function isWithinSchedule(
   return startTime >= entry.openTime && endTime <= entry.closeTime
 }
 
+/**
+ * Like isWithinSchedule, but also accepts the previous day's schedule as fallback.
+ * A reservation starting near midnight (e.g. startTime=0, endTime=90 on Saturday)
+ * may legitimately fall within the previous day's overnight window
+ * (Friday closeTime=1560 covers up to 2 AM Saturday).
+ * The fallback shifts [startTime, endTime] by +1440 and checks against prevSchedule/prevDayOfWeek.
+ */
+export function isWithinScheduleOrOvernight(
+  schedule:      DaySchedule[],
+  dayOfWeek:     number,
+  startTime:     number,
+  endTime:       number,
+  prevSchedule:  DaySchedule[],
+  prevDayOfWeek: number,
+): boolean {
+  if (isWithinSchedule(schedule, dayOfWeek, startTime, endTime)) return true
+  return isWithinSchedule(prevSchedule, prevDayOfWeek, startTime + 1440, endTime + 1440)
+}
+
 // ---------------------------------------------------------------------------
 // Overnight helpers — cross-day conflict detection
 // ---------------------------------------------------------------------------

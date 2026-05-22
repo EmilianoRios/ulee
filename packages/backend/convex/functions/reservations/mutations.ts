@@ -1,10 +1,10 @@
 import { mutation, MutationCtx } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
-import { hasConflict, isWithinSchedule, buildConflictWindow } from '../../lib/conflicts'
+import { hasConflict, isWithinScheduleOrOvernight, buildConflictWindow } from '../../lib/conflicts'
 import { isoWeekday } from '../../lib/dates'
 import { resolvePaymentType } from '../../lib/payments'
-import { resolveScheduleForDate } from '../../lib/schedule'
+import { resolveScheduleForDate, addDays } from '../../lib/schedule'
 import { addMinutes } from '../../lib/time'
 import type { Id } from '../../_generated/dataModel'
 
@@ -104,11 +104,17 @@ export const create = mutation({
 
     // Schedule validation — only for bookable statuses (not maintenance/event/recurring)
     if (SCHEDULE_CHECKED_STATUSES.has(status)) {
+      const prevDate     = addDays(args.date, -1)
       const scheduleForDate = court.scheduleOverride
-        ? court.scheduleOverride
-        : resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], args.date)
-      const dow = isoWeekday(args.date)
-      if (!isWithinSchedule(scheduleForDate, dow, args.startTime, args.endTime)) {
+        ?? resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], args.date)
+      const prevSchedule = court.scheduleOverride
+        ?? resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], prevDate)
+
+      if (!isWithinScheduleOrOvernight(
+        scheduleForDate, isoWeekday(args.date),
+        args.startTime, args.endTime,
+        prevSchedule, isoWeekday(prevDate),
+      )) {
         throw new ConvexError('La cancha no está disponible en ese horario')
       }
     }
@@ -240,13 +246,19 @@ export const extendReservation = mutation({
     const dow   = isoWeekday(reservation.date)
 
     // Resolve date-aware schedule (with court override taking priority)
+    const prevDate        = addDays(reservation.date, -1)
     const scheduleForDate = court?.scheduleOverride
-      ? court.scheduleOverride
-      : resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], reservation.date)
+      ?? resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], reservation.date)
+    const prevSchedule    = court?.scheduleOverride
+      ?? resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], prevDate)
 
     // Schedule bounds check — skipped only when overrideSchedule is explicitly true
     if (!args.overrideSchedule) {
-      if (!isWithinSchedule(scheduleForDate, dow, reservation.startTime, newEndTime)) {
+      if (!isWithinScheduleOrOvernight(
+        scheduleForDate, dow,
+        reservation.startTime, newEndTime,
+        prevSchedule, isoWeekday(prevDate),
+      )) {
         throw new ConvexError({
           code:    'outside_schedule_override_required',
           message: 'La extensión supera el horario de cierre de la sede.',
@@ -342,12 +354,17 @@ export const updateReservation = mutation({
 
       const court = await ctx.db.get(reservation.courtId)
       const venue = await ctx.db.get(reservation.venueId)
+      const prevDate        = addDays(reservation.date, -1)
       const scheduleForDate = court?.scheduleOverride
-        ? court.scheduleOverride
-        : resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], reservation.date)
-      const dow = isoWeekday(reservation.date)
+        ?? resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], reservation.date)
+      const prevSchedule    = court?.scheduleOverride
+        ?? resolveScheduleForDate(venue?.scheduleHistory, venue?.schedule ?? [], prevDate)
 
-      if (!isWithinSchedule(scheduleForDate, dow, newStart, newEnd)) {
+      if (!isWithinScheduleOrOvernight(
+        scheduleForDate, isoWeekday(reservation.date),
+        newStart, newEnd,
+        prevSchedule, isoWeekday(prevDate),
+      )) {
         throw new ConvexError('La cancha no está disponible en ese horario')
       }
 

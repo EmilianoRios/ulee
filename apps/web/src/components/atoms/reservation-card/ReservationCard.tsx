@@ -116,7 +116,7 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
 
   const nowMins   = now.getHours() * 60 + now.getMinutes()
   const startMins = reservation.startTime
-  const endMins   = reservation.endTime > 1440 ? reservation.endTime - 1440 : reservation.endTime
+  const endMins   = reservation.endTime
 
   const elapsed   = Math.max(0, nowMins - startMins)
   const remaining = Math.max(0, endMins - nowMins)
