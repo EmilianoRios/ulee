@@ -372,7 +372,7 @@ export default function CalendarioPage() {
           </span>
         ))}
       </div>
-      {stats !== undefined && stats.pendingCount > 0 && (
+      {isToday && stats !== undefined && stats.pendingCount > 0 && (
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{
             fontSize:        11,

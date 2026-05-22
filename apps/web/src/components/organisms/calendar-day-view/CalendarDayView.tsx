@@ -171,7 +171,16 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
 
   // ── Effective reservations (auto-transition señado/en-cancha → jugado when past end) ──
   const nowTotalMins = nowH * 60 + nowM
+  const isPastDay = useMemo(
+    () => getArgentinaDateString(selectedDate) < getArgentinaDateString(now),
+    [selectedDate, now],
+  )
   const effectiveReservations = reservations.map((r) => {
+    if (isPastDay) {
+      if (r.state === 'señado' || r.state === 'en-cancha') return { ...r, state: 'jugado' as const }
+      return r
+    }
+    if (!isToday) return r
     if (nowTotalMins > r.endTime && (r.state === 'señado' || r.state === 'en-cancha')) {
       return { ...r, state: 'jugado' as const }
     }
