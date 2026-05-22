@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Plus, Pencil, MapPin, Phone, Mail } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { useQuery } from 'convex/react'
+import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Doc, Id } from '@canchero/backend'
 import { VenueSlideOver } from '@/components/organisms/venue-slide-over/VenueSlideOver'
@@ -177,7 +177,8 @@ export default function SedesPage() {
   const t = useTheme()
   const { activeVenueId, setActiveVenueId } = useActiveVenue()
 
-  const venues = useQuery(api.functions.venues.queries.listByOwner)
+  const { isAuthenticated } = useConvexAuth()
+  const venues = useQuery(api.functions.venues.queries.listByOwner, isAuthenticated ? {} : 'skip')
 
   const [editingVenue, setEditingVenue] = useState<Doc<'venues'> | null>(null)
   const [creating,     setCreating]     = useState(false)

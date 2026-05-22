@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useUser, UserButton } from '@clerk/nextjs'
-import { useQuery } from 'convex/react'
+import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import { useActiveVenue } from '@/context/active-venue'
 
@@ -100,7 +100,8 @@ const NAV_SECTIONS: NavSection[] = [
 
 function VenueSwitcher({ collapsed }: { collapsed: boolean }) {
   const C        = useC()
-  const venues   = useQuery(api.functions.venues.queries.listByOwner)
+  const { isAuthenticated } = useConvexAuth()
+  const venues   = useQuery(api.functions.venues.queries.listByOwner, isAuthenticated ? {} : 'skip')
   const { activeVenueId, setActiveVenueId } = useActiveVenue()
   const [open, setOpen] = useState(false)
 

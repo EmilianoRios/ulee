@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Lock, Download, ChevronDown } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { useQuery } from 'convex/react'
+import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import { FinancesTable, type Transaction } from '@/components/organisms/finances-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
@@ -94,6 +94,7 @@ const D = {
 export default function FinanzasPage() {
   const t = useTheme()
   const { activeVenueId } = useActiveVenue()
+  const { isAuthenticated } = useConvexAuth()
 
   const [period,        setPeriod]        = useState<Period>('semana')
   const [cancha,        setCancha]        = useState('todas')
@@ -106,7 +107,7 @@ export default function FinanzasPage() {
 
   const allRows = useQuery(
     api.functions.finances.queries.listByVenueAndPeriod,
-    activeVenueId !== null
+    isAuthenticated && activeVenueId !== null
       ? { venueId: activeVenueId, dateFrom, dateTo }
       : 'skip'
   )

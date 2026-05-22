@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { useQuery, useMutation } from 'convex/react'
+import { useQuery, useMutation, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import { CourtsTable, type Court } from '@/components/organisms/courts-list'
 import { CourtSlideOver } from '@/components/organisms/court-slide-over'
@@ -30,6 +30,7 @@ function deriveStats(courts: Court[]) {
 export default function CanchasPage() {
   const t = useTheme()
   const { activeVenueId } = useActiveVenue()
+  const { isAuthenticated } = useConvexAuth()
 
   const [editing,  setEditing]  = useState<Court | null>(null)
   const [creating, setCreating] = useState(false)
@@ -38,7 +39,7 @@ export default function CanchasPage() {
 
   const rawCourts  = useQuery(
     api.functions.courts.queries.listByVenue,
-    activeVenueId ? { venueId: activeVenueId } : 'skip',
+    isAuthenticated && activeVenueId ? { venueId: activeVenueId } : 'skip',
   )
   const createCourt = useMutation(api.functions.courts.mutations.create)
   const updateCourt = useMutation(api.functions.courts.mutations.update)

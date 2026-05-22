@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { useQuery, useMutation } from 'convex/react'
+import { useQuery, useMutation, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Doc, Id } from '@canchero/backend'
 import type { ScheduleVersion } from '@canchero/backend'
@@ -86,6 +86,7 @@ const D = {
 export default function CalendarioPage() {
   const t = useTheme()
   const { activeVenueId } = useActiveVenue()
+  const { isAuthenticated } = useConvexAuth()
 
   const updateStatus      = useMutation(api.functions.reservations.mutations.updateStatus)
   const extendReservation = useMutation(api.functions.reservations.mutations.extendReservation)
@@ -102,32 +103,26 @@ export default function CalendarioPage() {
   const currentDateStr = dateFromDate(currentDate)
 
   // ── Convex queries — skip when no venue selected ───────────────────────────
+  const canQuery = isAuthenticated && activeVenueId !== null
+
   const reservationsRaw = useQuery(
     api.functions.reservations.queries.listAllByVenueAndDate,
-    activeVenueId !== null
-      ? { venueId: activeVenueId, date: currentDateStr }
-      : 'skip'
+    canQuery ? { venueId: activeVenueId, date: currentDateStr } : 'skip'
   )
 
   const courtsRaw = useQuery(
     api.functions.courts.queries.listByVenue,
-    activeVenueId !== null
-      ? { venueId: activeVenueId }
-      : 'skip'
+    canQuery ? { venueId: activeVenueId } : 'skip'
   )
 
   const venueRaw = useQuery(
     api.functions.venues.queries.getById,
-    activeVenueId !== null
-      ? { venueId: activeVenueId }
-      : 'skip'
+    canQuery ? { venueId: activeVenueId } : 'skip'
   )
 
   const stats = useQuery(
     api.functions.reservations.queries.statsByVenueAndDate,
-    activeVenueId !== null
-      ? { venueId: activeVenueId, date: currentDateStr }
-      : 'skip'
+    canQuery ? { venueId: activeVenueId, date: currentDateStr } : 'skip'
   )
 
   const isLoading = activeVenueId !== null && (reservationsRaw === undefined || courtsRaw === undefined)

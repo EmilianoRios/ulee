@@ -2,7 +2,7 @@
 
 import { Plus } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { usePaginatedQuery, useQuery } from 'convex/react'
+import { usePaginatedQuery, useQuery, useConvexAuth } from 'convex/react'
 import { api, minutesToTime } from '@canchero/backend'
 import { ReservationsTable, type Reservation } from '@/components/organisms/reservations-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
@@ -23,22 +23,20 @@ const PAGE_SIZE = 8
 export default function ReservasPage() {
   const t                = useTheme()
   const { activeVenueId } = useActiveVenue()
+  const { isAuthenticated } = useConvexAuth()
+  const canQuery = isAuthenticated && activeVenueId !== null
 
-  // Paginated reservation list — skip when no venue selected
+  // Paginated reservation list — skip when no venue selected or unauthenticated
   const { results, status, loadMore } = usePaginatedQuery(
     api.functions.reservations.queries.listByVenueAndDate,
-    activeVenueId !== null
-      ? { venueId: activeVenueId, date: TODAY }
-      : 'skip',
+    canQuery ? { venueId: activeVenueId, date: TODAY } : 'skip',
     { initialNumItems: PAGE_SIZE }
   )
 
-  // Stats strip — skip when no venue selected
+  // Stats strip — skip when no venue selected or unauthenticated
   const stats = useQuery(
     api.functions.reservations.queries.statsByVenueAndDate,
-    activeVenueId !== null
-      ? { venueId: activeVenueId, date: TODAY }
-      : 'skip'
+    canQuery ? { venueId: activeVenueId, date: TODAY } : 'skip'
   )
 
   // ── Adapt ReservationRow → Reservation (presentational shape) ──────────────

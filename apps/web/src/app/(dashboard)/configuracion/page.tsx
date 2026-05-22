@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import { Check } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { useQuery, useMutation } from 'convex/react'
+import { useQuery, useMutation, useConvexAuth } from 'convex/react'
 import { api, minutesToTime, timeToMinutes } from '@canchero/backend'
 import type { Doc } from '@canchero/backend'
 import { ModuleLayout } from '@/components/templates/module-layout'
@@ -76,11 +76,12 @@ function venueToHolidaysData(venue: Doc<'venues'>): HolidayEntry[] {
 export default function ConfiguracionPage() {
   const t = useTheme()
   const { activeVenueId } = useActiveVenue()
+  const { isAuthenticated } = useConvexAuth()
 
   // ─── Convex ──────────────────────────────────────────────────────────────
   const venue = useQuery(
     api.functions.venues.queries.getById,
-    activeVenueId ? { venueId: activeVenueId } : 'skip',
+    isAuthenticated && activeVenueId ? { venueId: activeVenueId } : 'skip',
   )
   const updateVenue     = useMutation(api.functions.venues.mutations.update)
   const updateSchedule  = useMutation(api.functions.venues.mutations.updateSchedule)
