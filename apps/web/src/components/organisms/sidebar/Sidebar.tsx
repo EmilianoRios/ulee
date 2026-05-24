@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useLocalStorage } from '@/hooks/use-local-storage'
 import { YStack, XStack, Text, useTheme } from 'tamagui'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -107,6 +108,11 @@ function VenueSwitcher({ collapsed }: { collapsed: boolean }) {
 
   const activeVenue = venues?.find((v) => v._id === activeVenueId)
   const hasMultiple = (venues?.length ?? 0) > 1
+
+  useEffect(() => {
+    if (!venues || venues.length === 0) return
+    if (activeVenueId === null) setActiveVenueId(venues[0]._id)
+  }, [venues, activeVenueId, setActiveVenueId])
 
   if (!venues || venues.length === 0) return null
 
@@ -479,7 +485,7 @@ export function Sidebar() {
   const C = useC()
   const pathname = usePathname()
 
-  const [width,       setWidth]       = useState(EXPANDED)
+  const [width,       setWidth]       = useLocalStorage('canchero:sidebarWidth', EXPANDED)
   const [isDragging,  setIsDragging]  = useState(false)
   const [handleHover, setHandleHover] = useState(false)
 

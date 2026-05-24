@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useLocalStorage } from '@/hooks/use-local-storage'
 
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
@@ -71,8 +72,9 @@ const D = {
 export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniPickerProps) {
   const today = new Date()
 
-  const [viewYear,  setViewYear]  = useState(selectedDate.getFullYear())
-  const [viewMonth, setViewMonth] = useState(selectedDate.getMonth())
+  const [collapsed,  setCollapsed]  = useLocalStorage('canchero:calendarPickerCollapsed', false)
+  const [viewYear,   setViewYear]   = useState(selectedDate.getFullYear())
+  const [viewMonth,  setViewMonth]  = useState(selectedDate.getMonth())
 
   const selYear  = selectedDate.getFullYear()
   const selMonth = selectedDate.getMonth()
@@ -110,6 +112,56 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
     transition:      'background-color 100ms ease-out',
   }
 
+  const toggleBtn: React.CSSProperties = {
+    ...navBtnBase,
+    width:  28,
+    height: 28,
+  }
+
+  const collapsedToggleResting: React.CSSProperties = {
+    width:           28,
+    height:          28,
+    borderRadius:    7,
+    border:          '1px solid oklch(50% 0.18 155 / 0.35)',
+    backgroundColor: 'oklch(50% 0.18 155 / 0.12)',
+    cursor:          'pointer',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    color:           D.verde,
+    padding:         0,
+    flexShrink:      0,
+    transition:      'background-color 100ms ease-out',
+  }
+
+  // ── Collapsed view ───────────────────────────────────────────────────────────
+  if (collapsed) {
+    return (
+      <div style={{
+        width:           36,
+        flexShrink:      0,
+        borderRight:     `1px solid ${D.border}`,
+        backgroundColor: D.bg,
+        display:         'flex',
+        flexDirection:   'column',
+        alignItems:      'center',
+        paddingTop:      18,
+        transition:      'width 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+      }}>
+        <button
+          onClick={() => setCollapsed(false)}
+          aria-label="Expandir selector de fecha"
+          style={collapsedToggleResting}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.22)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.12)' }}
+        >
+          <ChevronRight size={14} strokeWidth={2} />
+        </button>
+      </div>
+    )
+  }
+
+  // ── Expanded view ────────────────────────────────────────────────────────────
   return (
     <div style={{
       width:           220,
@@ -120,6 +172,7 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
       display:         'flex',
       flexDirection:   'column',
       gap:             14,
+      transition:      'width 200ms cubic-bezier(0.16, 1, 0.3, 1)',
     }}>
 
       {/* Month header */}
@@ -238,6 +291,19 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
             })}
           </div>
         ))}
+      </div>
+
+      {/* Collapse toggle */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', paddingTop: 8 }}>
+        <button
+          onClick={() => setCollapsed(true)}
+          aria-label="Colapsar selector de fecha"
+          style={collapsedToggleResting}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.22)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.12)' }}
+        >
+          <ChevronLeft size={14} strokeWidth={2} />
+        </button>
       </div>
     </div>
   )
