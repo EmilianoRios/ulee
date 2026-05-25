@@ -134,6 +134,7 @@ export default defineSchema({
     ),
     images: v.optional(v.array(v.string())),
     priceOverride: v.optional(v.number()),
+    nightRatePriceOverride: v.optional(v.number()),
     scheduleOverride: v.optional(v.array(daySchedule)),
   }).index('by_venueId', ['venueId']),
 

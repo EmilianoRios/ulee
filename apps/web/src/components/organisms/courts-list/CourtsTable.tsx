@@ -5,16 +5,17 @@ import { Pencil, Camera } from 'lucide-react'
 import { CourtStatusChip, type CourtStatus } from '../../atoms/court-status-chip'
 
 export interface Court {
-  id:           string
-  name:         string
-  sport:        string
-  surface:      string
-  covered:      boolean
-  pricePerHour: number
-  status:       CourtStatus
-  todayTurnos:  number
-  todayRevenue: number
-  images?:      string[]
+  id:              string
+  name:            string
+  sport:           string
+  surface:         string
+  covered:         boolean
+  pricePerHour:    number
+  nightRatePrice?: number
+  status:          CourtStatus
+  todayTurnos:     number
+  todayRevenue:    number
+  images?:         string[]
 }
 
 interface CourtsTableProps {

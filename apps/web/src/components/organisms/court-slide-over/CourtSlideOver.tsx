@@ -30,13 +30,14 @@ const STATUS_OPTIONS: { label: string; value: CourtStatus }[] = [
 ]
 
 const DEFAULT_FORM = {
-  name:         '',
-  sport:        DEFAULT_SPORT,
-  surface:      DEFAULT_SURFACE,
-  covered:      true,
-  pricePerHour: '',
-  status:       'active' as CourtStatus,
-  images:       [] as string[],
+  name:           '',
+  sport:          DEFAULT_SPORT,
+  surface:        DEFAULT_SURFACE,
+  covered:        true,
+  pricePerHour:   '',
+  nightRatePrice: '',
+  status:         'active' as CourtStatus,
+  images:         [] as string[],
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -108,13 +109,14 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
     if (!isOpen) return
     if (court) {
       setForm({
-        name:         court.name,
-        sport:        court.sport,
-        surface:      court.surface,
-        covered:      court.covered,
-        pricePerHour: String(court.pricePerHour),
-        status:       court.status,
-        images:       court.images ?? [],
+        name:           court.name,
+        sport:          court.sport,
+        surface:        court.surface,
+        covered:        court.covered,
+        pricePerHour:   String(court.pricePerHour),
+        nightRatePrice: court.nightRatePrice ? String(court.nightRatePrice) : '',
+        status:         court.status,
+        images:         court.images ?? [],
       })
     } else {
       setForm(DEFAULT_FORM)
@@ -132,16 +134,18 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
   const title = isNew ? 'Nueva cancha' : court.name
 
   function handleSave() {
-    const price = parseInt(form.pricePerHour.replace(/\D/g, ''), 10)
+    const price      = parseInt(form.pricePerHour.replace(/\D/g, ''), 10)
+    const nightPrice = form.nightRatePrice ? parseInt(form.nightRatePrice.replace(/\D/g, ''), 10) : undefined
     if (!form.name.trim() || isNaN(price) || price <= 0) return
     onSave({
-      name:         form.name.trim(),
-      sport:        form.sport,
-      surface:      form.surface,
-      covered:      form.covered,
-      pricePerHour: price,
-      status:       form.status,
-      images:       form.images,
+      name:           form.name.trim(),
+      sport:          form.sport,
+      surface:        form.surface,
+      covered:        form.covered,
+      pricePerHour:   price,
+      nightRatePrice: nightPrice,
+      status:         form.status,
+      images:         form.images,
     })
     onClose()
   }
@@ -315,7 +319,7 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
             />
           </FormField>
 
-          <FormField label="Precio por hora">
+          <FormField label="Tarifa diurna ($ / hora)">
             <div style={{ position: 'relative' }}>
               <span style={{
                 position:      'absolute',
@@ -334,8 +338,36 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
                 type="text"
                 inputMode="numeric"
                 value={form.pricePerHour}
-                placeholder="0"
+                placeholder="Hereda de la sede"
                 onChange={(e) => setForm(f => ({ ...f, pricePerHour: e.target.value.replace(/\D/g, '') }))}
+                style={{ ...inputBase, paddingLeft: 24 }}
+                onFocus={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = t.verdeCancha.val }}
+                onBlur={(e)  => { (e.currentTarget as HTMLInputElement).style.borderColor = t.bordeNeutral.val }}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="Tarifa nocturna ($ / hora)">
+            <div style={{ position: 'relative' }}>
+              <span style={{
+                position:      'absolute',
+                left:          12,
+                top:           '50%',
+                transform:     'translateY(-50%)',
+                fontSize:      13,
+                color:         t.textoMuted.val,
+                fontWeight:    500,
+                pointerEvents: 'none',
+                userSelect:    'none',
+              }}>
+                $
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.nightRatePrice}
+                placeholder="Hereda de la sede"
+                onChange={(e) => setForm(f => ({ ...f, nightRatePrice: e.target.value.replace(/\D/g, '') }))}
                 style={{ ...inputBase, paddingLeft: 24 }}
                 onFocus={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = t.verdeCancha.val }}
                 onBlur={(e)  => { (e.currentTarget as HTMLInputElement).style.borderColor = t.bordeNeutral.val }}

@@ -11,9 +11,20 @@ export function EmployeeWaitOrganism() {
   const router             = useRouter()
   const { user }           = useUser()
   const completeOnboarding = useMutation(api.functions.users.mutations.completeOnboarding)
+  const claimInvite        = useMutation(api.functions.users.mutations.claimInvite)
 
   // Real-time Convex subscription — fires whenever venueAccess changes
   const venueAccess = useQuery(api.functions.users.queries.getMyVenueAccess)
+
+  // Auto-claim: use Clerk client-side email (always reliable, no JWT dependency)
+  useEffect(() => {
+    const email = user?.primaryEmailAddress?.emailAddress
+    if (!email || venueAccess === undefined) return
+    if (venueAccess.length > 0) return // already has access, no need to claim
+
+    claimInvite({ email }).catch(console.error)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, venueAccess])
 
   useEffect(() => {
     if (!venueAccess || venueAccess.length === 0) return

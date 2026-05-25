@@ -65,22 +65,24 @@ export default function CanchasPage() {
 
     if (editing) {
       await updateCourt({
-        courtId:       editing.id as Id<'courts'>,
-        name:          data.name,
-        sport:         data.sport,
-        surface:       data.surface,
-        covered:       data.covered,
-        status:        data.status,
-        priceOverride: data.pricePerHour,
+        courtId:                editing.id as Id<'courts'>,
+        name:                   data.name,
+        sport:                  data.sport,
+        surface:                data.surface,
+        covered:                data.covered,
+        status:                 data.status,
+        priceOverride:          data.pricePerHour,
+        nightRatePriceOverride: data.nightRatePrice,
       })
     } else {
       await createCourt({
-        venueId:       activeVenueId,
-        name:          data.name,
-        sport:         data.sport,
-        surface:       data.surface,
-        covered:       data.covered,
-        priceOverride: data.pricePerHour,
+        venueId:                activeVenueId,
+        name:                   data.name,
+        sport:                  data.sport,
+        surface:                data.surface,
+        covered:                data.covered,
+        priceOverride:          data.pricePerHour,
+        nightRatePriceOverride: data.nightRatePrice,
       })
     }
   }

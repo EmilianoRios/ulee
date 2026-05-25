@@ -19,14 +19,17 @@ export function OnboardingSedeOrganism() {
   const router = useRouter()
   const createVenue = useMutation(api.functions.venues.mutations.create)
 
-  const [name, setName]                   = useState('')
-  const [address, setAddress]             = useState('')
-  const [phone, setPhone]                 = useState('')
-  const [description, setDescription]     = useState('')
-  const [email, setEmail]                 = useState('')
-  const [pricePerHour, setPricePerHour]   = useState('')
-  const [error, setError]                 = useState<string | null>(null)
-  const [loading, setLoading]             = useState(false)
+  const [name, setName]                       = useState('')
+  const [address, setAddress]                 = useState('')
+  const [phone, setPhone]                     = useState('')
+  const [description, setDescription]         = useState('')
+  const [email, setEmail]                     = useState('')
+  const [tarifaDiurna, setTarifaDiurna]       = useState('')
+  const [tarifaNocturna, setTarifaNocturna]   = useState('')
+  const [inicioNocturno, setInicioNocturno]   = useState('19:00')
+  const [porcentajeSeña, setPorcentajeSeña]   = useState('50')
+  const [error, setError]                     = useState<string | null>(null)
+  const [loading, setLoading]                 = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,10 +47,17 @@ export function OnboardingSedeOrganism() {
       setError('Email inválido.')
       return
     }
-    if (pricePerHour && parseInt(pricePerHour.replace(/\D/g, ''), 10) < 0) {
-      setError('El precio por hora debe ser un número positivo.')
+    if (!tarifaDiurna.trim()) {
+      setError('La tarifa diurna es obligatoria.')
       return
     }
+
+    const nightMinutes = tarifaNocturna
+      ? (() => {
+          const [h, m] = inicioNocturno.split(':').map(Number)
+          return h * 60 + m
+        })()
+      : undefined
 
     try {
       setLoading(true)
@@ -57,8 +67,11 @@ export function OnboardingSedeOrganism() {
         phone:         phone.trim(),
         schedule:      DEFAULT_SCHEDULE,
         pricingConfig: {
-          pricePerHour: pricePerHour ? parseInt(pricePerHour.replace(/\D/g, ''), 10) : 0,
-          currency:     'ARS',
+          pricePerHour:      parseInt(tarifaDiurna.replace(/\D/g, ''), 10) || 0,
+          currency:          'ARS',
+          nightRatePrice:    tarifaNocturna ? parseInt(tarifaNocturna.replace(/\D/g, ''), 10) : undefined,
+          nightRateStart:    nightMinutes,
+          depositPercentage: porcentajeSeña ? Number(porcentajeSeña) : undefined,
         },
         description: description.trim() || undefined,
         email:       email.trim() || undefined,
@@ -144,14 +157,53 @@ export function OnboardingSedeOrganism() {
           />
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={labelStyle}>Tarifa diurna ($ / hora) *</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={tarifaDiurna}
+              onChange={(e) => setTarifaDiurna(e.target.value.replace(/\D/g, ''))}
+              placeholder="Ej: 5000"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={labelStyle}>Tarifa nocturna ($ / hora)</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={tarifaNocturna}
+              onChange={(e) => setTarifaNocturna(e.target.value.replace(/\D/g, ''))}
+              placeholder="Ej: 7000"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+
+        {tarifaNocturna && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={labelStyle}>Inicio del horario nocturno</label>
+            <input
+              type="time"
+              value={inicioNocturno}
+              onChange={(e) => setInicioNocturno(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={labelStyle}>Precio por hora</label>
+          <label style={labelStyle}>Porcentaje de seña (%)</label>
           <input
-            type="text"
-            inputMode="numeric"
-            value={pricePerHour}
-            onChange={(e) => setPricePerHour(e.target.value.replace(/\D/g, ''))}
-            placeholder="Ej: 5000"
+            type="number"
+            min="1"
+            max="99"
+            value={porcentajeSeña}
+            onChange={(e) => setPorcentajeSeña(e.target.value)}
+            placeholder="50"
             style={inputStyle}
           />
           <span style={{ color: 'oklch(50% 0.01 228)', fontSize: 12 }}>

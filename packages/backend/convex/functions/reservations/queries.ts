@@ -155,6 +155,27 @@ export const listAllByVenueAndDate = query({
   },
 })
 
+export const countActiveByVenueAndDate = query({
+  args: {
+    venueId: v.id('venues'),
+    date:    v.string(),   // "YYYY-MM-DD"
+  },
+  handler: async (ctx, args): Promise<number> => {
+    await getCurrentUser(ctx)
+
+    const rows = await ctx.db
+      .query('reservations')
+      .withIndex('by_venueId_date', (q) =>
+        q.eq('venueId', args.venueId).eq('date', args.date)
+      )
+      .collect()
+
+    return rows.filter(
+      (r) => r.status !== 'maintenance' && r.status !== 'absent'
+    ).length
+  },
+})
+
 export const statsByVenueAndDate = query({
   args: {
     venueId: v.id('venues'),

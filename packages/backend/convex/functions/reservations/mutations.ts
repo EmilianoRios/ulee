@@ -85,6 +85,19 @@ export const create = mutation({
       throw new ConvexError('court_not_in_venue')
     }
 
+    // Fetch venue once — used for holiday enforcement, schedule validation, and depositAmount calculation
+    const venue = await ctx.db.get(args.venueId)
+
+    const status = args.status ?? 'deposit_paid'
+
+    // Holiday enforcement — skip for maintenance blocks (owner explicitly closing a slot)
+    if (status !== 'maintenance') {
+      const isHoliday = (venue?.holidays ?? []).some((h) => h.date === args.date)
+      if (isHoliday) {
+        throw new ConvexError('La cancha no está disponible en esta fecha (feriado)')
+      }
+    }
+
     // Conflict detection — cross-day window [date-1, date, date+1]
     const existing = await ctx.db
       .query('reservations')
@@ -96,11 +109,6 @@ export const create = mutation({
     if (hasConflict(conflictWindow, args.startTime, args.endTime)) {
       throw new ConvexError('time_conflict')
     }
-
-    const status = args.status ?? 'deposit_paid'
-
-    // Fetch venue once — used by both schedule validation and depositAmount calculation
-    const venue = await ctx.db.get(args.venueId)
 
     // Schedule validation — only for bookable statuses (not maintenance/event/recurring)
     if (SCHEDULE_CHECKED_STATUSES.has(status)) {

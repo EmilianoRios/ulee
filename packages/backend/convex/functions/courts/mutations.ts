@@ -72,45 +72,48 @@ async function assertVenueAccess(
 
 export const create = mutation({
   args: {
-    venueId:          v.id('venues'),
-    name:             v.string(),
-    sport:            sportValidator,
-    surface:          v.optional(surfaceValidator),
-    covered:          v.optional(v.boolean()),
-    priceOverride:    v.optional(v.number()),
-    scheduleOverride: v.optional(v.array(dayScheduleValidator)),
+    venueId:                v.id('venues'),
+    name:                   v.string(),
+    sport:                  sportValidator,
+    surface:                v.optional(surfaceValidator),
+    covered:                v.optional(v.boolean()),
+    priceOverride:          v.optional(v.number()),
+    nightRatePriceOverride: v.optional(v.number()),
+    scheduleOverride:       v.optional(v.array(dayScheduleValidator)),
   },
   handler: async (ctx, args) => {
     const identity = await getCurrentUser(ctx)
     await assertVenueAccess(ctx, args.venueId, identity.subject)
 
     return await ctx.db.insert('courts', {
-      venueId:          args.venueId,
-      name:             args.name,
-      sport:            args.sport,
-      surface:          args.surface,
-      covered:          args.covered,
-      status:           'active',
-      priceOverride:    args.priceOverride,
-      scheduleOverride: args.scheduleOverride?.map(normalizeDaySchedule),
+      venueId:                args.venueId,
+      name:                   args.name,
+      sport:                  args.sport,
+      surface:                args.surface,
+      covered:                args.covered,
+      status:                 'active',
+      priceOverride:          args.priceOverride,
+      nightRatePriceOverride: args.nightRatePriceOverride,
+      scheduleOverride:       args.scheduleOverride?.map(normalizeDaySchedule),
     })
   },
 })
 
 export const update = mutation({
   args: {
-    courtId:          v.id('courts'),
-    name:             v.optional(v.string()),
-    sport:            v.optional(sportValidator),
-    surface:          v.optional(surfaceValidator),
-    covered:          v.optional(v.boolean()),
-    status:           v.optional(v.union(
+    courtId:                v.id('courts'),
+    name:                   v.optional(v.string()),
+    sport:                  v.optional(sportValidator),
+    surface:                v.optional(surfaceValidator),
+    covered:                v.optional(v.boolean()),
+    status:                 v.optional(v.union(
       v.literal('active'),
       v.literal('maintenance'),
       v.literal('inactive'),
     )),
-    priceOverride:    v.optional(v.number()),
-    scheduleOverride: v.optional(v.array(dayScheduleValidator)),
+    priceOverride:          v.optional(v.number()),
+    nightRatePriceOverride: v.optional(v.number()),
+    scheduleOverride:       v.optional(v.array(dayScheduleValidator)),
   },
   handler: async (ctx, args) => {
     const identity = await getCurrentUser(ctx)

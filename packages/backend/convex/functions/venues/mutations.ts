@@ -185,6 +185,29 @@ export const updatePricing = mutation({
   },
 })
 
+export const revokeVenueAccess = mutation({
+  args: { venueAccessId: v.id('venueAccess') },
+  handler: async (ctx, args) => {
+    const identity = await getCurrentUser(ctx)
+
+    const access = await ctx.db.get(args.venueAccessId)
+    if (!access) throw new ConvexError('not_found')
+    if (access.role === 'owner') throw new ConvexError('cannot_revoke_owner')
+
+    // Only the venue owner can revoke access
+    const venue = await ctx.db.get(access.venueId)
+    if (!venue) throw new ConvexError('venue_not_found')
+
+    const caller = await ctx.db
+      .query('users')
+      .withIndex('by_clerkId', (q) => q.eq('clerkId', identity.subject))
+      .unique()
+    if (!caller || venue.ownerId !== caller._id) throw new ConvexError('forbidden')
+
+    await ctx.db.delete(args.venueAccessId)
+  },
+})
+
 export const updateHolidays = mutation({
   args: {
     venueId: v.id('venues'),

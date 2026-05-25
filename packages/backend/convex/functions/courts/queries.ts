@@ -9,18 +9,20 @@ import type { Doc, Id } from '../../_generated/dataModel'
 // ---------------------------------------------------------------------------
 
 export interface CourtWithStats {
-  _id:           Id<'courts'>
-  _creationTime: number
-  venueId:       Id<'venues'>
-  name:          string
-  sport:         string
-  surface?:      string
-  covered?:      boolean
-  status:        Doc<'courts'>['status']
-  pricePerHour:  number   // resolved: priceOverride ?? venue.pricingConfig.pricePerHour
-  images?:       string[]
-  todayTurnos:   number
-  todayRevenue:  number
+  _id:            Id<'courts'>
+  _creationTime:  number
+  venueId:        Id<'venues'>
+  name:           string
+  sport:          string
+  surface?:       string
+  covered?:       boolean
+  status:         Doc<'courts'>['status']
+  pricePerHour:   number    // resolved: priceOverride ?? venue.pricingConfig.pricePerHour
+  nightRatePrice?: number   // resolved: nightRatePriceOverride ?? venue.pricingConfig.nightRatePrice
+  nightRateStart?: number   // always from venue (minutes since midnight)
+  images?:        string[]
+  todayTurnos:    number
+  todayRevenue:   number
 }
 
 // ---------------------------------------------------------------------------
@@ -68,8 +70,10 @@ export const listByVenue = query({
         surface:       court.surface,
         covered:       court.covered,
         status:        court.status,
-        pricePerHour:  court.priceOverride ?? venue.pricingConfig.pricePerHour,
-        images:        court.images,
+        pricePerHour:   court.priceOverride ?? venue.pricingConfig.pricePerHour,
+        nightRatePrice: court.nightRatePriceOverride ?? venue.pricingConfig.nightRatePrice,
+        nightRateStart: venue.pricingConfig.nightRateStart,
+        images:         court.images,
         todayTurnos:   stats.turnos,
         todayRevenue:  stats.revenue,
       }

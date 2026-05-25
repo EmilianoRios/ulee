@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from 'convex/react'
 import { useTheme } from 'tamagui'
 import { ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react'
+import { api } from '@canchero/backend'
+import type { Id } from '@canchero/backend'
 
 export interface HolidayEntry {
   date:   string   // "YYYY-MM-DD"
@@ -17,6 +20,7 @@ interface Feriado {
 
 interface Props {
   formId:        string
+  venueId:       Id<'venues'> | null
   onDirtyChange: (dirty: boolean) => void
   onSaved:       () => void
   initialData:   HolidayEntry[] | null
@@ -33,12 +37,6 @@ function toDateStr(y: number, m: number, d: number) {
 function formatDisplay(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return `${padDate(d)}/${padDate(m)}/${y}`
-}
-function mockReservationCount(dateStr: string) {
-  const dow = new Date(dateStr).getDay()
-  if (dow === 6) return 3
-  if (dow === 0) return 5
-  return 0
 }
 
 function adaptInitialDataToForm(data: HolidayEntry[]): Feriado[] {
@@ -259,7 +257,7 @@ function MiniCalendar({ year, month, closedDates, selectedDate, onSelect, onPrev
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ConfigFeriados({ formId, onDirtyChange, onSaved, initialData, onSubmit }: Props) {
+export function ConfigFeriados({ formId, venueId, onDirtyChange, onSaved, initialData, onSubmit }: Props) {
   const t = useTheme()
 
   const today = new Date()
@@ -271,6 +269,11 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved, initialData, on
     initialData ? adaptInitialDataToForm(initialData) : []
   )
   const [confirm, setConfirm] = useState<{ fecha: string; count: number } | null>(null)
+
+  const reservationCount = useQuery(
+    api.functions.reservations.queries.countActiveByVenueAndDate,
+    venueId && selectedDate ? { venueId, date: selectedDate } : 'skip'
+  )
 
   const serverSnapshot = useRef<Feriado[] | null>(
     initialData ? adaptInitialDataToForm(initialData) : null
@@ -320,9 +323,9 @@ export function ConfigFeriados({ formId, onDirtyChange, onSaved, initialData, on
 
   function handleAgregar() {
     if (!selectedDate || !motivo.trim()) return
-    const reservas = mockReservationCount(selectedDate)
-    if (reservas > 0) {
-      setConfirm({ fecha: selectedDate, count: reservas })
+    const count = reservationCount ?? 0
+    if (count > 0) {
+      setConfirm({ fecha: selectedDate, count })
     } else {
       addFeriado(selectedDate)
     }

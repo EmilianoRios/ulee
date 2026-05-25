@@ -12,6 +12,7 @@ import { ConfigHorarios } from '@/components/organisms/config-horarios'
 import { ConfigPrecios  } from '@/components/organisms/config-precios'
 import { ConfigFeriados } from '@/components/organisms/config-feriados'
 import { EmployeeInvitePanelOrganism } from '@/components/organisms/onboarding/EmployeeInvitePanelOrganism'
+import { PendingInvitationsOrganism } from '@/components/organisms/onboarding/PendingInvitationsOrganism'
 import type { GeneralInitialData  } from '@/components/organisms/config-general'
 import type { ScheduleEntry       } from '@/components/organisms/config-horarios'
 import type { PricingInitialData  } from '@/components/organisms/config-precios'
@@ -324,6 +325,7 @@ export default function ConfiguracionPage() {
           {activeTab === 'feriados' && (
             <ConfigFeriados
               formId={FORM_ID}
+              venueId={activeVenueId ?? null}
               onDirtyChange={onFeriadosDirty}
               onSaved={onFeriadosSaved}
               initialData={venue ? venueToHolidaysData(venue) : null}
@@ -331,7 +333,11 @@ export default function ConfiguracionPage() {
             />
           )}
           {activeTab === 'equipo' && (
-            <EmployeeInvitePanelOrganism />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+              <EmployeeInvitePanelOrganism />
+              <div style={{ height: 1, backgroundColor: t.divisor.val }} />
+              <PendingInvitationsOrganism />
+            </div>
           )}
         </div>
       </div>

@@ -7,7 +7,8 @@ import type { Doc, Id } from '../../_generated/dataModel'
 export const listByOwner = query({
   args: {},
   handler: async (ctx): Promise<Doc<'venues'>[]> => {
-    const identity = await getCurrentUser(ctx)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
 
     const user = await ctx.db
       .query('users')

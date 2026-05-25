@@ -75,8 +75,9 @@ export function OnboardingCanchasOrganism() {
   const [name, setName]                 = useState('')
   const [sport, setSport]               = useState(DEFAULT_SPORT)
   const [surface, setSurface]           = useState(DEFAULT_SURFACE)
-  const [covered, setCovered]           = useState(false)
-  const [priceOverride, setPriceOverride] = useState('')
+  const [covered, setCovered]                   = useState(false)
+  const [priceOverride, setPriceOverride]       = useState('')
+  const [nightRateOverride, setNightRateOverride] = useState('')
   const [error, setError]               = useState<string | null>(null)
   const [adding, setAdding]             = useState(false)
   const [finishing, setFinishing]       = useState(false)
@@ -98,11 +99,12 @@ export function OnboardingCanchasOrganism() {
       setAdding(true)
       const courtId = await createCourt({
         venueId,
-        name:          name.trim(),
+        name:                   name.trim(),
         sport,
         surface,
         covered,
-        priceOverride: priceOverride ? parseInt(priceOverride, 10) : undefined,
+        priceOverride:          priceOverride ? parseInt(priceOverride, 10) : undefined,
+        nightRatePriceOverride: nightRateOverride ? parseInt(nightRateOverride, 10) : undefined,
       })
       setCourts((prev) => [...prev, { id: courtId, name: name.trim(), sport }])
       setName('')
@@ -110,6 +112,7 @@ export function OnboardingCanchasOrganism() {
       setSurface(DEFAULT_SURFACE)
       setCovered(false)
       setPriceOverride('')
+      setNightRateOverride('')
     } catch (err) {
       setError('Error al agregar la cancha. Intentá de nuevo.')
       console.error(err)
@@ -201,13 +204,25 @@ export function OnboardingCanchasOrganism() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={labelStyle}>Precio por hora (opcional)</label>
+          <label style={labelStyle}>Tarifa diurna ($ / hora, opcional)</label>
           <input
             type="text"
             inputMode="numeric"
             value={priceOverride}
             onChange={(e) => setPriceOverride(e.target.value.replace(/\D/g, ''))}
-            placeholder="Ej: 5000"
+            placeholder="Hereda de la sede si no se completa"
+            style={inputStyle}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>Tarifa nocturna ($ / hora, opcional)</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={nightRateOverride}
+            onChange={(e) => setNightRateOverride(e.target.value.replace(/\D/g, ''))}
+            placeholder="Hereda de la sede si no se completa"
             style={inputStyle}
           />
         </div>

@@ -20,10 +20,13 @@ export const sync = mutation({
       .unique()
 
     if (existing) {
-      const needsPatch = existing.name !== name || existing.email !== email
-      if (needsPatch) {
-        await ctx.db.patch(existing._id, { name, email })
-      }
+      // Only overwrite name/email if the JWT actually has a non-empty value.
+      // Empty JWT claims (missing template config) must never wipe data
+      // that was set by claimInvite or other flows.
+      const patch: { name?: string; email?: string } = {}
+      if (name && existing.name !== name) patch.name = name
+      if (email && existing.email !== email) patch.email = email
+      if (Object.keys(patch).length > 0) await ctx.db.patch(existing._id, patch)
       return { userId: existing._id, isNew: false }
     }
 
@@ -36,6 +39,18 @@ export const sync = mutation({
     if (pendingByEmail && pendingByEmail.clerkId.startsWith('pending_')) {
       // Claim the stub: replace placeholder clerkId with real one
       await ctx.db.patch(pendingByEmail._id, { clerkId, name })
+
+      // Activate all pending venueAccess records for this user
+      const pendingAccess = await ctx.db
+        .query('venueAccess')
+        .withIndex('by_userId', (q) => q.eq('userId', pendingByEmail._id))
+        .collect()
+      await Promise.all(
+        pendingAccess
+          .filter((a) => a.status === 'pending')
+          .map((a) => ctx.db.patch(a._id, { status: 'active' }))
+      )
+
       return { userId: pendingByEmail._id, isNew: false }
     }
 

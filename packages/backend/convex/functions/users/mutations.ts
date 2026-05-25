@@ -29,6 +29,65 @@ export const completeOnboarding = mutation({
 })
 
 // ---------------------------------------------------------------------------
+// claimInvite
+// Called client-side with the user's email (from Clerk useUser hook).
+// Finds the pending stub by email, transfers venueAccess to the current user,
+// and deletes the stub. Bypasses JWT email claim entirely.
+// ---------------------------------------------------------------------------
+
+export const claimInvite = mutation({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await getCurrentUser(ctx)
+
+    // Get current user (might have empty email if JWT lacked the claim)
+    const currentUser = await ctx.db
+      .query('users')
+      .withIndex('by_clerkId', (q) => q.eq('clerkId', identity.subject))
+      .unique()
+
+    if (!currentUser) throw new ConvexError('user_not_found')
+
+    // Already has venueAccess — nothing to claim
+    const existingAccess = await ctx.db
+      .query('venueAccess')
+      .withIndex('by_userId', (q) => q.eq('userId', currentUser._id))
+      .collect()
+    if (existingAccess.length > 0) return { claimed: false, reason: 'already_has_access' as const }
+
+    // Find the pending stub for this email
+    const stub = await ctx.db
+      .query('users')
+      .withIndex('by_email', (q) => q.eq('email', args.email.toLowerCase()))
+      .unique()
+
+    if (!stub || !stub.clerkId.startsWith('pending_')) {
+      return { claimed: false, reason: 'no_invite_found' as const }
+    }
+
+    // Transfer all venueAccess records from stub → current user
+    const stubAccess = await ctx.db
+      .query('venueAccess')
+      .withIndex('by_userId', (q) => q.eq('userId', stub._id))
+      .collect()
+
+    await Promise.all(
+      stubAccess.map((a) => ctx.db.patch(a._id, { userId: currentUser._id, status: 'active' }))
+    )
+
+    // Patch email if missing (JWT lacked claim) — never change global role
+    if (!currentUser.email) {
+      await ctx.db.patch(currentUser._id, { email: args.email.toLowerCase() })
+    }
+
+    // Delete the stub — it's been fully absorbed
+    await ctx.db.delete(stub._id)
+
+    return { claimed: true, reason: 'success' as const }
+  },
+})
+
+// ---------------------------------------------------------------------------
 // inviteEmployee
 // Orchestrates: find or create user by email, then grant venueAccess.
 // The caller must be the owner of the venue.

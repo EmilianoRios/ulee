@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ClerkProvider, useAuth } from '@clerk/nextjs'
+import { ClerkProvider, useAuth, useUser } from '@clerk/nextjs'
 import { ConvexProviderWithClerk } from 'convex/react-clerk'
 import { ConvexReactClient } from 'convex/react'
 import { TamaguiProvider } from 'tamagui'
@@ -14,15 +14,32 @@ const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
 function SyncUser() {
   const { isSignedIn } = useAuth()
-  const sync = useMutation(api.functions.users.sync.sync)
-  const router = useRouter()
+  const { user }       = useUser()
+  const sync           = useMutation(api.functions.users.sync.sync)
+  const claimInvite    = useMutation(api.functions.users.mutations.claimInvite)
+  const router         = useRouter()
 
   useEffect(() => {
-    if (!isSignedIn) return
-    sync().then((result) => {
+    if (!isSignedIn || !user) return
+
+    const email = user.primaryEmailAddress?.emailAddress ?? ''
+
+    sync().then(async (result) => {
+      // Try to claim a pending invite using the Clerk client-side email
+      // (reliable regardless of JWT template configuration)
+      if (email) {
+        const claim = await claimInvite({ email })
+        if (claim.claimed) {
+          // Role is now employee — OnboardingGuard will handle final redirect
+          router.push('/')
+          return
+        }
+      }
+
       if (result.isNew) router.push('/onboarding/sede')
-    })
-  }, [isSignedIn, sync, router])
+    }).catch(console.error)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, user])
 
   return null
 }

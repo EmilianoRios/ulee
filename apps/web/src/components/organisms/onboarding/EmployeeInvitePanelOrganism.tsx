@@ -47,6 +47,7 @@ export function EmployeeInvitePanelOrganism() {
           : 'Invitación enviada. El empleado tendrá acceso cuando se registre.',
       )
       setEmail('')
+      setVenueId('')
     } catch (err: unknown) {
       setStatus('error')
       const convexMessage = (err as { data?: string })?.data

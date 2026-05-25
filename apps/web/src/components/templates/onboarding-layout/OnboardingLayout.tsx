@@ -6,18 +6,19 @@ export function OnboardingLayout({ children }: { children: React.ReactNode }) {
       style={{
         display:         'flex',
         width:           '100vw',
-        height:          '100vh',
+        minHeight:       '100dvh',
         alignItems:      'center',
         justifyContent:  'center',
         backgroundColor: '#0f1117',
-        overflow:        'auto',
+        padding:         '32px 0',
+        boxSizing:       'border-box',
       }}
     >
       <div
         style={{
           width:     '100%',
           maxWidth:  480,
-          padding:   '32px 24px',
+          padding:   '0 24px',
           boxSizing: 'border-box',
         }}
       >
