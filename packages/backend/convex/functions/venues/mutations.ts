@@ -76,6 +76,7 @@ export const create = mutation({
     email: v.optional(v.string()),
     schedule: v.array(dayScheduleValidator),
     pricingConfig: pricingConfigValidator,
+    initialSchedule: v.optional(v.array(dayScheduleValidator)),
   },
   handler: async (ctx, args) => {
     const identity = await getCurrentUser(ctx)
@@ -87,6 +88,9 @@ export const create = mutation({
 
     if (!user) throw new ConvexError('unauthenticated')
 
+    const normalizedSchedule = (args.initialSchedule ?? args.schedule).map(normalizeDaySchedule)
+    const today = new Date().toISOString().slice(0, 10)
+
     const venueId = await ctx.db.insert('venues', {
       ownerId: user._id,
       name: args.name,
@@ -94,8 +98,11 @@ export const create = mutation({
       phone: args.phone,
       description: args.description,
       email: args.email,
-      schedule: args.schedule.map(normalizeDaySchedule),
+      schedule: normalizedSchedule,
       pricingConfig: args.pricingConfig,
+      ...(args.initialSchedule !== undefined && {
+        scheduleHistory: [{ validFrom: today, schedule: normalizedSchedule }],
+      }),
     })
 
     await ctx.db.insert('venueAccess', {

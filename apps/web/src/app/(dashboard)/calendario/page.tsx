@@ -8,8 +8,9 @@ import { api } from '@canchero/backend'
 import type { Doc, Id } from '@canchero/backend'
 import type { ScheduleVersion } from '@canchero/backend'
 
-import { CalendarMiniPicker } from '@/components/molecules/calendar-mini-picker'
-import { CalendarDayView }    from '@/components/organisms/calendar-day-view'
+import { CalendarMiniPicker }      from '@/components/molecules/calendar-mini-picker'
+import { CalendarDayView }         from '@/components/organisms/calendar-day-view'
+import { ScheduleWarningBanner }   from '@/components/molecules/schedule-warning-banner'
 import { ModuleLayout }       from '@/components/templates/module-layout'
 import { NewEntrySlideOver }  from '@/components/organisms/new-entry-slide-over'
 import type { EntryType }     from '@/components/organisms/new-entry-slide-over'
@@ -93,12 +94,13 @@ export default function CalendarioPage() {
   const updateReservation = useMutation(api.functions.reservations.mutations.updateReservation)
   const deleteReservation = useMutation(api.functions.reservations.mutations.deleteReservation)
 
-  const [currentDate,      setCurrentDate]      = useState(() => new Date())
-  const [viewMode,         setViewMode]         = useState<CalendarViewMode>('dia')
-  const [slideOverOpen,    setSlideOverOpen]    = useState(false)
-  const [defaultType,      setDefaultType]      = useState<EntryType>('reserva')
-  const [initialSlotTime,  setInitialSlotTime]  = useState<string | undefined>(undefined)
-  const [initialSlotCourt, setInitialSlotCourt] = useState<string | undefined>(undefined)
+  const [currentDate,         setCurrentDate]         = useState(() => new Date())
+  const [viewMode,            setViewMode]            = useState<CalendarViewMode>('dia')
+  const [slideOverOpen,       setSlideOverOpen]       = useState(false)
+  const [defaultType,         setDefaultType]         = useState<EntryType>('reserva')
+  const [initialSlotTime,     setInitialSlotTime]     = useState<string | undefined>(undefined)
+  const [initialSlotCourt,    setInitialSlotCourt]    = useState<string | undefined>(undefined)
+  const [scheduleBannerDismissed, setScheduleBannerDismissed] = useState(false)
 
   const currentDateStr = dateFromDate(currentDate)
 
@@ -141,6 +143,12 @@ export default function CalendarioPage() {
     : undefined
   const venueSchedule: DaySchedule[] = venueRaw?.schedule ?? []
   const venueScheduleHistory: ScheduleVersion[] = venueRaw?.scheduleHistory ?? []
+
+  // Show warning when venue loaded but scheduleHistory was never explicitly configured
+  const showScheduleWarning =
+    venueRaw !== undefined &&
+    activeVenueId !== null &&
+    venueScheduleHistory.length === 0
 
   const rawReservations = reservationsRaw?.reservations ?? []
   const rawSpillovers   = reservationsRaw?.spillovers   ?? []
@@ -396,6 +404,10 @@ export default function CalendarioPage() {
           display:       'flex',
           flexDirection: 'column',
         }}>
+          {showScheduleWarning && !scheduleBannerDismissed && (
+            <ScheduleWarningBanner onDismiss={() => setScheduleBannerDismissed(true)} />
+          )}
+
           {activeVenueId === null ? (
             <div style={{
               flex:           1,

@@ -3,33 +3,37 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from 'convex/react'
-import { api } from '@canchero/backend'
-import { StepIndicator } from '@/components/molecules/step-indicator'
+import { api, timeToMinutes } from '@canchero/backend'
+import { StepIndicator }  from '@/components/molecules/step-indicator'
+import { ScheduleEditor } from '@/components/molecules/schedule-editor'
+import type { ScheduleEntry } from '@/components/molecules/schedule-editor'
+import { TimeSelect } from '@/components/atoms/time-select'
 
 const STEPS = ['Tu sede', 'Tus canchas', 'Listo']
 
-const DEFAULT_SCHEDULE = [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({
+const DEFAULT_SCHEDULE: ScheduleEntry[] = [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({
   dayOfWeek,
   active:    true,
-  openTime:  480,  // 08:00 in minutes
-  closeTime: 1320, // 22:00 in minutes
+  openTime:  '08:00',
+  closeTime: '22:00',
 }))
 
 export function OnboardingSedeOrganism() {
   const router = useRouter()
   const createVenue = useMutation(api.functions.venues.mutations.create)
 
-  const [name, setName]                       = useState('')
-  const [address, setAddress]                 = useState('')
-  const [phone, setPhone]                     = useState('')
-  const [description, setDescription]         = useState('')
-  const [email, setEmail]                     = useState('')
-  const [tarifaDiurna, setTarifaDiurna]       = useState('')
-  const [tarifaNocturna, setTarifaNocturna]   = useState('')
-  const [inicioNocturno, setInicioNocturno]   = useState('19:00')
-  const [porcentajeSeña, setPorcentajeSeña]   = useState('50')
-  const [error, setError]                     = useState<string | null>(null)
-  const [loading, setLoading]                 = useState(false)
+  const [name,             setName]             = useState('')
+  const [address,          setAddress]          = useState('')
+  const [phone,            setPhone]            = useState('')
+  const [description,      setDescription]      = useState('')
+  const [email,            setEmail]            = useState('')
+  const [tarifaDiurna,     setTarifaDiurna]     = useState('')
+  const [tarifaNocturna,   setTarifaNocturna]   = useState('')
+  const [inicioNocturno,   setInicioNocturno]   = useState('19:00')
+  const [porcentajeSeña,   setPorcentajeSeña]   = useState('50')
+  const [schedule,         setSchedule]         = useState<ScheduleEntry[]>(DEFAULT_SCHEDULE)
+  const [error,            setError]            = useState<string | null>(null)
+  const [loading,          setLoading]          = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -59,13 +63,22 @@ export function OnboardingSedeOrganism() {
         })()
       : undefined
 
+    // Convert UI schedule (HH:MM strings) → backend schedule (minutes)
+    const scheduleMinutes = schedule.map((entry) => ({
+      dayOfWeek: entry.dayOfWeek,
+      active:    entry.active,
+      openTime:  timeToMinutes(entry.openTime),
+      closeTime: timeToMinutes(entry.closeTime),
+    }))
+
     try {
       setLoading(true)
       const venueId = await createVenue({
-        name:          name.trim(),
-        address:       address.trim(),
-        phone:         phone.trim(),
-        schedule:      DEFAULT_SCHEDULE,
+        name:            name.trim(),
+        address:         address.trim(),
+        phone:           phone.trim(),
+        schedule:        scheduleMinutes,
+        initialSchedule: scheduleMinutes,
         pricingConfig: {
           pricePerHour:      parseInt(tarifaDiurna.replace(/\D/g, ''), 10) || 0,
           currency:          'ARS',
@@ -141,7 +154,7 @@ export function OnboardingSedeOrganism() {
             placeholder="Ej: Club deportivo con 4 canchas de fútbol 5..."
             maxLength={500}
             rows={3}
-            style={{ ...inputStyle, resize: 'vertical' }}
+            style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
           />
         </div>
 
@@ -157,7 +170,7 @@ export function OnboardingSedeOrganism() {
           />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={labelStyle}>Tarifa diurna ($ / hora) *</label>
             <input
@@ -183,17 +196,22 @@ export function OnboardingSedeOrganism() {
           </div>
         </div>
 
-        {tarifaNocturna && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={labelStyle}>Inicio del horario nocturno</label>
-            <input
-              type="time"
-              value={inicioNocturno}
-              onChange={(e) => setInicioNocturno(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>Inicio del horario nocturno</label>
+          <TimeSelect
+            value={inicioNocturno}
+            onChange={setInicioNocturno}
+            style={{
+              backgroundColor: 'oklch(18% 0.01 228)',
+              border:          '1px solid oklch(30% 0.01 228)',
+              color:           'oklch(90% 0.01 228)',
+              justifyContent:  'flex-start',
+            }}
+          />
+          <span style={{ color: 'oklch(50% 0.01 228)', fontSize: 12 }}>
+            Solo aplica si configurás tarifa nocturna
+          </span>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={labelStyle}>Porcentaje de seña (%)</label>
@@ -209,6 +227,36 @@ export function OnboardingSedeOrganism() {
           <span style={{ color: 'oklch(50% 0.01 228)', fontSize: 12 }}>
             Podés configurarlo después en Configuración
           </span>
+        </div>
+
+        {/* ── Horario de la sede ───────────────────────────────────────────── */}
+        <div style={{
+          display:         'flex',
+          flexDirection:   'column',
+          gap:             12,
+          padding:         '16px',
+          borderRadius:    8,
+          border:          '1px solid oklch(30% 0.01 228)',
+          backgroundColor: 'oklch(16% 0.01 228)',
+          color:           'oklch(85% 0.01 228)',
+        }}>
+          <div>
+            <span style={{ ...labelStyle, fontSize: 14, fontWeight: 600, color: 'oklch(80% 0.01 228)' }}>
+              Horario de apertura
+            </span>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'oklch(50% 0.01 228)' }}>
+              Definí qué días y en qué horario está abierta tu sede. Podés ajustarlo después en Configuración.
+            </p>
+          </div>
+          <ScheduleEditor
+            value={schedule}
+            onChange={setSchedule}
+            timeSelectStyle={{
+              backgroundColor: 'oklch(18% 0.01 228)',
+              border:          '1px solid oklch(30% 0.01 228)',
+              color:           'oklch(90% 0.01 228)',
+            }}
+          />
         </div>
 
         {error && (
