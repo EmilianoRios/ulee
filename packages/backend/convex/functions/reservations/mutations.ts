@@ -200,11 +200,12 @@ export const updateStatus = mutation({
     if (args.status === 'absent') return
 
     if (args.paymentMethod !== undefined) {
-      const paymentType   = resolvePaymentType(reservation.status)
-      const pendingBalance = reservation.depositAmount != null
-        ? reservation.totalAmount - reservation.depositAmount
+      const hasDeposit    = reservation.depositAmount != null && reservation.depositAmount > 0
+      const paymentType   = hasDeposit ? 'balance' : resolvePaymentType(reservation.status)
+      const pendingBalance = hasDeposit
+        ? Math.max(0, reservation.totalAmount - reservation.depositAmount!)
         : reservation.totalAmount
-      const amount = paymentType === 'balance' ? pendingBalance : reservation.totalAmount
+      const amount        = paymentType === 'balance' ? pendingBalance : reservation.totalAmount
 
       await ctx.db.insert('payments', {
         reservationId: args.reservationId,

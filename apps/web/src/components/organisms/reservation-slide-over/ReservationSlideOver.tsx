@@ -732,28 +732,45 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                             </div>
                           </>
                         ) : (
-                          <>
-                            <p style={{ margin: 0, fontSize: 11, color: t.textoMuted.val, lineHeight: 1.4 }}>
-                              El cargo se cobra al finalizar el turno extendido.
-                            </p>
-                            <ActionButton
-                              label="Confirmar extensión"
-                              onClick={async () => {
-                                try {
-                                  await onExtend?.(reservation.id, extendMins as 30 | 60)
-                                  setExtendMins(0)
-                                } catch (err: unknown) {
-                                  const data = (err as { data?: { code?: string } }).data
-                                  if (data?.code === 'outside_schedule_override_required') {
-                                    setOverrideConfirmPending(true)
-                                  }
+                          <ActionButton
+                            label="Confirmar extensión"
+                            onClick={async () => {
+                              try {
+                                await onExtend?.(reservation.id, extendMins as 30 | 60)
+                                setExtendMins(0)
+                              } catch (err: unknown) {
+                                const data = (err as { data?: { code?: string } }).data
+                                if (data?.code === 'outside_schedule_override_required') {
+                                  setOverrideConfirmPending(true)
                                 }
-                              }}
-                              variant="secondary"
-                            />
-                          </>
+                              }
+                            }}
+                            variant="secondary"
+                          />
                         )}
                       </div>
+                    )}
+                  </>
+                )}
+
+                {/* En cancha — cobro */}
+                {reservation.state === 'en-cancha' && (
+                  <>
+                    <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '4px 0' }} />
+                    <SectionLabel>Cobro</SectionLabel>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <PaymentMethodButton label="Efectivo"     icon={<Banknote size={14} strokeWidth={2} />}   selected={selectedPayment === 'cash'}   onClick={() => setSelectedPayment(p => p === 'cash'   ? null : 'cash')}   />
+                      <PaymentMethodButton label="Mercado Pago" icon={<CreditCard size={14} strokeWidth={2} />} selected={selectedPayment === 'online'} onClick={() => setSelectedPayment(p => p === 'online' ? null : 'online')} />
+                    </div>
+                    {selectedPayment && (
+                      <ActionButton
+                        label={`${reservation.depositAmount != null ? 'Cobrar saldo' : 'Cobrar total'} · $${(reservation.depositAmount != null ? pendingBalance : reservation.amount).toLocaleString('es-AR')}`}
+                        onClick={() => {
+                          onUpdateStatus?.(reservation.id, 'paid', selectedPayment ?? undefined, reservation.depositAmount != null ? pendingBalance : reservation.amount)
+                          onClose()
+                        }}
+                        variant="primary"
+                      />
                     )}
                   </>
                 )}
