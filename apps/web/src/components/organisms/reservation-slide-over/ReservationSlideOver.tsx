@@ -361,6 +361,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const [isEditing,            setIsEditing]            = useState(false)
   const [editFields,           setEditFields]           = useState<ReservationUpdateFields>({})
   const [deleteConfirm,        setDeleteConfirm]        = useState(false)
+  const [cancelPaidConfirm,    setCancelPaidConfirm]    = useState(false)
+  const [cancelDepositConfirm, setCancelDepositConfirm] = useState(false)
   const [overrideConfirmPending, setOverrideConfirmPending] = useState(false)
 
   useEffect(() => {
@@ -377,6 +379,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setIsEditing(false)
     setEditFields({})
     setDeleteConfirm(false)
+    setCancelPaidConfirm(false)
+    setCancelDepositConfirm(false)
     setOverrideConfirmPending(false)
   }, [reservation?.id])
 
@@ -651,7 +655,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 )}
 
                 {/* Señado */}
-                {reservation.state === 'señado' && !isEditing && !deleteConfirm && (
+                {reservation.state === 'señado' && !isEditing && !deleteConfirm && !cancelDepositConfirm && (
                   <>
                     <SectionLabel>Método de cobro</SectionLabel>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -667,10 +671,31 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                     )}
                     <ActionButton
                       label="Cancelar y retener seña"
-                      onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                      onClick={() => setCancelDepositConfirm(true)}
                       variant="danger"
                     />
                   </>
+                )}
+
+                {/* Señado — confirmación de cancelación */}
+                {reservation.state === 'señado' && cancelDepositConfirm && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: t.textoMuted.val, lineHeight: 1.4 }}>
+                      Se marcará como ausente y se retendrá la seña. ¿Confirmás la cancelación?
+                    </span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <ActionButton
+                        label="Confirmar cancelación"
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                        variant="danger"
+                      />
+                      <ActionButton
+                        label="Volver"
+                        onClick={() => setCancelDepositConfirm(false)}
+                        variant="secondary"
+                      />
+                    </div>
+                  </div>
                 )}
 
                 {/* En cancha */}
@@ -790,17 +815,45 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 )}
 
                 {/* Pagado */}
-                {reservation.state === 'pagado' && (
-                  <div style={{
-                    padding:         '10px 14px',
-                    backgroundColor: t.verdeCanchaFondo.val,
-                    borderRadius:    7,
-                    fontSize:        13,
-                    color:           t.verdeCanchaProfundo.val,
-                    fontWeight:      500,
-                    textAlign:       'center',
-                  }}>
-                    Reserva cobrada en su totalidad
+                {reservation.state === 'pagado' && !cancelPaidConfirm && (
+                  <>
+                    <div style={{
+                      padding:         '10px 14px',
+                      backgroundColor: t.verdeCanchaFondo.val,
+                      borderRadius:    7,
+                      fontSize:        13,
+                      color:           t.verdeCanchaProfundo.val,
+                      fontWeight:      500,
+                      textAlign:       'center',
+                    }}>
+                      Reserva cobrada en su totalidad
+                    </div>
+                    <ActionButton
+                      label="Cancelar reserva"
+                      onClick={() => setCancelPaidConfirm(true)}
+                      variant="danger"
+                    />
+                  </>
+                )}
+
+                {/* Pagado — confirmación de cancelación */}
+                {reservation.state === 'pagado' && cancelPaidConfirm && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: t.textoMuted.val, lineHeight: 1.4 }}>
+                      Esta reserva está cobrada en su totalidad. ¿Confirmás la cancelación y liberación del turno?
+                    </span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <ActionButton
+                        label="Confirmar cancelación"
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                        variant="danger"
+                      />
+                      <ActionButton
+                        label="Volver"
+                        onClick={() => setCancelPaidConfirm(false)}
+                        variant="secondary"
+                      />
+                    </div>
                   </div>
                 )}
 
