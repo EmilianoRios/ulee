@@ -10,7 +10,7 @@ export interface Court {
   sport:           string
   surface:         string
   covered:         boolean
-  pricePerHour:    number
+  pricePerHour?:   number
   nightRatePrice?: number
   status:          CourtStatus
   todayTurnos:     number
@@ -196,7 +196,7 @@ export function CourtsTable({ courts, onEdit, onCreate }: CourtsTableProps) {
                     {/* Precio por hora */}
                     <td style={{ ...td, opacity: dim }}>
                       <span style={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
-                        ${court.pricePerHour.toLocaleString('es-AR')}
+                        {court.pricePerHour != null ? `$${court.pricePerHour.toLocaleString('es-AR')}` : 'Hereda sede'}
                       </span>
                     </td>
 

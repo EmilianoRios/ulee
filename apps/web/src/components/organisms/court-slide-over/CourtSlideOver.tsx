@@ -134,9 +134,18 @@ export function CourtSlideOver({ court, isOpen, onClose, onSave }: CourtSlideOve
   const title = isNew ? 'Nueva cancha' : court.name
 
   function handleSave() {
-    const price      = parseInt(form.pricePerHour.replace(/\D/g, ''), 10)
-    const nightPrice = form.nightRatePrice ? parseInt(form.nightRatePrice.replace(/\D/g, ''), 10) : undefined
-    if (!form.name.trim() || isNaN(price) || price <= 0) return
+    if (!form.name.trim()) return
+
+    const price = form.pricePerHour
+      ? parseInt(form.pricePerHour.replace(/\D/g, ''), 10)
+      : undefined
+
+    if (price !== undefined && (isNaN(price) || price <= 0)) return
+
+    const nightPrice = form.nightRatePrice
+      ? parseInt(form.nightRatePrice.replace(/\D/g, ''), 10)
+      : undefined
+
     onSave({
       name:           form.name.trim(),
       sport:          form.sport,
