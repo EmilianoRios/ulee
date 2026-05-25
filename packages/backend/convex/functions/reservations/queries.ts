@@ -66,6 +66,7 @@ export const listByVenueAndDate = query({
       .withIndex('by_venueId_date', (q) =>
         q.eq('venueId', args.venueId).eq('date', args.date)
       )
+      .order('desc')
       .paginate(args.paginationOpts)
 
     // Denormalize courtName — batch lookup courts

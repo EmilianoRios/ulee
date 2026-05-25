@@ -3,6 +3,7 @@
 import { Plus } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { usePaginatedQuery, useQuery, useConvexAuth } from 'convex/react'
+import { useRouter } from 'next/navigation'
 import { api, minutesToTime } from '@canchero/backend'
 import { ReservationsTable, type Reservation } from '@/components/organisms/reservations-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
@@ -24,6 +25,7 @@ export default function ReservasPage() {
   const t                = useTheme()
   const { activeVenueId } = useActiveVenue()
   const { isAuthenticated } = useConvexAuth()
+  const router   = useRouter()
   const canQuery = isAuthenticated && activeVenueId !== null
 
   // Paginated reservation list — skip when no venue selected or unauthenticated
@@ -127,6 +129,7 @@ export default function ReservasPage() {
             lineHeight:      1,
             fontFamily:      'inherit',
           }}
+          onClick={() => router.push('/calendario')}
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
         >
