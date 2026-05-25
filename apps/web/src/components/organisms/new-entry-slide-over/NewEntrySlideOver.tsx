@@ -70,6 +70,11 @@ const DIAS_SEMANA = [
   { key: 'dom', label: 'D' },
 ]
 
+// Maps DIAS_SEMANA keys to ISO 8601 weekday numbers (1=Mon…7=Sun)
+const DIAS_SEMANA_TO_ISO: Record<string, number> = {
+  lun: 1, mar: 2, mie: 3, jue: 4, vie: 5, sab: 6, dom: 7,
+}
+
 function borderColor(t: ReturnType<typeof useTheme>, focused: boolean, error?: string): string {
   if (error)   return 'oklch(65% 0.15 25)'
   if (focused) return 'oklch(50% 0.18 155)'
@@ -361,6 +366,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const t = useTheme()
 
   const createReservation = useMutation(api.functions.reservations.mutations.create)
+  const createSeries      = useMutation(api.functions.reservations.series.createSeries)
 
   const defaultCourtId  = initialCourtId ?? courts[0]?.id ?? ''
   const defaultInicio   = initialTime ?? '09:00'
@@ -426,9 +432,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   }, [courtId, horaInicio, horaFin, courts, venuePricePerHour, venueNightRate, venueNightRateStart, type])
 
   // Recurrente
-  const [frecuencia,     setFrecuencia]     = useState<'semanal' | 'mensual' | 'anual'>('semanal')
+  const [frecuencia,     setFrecuencia]     = useState<'semanal' | 'quincenal'>('semanal')
   const [diasSemana,     setDiasSemana]     = useState<string[]>([])
-  const [diaDelMes,      setDiaDelMes]      = useState('')
   const [fechaVenc,      setFechaVenc]      = useState('')
   const [sinVencimiento, setSinVencimiento] = useState(false)
 
@@ -454,14 +459,14 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       if (!horaFin)             errs.horaFin      = 'Requerido'
     }
     if (type === 'recurrente') {
-      if (!cliente.trim())                          errs.cliente    = 'El nombre del cliente es obligatorio'
-      if (!courtId)                                 errs.courtId    = 'Seleccioná una cancha'
-      if (!horaInicio)                              errs.horaInicio = 'Requerido'
-      if (!horaFin)                                 errs.horaFin    = 'Requerido'
-      if (!monto)                                   errs.monto      = 'Ingresá el monto'
-      if (!fecha)                                   errs.fecha      = 'Requerido'
-      if (frecuencia === 'semanal' && diasSemana.length === 0) errs.diasSemana = 'Seleccioná al menos un día'
-      if (frecuencia === 'mensual' && !diaDelMes)   errs.diaDelMes  = 'Requerido'
+      if (!cliente.trim())          errs.cliente    = 'El nombre del cliente es obligatorio'
+      if (!courtId)                 errs.courtId    = 'Seleccioná una cancha'
+      if (!horaInicio)              errs.horaInicio = 'Requerido'
+      if (!horaFin)                 errs.horaFin    = 'Requerido'
+      if (!monto)                   errs.monto      = 'Ingresá el monto'
+      if (!fecha)                   errs.fecha      = 'Requerido'
+      if (diasSemana.length === 0)  errs.diasSemana = 'Seleccioná al menos un día'
+      if (!sinVencimiento && !fechaVenc) errs.fechaVenc = 'Requerido'
     }
     if (horaInicio && horaFin && horaInicio === horaFin) {
       errs.horaFin = 'La duración no puede ser cero'
@@ -476,7 +481,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
     setSubmitting(true)
     setSubmitError(null)
     try {
-      if (type === 'reserva' || type === 'recurrente') {
+      if (type === 'reserva') {
         const hasMonto = monto.trim() !== '' && Number(monto) > 0
         await createReservation({
           venueId,
@@ -490,6 +495,23 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           status:        hasMonto ? STATE_TO_STATUS[estado] : 'absent',
           notes:         notas || undefined,
           ...(hasMonto ? { paymentMethod } : {}),
+        })
+      } else if (type === 'recurrente') {
+        const diasIso = diasSemana.map((k) => DIAS_SEMANA_TO_ISO[k]!)
+        await createSeries({
+          venueId,
+          courtId:      courtId as Id<'courts'>,
+          clientName:   cliente,
+          clientPhone:  telefono,
+          totalAmount:  monto.trim() !== '' && Number(monto) > 0 ? Number(monto) : 0,
+          startDate:    fecha,
+          endDate:      sinVencimiento ? undefined : fechaVenc || undefined,
+          indefinite:   sinVencimiento,
+          diasSemana:   diasIso,
+          weekInterval: frecuencia === 'semanal' ? 1 : 2,
+          startTime:    timeToMinutes(horaInicio),
+          endTime:      timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
+          notes:        notas || undefined,
         })
       } else if (type === 'mantenimiento') {
         await createReservation({
@@ -520,7 +542,26 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       }
       onClose()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al guardar'
+      let message = err instanceof Error ? err.message : 'Error al guardar'
+      try {
+        const parsed = JSON.parse(message) as { code: string; date?: string }
+        if (parsed.code === 'holiday_conflict' && parsed.date) {
+          const dateLabel = new Date(`${parsed.date}T12:00:00Z`).toLocaleDateString('es-AR', {
+            day: 'numeric', month: 'long', year: 'numeric',
+          })
+          message = `La fecha ${dateLabel} es feriado. Modificá el rango o eliminá el feriado de la agenda.`
+        } else if (parsed.code === 'time_conflict' && parsed.date) {
+          const dateLabel = new Date(`${parsed.date}T12:00:00Z`).toLocaleDateString('es-AR', {
+            day: 'numeric', month: 'long', year: 'numeric',
+          })
+          message = `Ya existe una reserva el ${dateLabel} en ese horario.`
+        }
+      } catch {
+        // ConvexError with string payload — check known string codes
+        if (message === 'no_occurrences_in_range') {
+          message = 'No hay fechas válidas en el rango seleccionado.'
+        }
+      }
       setSubmitError(message)
     } finally {
       setSubmitting(false)
@@ -677,49 +718,40 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 <Field label="Frecuencia" required>
                   <RadioGroup
                     value={frecuencia}
-                    onChange={(v) => { setFrecuencia(v as typeof frecuencia); setDiasSemana([]); setDiaDelMes('') }}
+                    onChange={(v) => { setFrecuencia(v as typeof frecuencia); setDiasSemana([]) }}
                     options={[
-                      { value: 'semanal', label: 'Semanal' },
-                      { value: 'mensual', label: 'Mensual' },
-                      { value: 'anual',   label: 'Anual'   },
+                      { value: 'semanal',   label: 'Semanal'   },
+                      { value: 'quincenal', label: 'Quincenal' },
                     ]}
                   />
                 </Field>
 
-                {frecuencia === 'semanal' && (
-                  <Field label="Días" required error={errors.diasSemana}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {DIAS_SEMANA.map(({ key, label }) => {
-                        const selected = diasSemana.includes(key)
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => setDiasSemana((prev) =>
-                              prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key]
-                            )}
-                            style={{
-                              flex: 1, height: 36, borderRadius: 7, fontFamily: 'inherit',
-                              border: `1.5px solid ${selected ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
-                              backgroundColor: selected ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
-                              color: selected ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
-                              fontSize: 13, fontWeight: selected ? 700 : 400,
-                              cursor: 'pointer', transition: 'all 120ms ease-out',
-                            }}
-                          >
-                            {label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </Field>
-                )}
-
-                {frecuencia === 'mensual' && (
-                  <Field label="Día del mes" required error={errors.diaDelMes}>
-                    <NumInput value={diaDelMes} onChange={setDiaDelMes} placeholder="15" error={errors.diaDelMes} />
-                  </Field>
-                )}
+                <Field label="Días" required error={errors.diasSemana}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {DIAS_SEMANA.map(({ key, label }) => {
+                      const selected = diasSemana.includes(key)
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setDiasSemana((prev) =>
+                            prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key]
+                          )}
+                          style={{
+                            flex: 1, height: 36, borderRadius: 7, fontFamily: 'inherit',
+                            border: `1.5px solid ${selected ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
+                            backgroundColor: selected ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
+                            color: selected ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
+                            fontSize: 13, fontWeight: selected ? 700 : 400,
+                            cursor: 'pointer', transition: 'all 120ms ease-out',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </Field>
               </div>
 
               {/* Vigencia */}
@@ -727,10 +759,10 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 <Field label="Fecha de inicio" required error={errors.fecha}>
                   <DateInput value={fecha} onChange={setFecha} error={errors.fecha} />
                 </Field>
-                <Field label="Vencimiento">
+                <Field label="Vencimiento" error={errors.fechaVenc}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {!sinVencimiento && (
-                      <DateInput value={fechaVenc} onChange={setFechaVenc} />
+                      <DateInput value={fechaVenc} onChange={setFechaVenc} error={errors.fechaVenc} />
                     )}
                     <button
                       type="button"

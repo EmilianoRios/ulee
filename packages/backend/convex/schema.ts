@@ -207,14 +207,16 @@ export default defineSchema({
 
   // -------------------------------------------------------------------------
   // recurrenceSeries
-  // dayOfWeek ISO 8601: 1=Monday, 7=Sunday (NOT JS Date.getDay() 0-based).
+  // diasSemana: ISO 8601 weekday array (1=Monday…7=Sunday) — multi-day support.
+  // dayOfWeek: kept optional for backward compat; new mutations write diasSemana.
   // weekInterval: 1=weekly, 2=biweekly.
   // Cancelling the series does NOT auto-cancel existing reservation instances.
   // -------------------------------------------------------------------------
   recurrenceSeries: defineTable({
     courtId: v.id('courts'),
     venueId: v.id('venues'),           // denormalized
-    dayOfWeek: v.number(),             // ISO 8601: 1=Monday … 7=Sunday
+    diasSemana: v.array(v.number()),   // ISO 8601 weekdays: 1=Monday…7=Sunday
+    dayOfWeek: v.optional(v.number()), // deprecated — use diasSemana; kept for backward compat
     weekInterval: v.union(
       v.literal(1),
       v.literal(2),
@@ -222,7 +224,7 @@ export default defineSchema({
     startTime: v.number(),             // minutes since midnight (0–2879)
     endTime: v.number(),               // minutes since midnight (0–2879)
     startDate: v.string(),             // "YYYY-MM-DD"
-    endDate: v.optional(v.string()),   // "YYYY-MM-DD" — null = indefinite
+    endDate: v.optional(v.string()),   // "YYYY-MM-DD" — undefined = indefinite
     clientName: v.string(),
     clientPhone: v.string(),
     totalAmount: v.number(),           // ARS float pesos — NOT cents
@@ -232,6 +234,7 @@ export default defineSchema({
       v.literal('cancelled'),
       v.literal('completed'),
     ),
+    createdByUserId: v.optional(v.id('users')),
   })
     .index('by_venueId', ['venueId'])
     .index('by_courtId', ['courtId']),

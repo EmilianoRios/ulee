@@ -1,45 +1,12 @@
-import { mutation, MutationCtx } from '../../_generated/server'
+import { mutation } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
-import { getCurrentUser } from '../../lib/auth'
+import { assertVenueAccess } from '../../lib/venueAccess'
 import { hasConflict, isWithinScheduleOrOvernight, buildConflictWindow } from '../../lib/conflicts'
 import { isoWeekday } from '../../lib/dates'
 import { resolvePaymentType } from '../../lib/payments'
 import { resolveScheduleForDate, addDays } from '../../lib/schedule'
 import { addMinutes } from '../../lib/time'
 import type { Id } from '../../_generated/dataModel'
-
-// ---------------------------------------------------------------------------
-// Private helper
-// ---------------------------------------------------------------------------
-
-async function assertVenueAccess(
-  ctx: MutationCtx,
-  venueId: Id<'venues'>
-) {
-  const identity = await getCurrentUser(ctx)
-  const clerkId  = identity.subject
-
-  const user = await ctx.db
-    .query('users')
-    .withIndex('by_clerkId', (q) => q.eq('clerkId', clerkId))
-    .first()
-  if (!user) throw new ConvexError('user_not_found')
-
-  const access = await ctx.db
-    .query('venueAccess')
-    .withIndex('by_userId_venueId', (q) =>
-      q.eq('userId', user._id).eq('venueId', venueId)
-    )
-    .first()
-
-  const venue = await ctx.db.get(venueId)
-
-  if (!access && venue?.ownerId !== user._id) {
-    throw new ConvexError('unauthorized')
-  }
-
-  return user
-}
 
 // Statuses that require schedule bounds validation on create
 const SCHEDULE_CHECKED_STATUSES = new Set(['deposit_paid', 'paid', 'absent', 'on_court'])
