@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { Lock, Download, ChevronDown } from 'lucide-react'
+import { Lock, Download, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
@@ -30,25 +30,60 @@ function fmt(n: number): string {
   return '$' + n.toLocaleString('es-AR')
 }
 
-function computePeriodRange(period: Period): { dateFrom: string; dateTo: string } {
-  const now   = new Date(Date.now() - 3 * 60 * 60 * 1000)
-  const today = now.toISOString().slice(0, 10)
+function computePeriodRange(period: Period, offset: number): { dateFrom: string; dateTo: string } {
+  const now = new Date(Date.now() - 3 * 60 * 60 * 1000)
 
   if (period === 'dia') {
-    return { dateFrom: today, dateTo: today }
+    const d = new Date(now)
+    d.setUTCDate(d.getUTCDate() + offset)
+    const dateStr = d.toISOString().slice(0, 10)
+    return { dateFrom: dateStr, dateTo: dateStr }
   }
   if (period === 'semana') {
-    // Monday of current week (ISO: Mon=1 … Sun=7)
+    // Monday of current week
     const dow = now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1
     const mon = new Date(now)
-    mon.setUTCDate(now.getUTCDate() - dow)
+    mon.setUTCDate(now.getUTCDate() - dow + offset * 7)
     const sun = new Date(mon)
     sun.setUTCDate(mon.getUTCDate() + 6)
     return { dateFrom: mon.toISOString().slice(0, 10), dateTo: sun.toISOString().slice(0, 10) }
   }
   // mes
-  const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
-  return { dateFrom: `${today.slice(0, 7)}-01`, dateTo: lastDay.toISOString().slice(0, 10) }
+  const year  = now.getUTCFullYear()
+  const month = now.getUTCMonth() + offset  // may go negative or >11 — Date handles it
+  const firstDay = new Date(Date.UTC(year, month, 1))
+  const lastDay  = new Date(Date.UTC(year, month + 1, 0))
+  return { dateFrom: firstDay.toISOString().slice(0, 10), dateTo: lastDay.toISOString().slice(0, 10) }
+}
+
+function computePeriodLabel(period: Period, offset: number): string {
+  const now = new Date(Date.now() - 3 * 60 * 60 * 1000)
+
+  if (period === 'mes') {
+    const year  = now.getUTCFullYear()
+    const month = now.getUTCMonth() + offset
+    const d = new Date(Date.UTC(year, month, 1))
+    const raw = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
+  }
+  if (period === 'semana') {
+    const dow = now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1
+    const mon = new Date(now)
+    mon.setUTCDate(now.getUTCDate() - dow + offset * 7)
+    const sun = new Date(mon)
+    sun.setUTCDate(mon.getUTCDate() + 6)
+    const dayFrom = mon.getUTCDate()
+    const dayTo   = sun.getUTCDate()
+    const monthAbbr = sun.toLocaleDateString('es-AR', { month: 'short', timeZone: 'UTC' }).replace('.', '')
+    return `${dayFrom} – ${dayTo} ${monthAbbr}`
+  }
+  // dia
+  const d = new Date(now)
+  d.setUTCDate(d.getUTCDate() + offset)
+  const weekday = d.toLocaleDateString('es-AR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
+  const day     = d.getUTCDate()
+  const month   = d.toLocaleDateString('es-AR', { month: 'short', timeZone: 'UTC' }).replace('.', '')
+  return `${weekday} ${day} ${month}`
 }
 
 type FinanceRowShape = {
@@ -100,13 +135,15 @@ export default function FinanzasPage() {
   const { isAuthenticated } = useConvexAuth()
 
   const [period,        setPeriod]        = useState<Period>('mes')
+  const [offset,        setOffset]        = useState(0)
   const [cancha,        setCancha]        = useState('todas')
   const [page,          setPage]          = useState(1)
   const [showExportTip, setShowExportTip] = useState(false)
   const [tipPos,        setTipPos]        = useState({ top: 0, left: 0 })
   const exportRef = useRef<HTMLButtonElement>(null)
 
-  const { dateFrom, dateTo } = computePeriodRange(period)
+  const { dateFrom, dateTo } = computePeriodRange(period, offset)
+  const periodLabel = computePeriodLabel(period, offset)
 
   const allRows = useQuery(
     api.functions.finances.queries.listByVenueAndPeriod,
@@ -134,7 +171,7 @@ export default function FinanzasPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toTransaction)
 
-  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setPage(1) }, [])
+  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setPage(1) }, [])
   const handleCancha = useCallback((c: string)  => { setCancha(c);  setPage(1) }, [])
 
   const handleExportClick = useCallback(() => {
@@ -166,18 +203,93 @@ export default function FinanzasPage() {
         overflowX:       'auto',
         gap:             12,
       }}>
-        {/* Left: title */}
-        <span style={{
-          fontSize:      15,
-          fontWeight:    600,
-          color:         D.text,
-          letterSpacing: '-0.01em',
-          lineHeight:    1,
-          userSelect:    'none',
-          flexShrink:    0,
-        }}>
-          Finanzas
-        </span>
+        {/* Left: title + period nav */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            fontSize:      15,
+            fontWeight:    600,
+            color:         D.text,
+            letterSpacing: '-0.01em',
+            lineHeight:    1,
+            userSelect:    'none',
+            flexShrink:    0,
+            marginRight:   4,
+          }}>
+            Finanzas
+          </span>
+          <button
+            onClick={() => { setOffset(o => o - 1); setPage(1) }}
+            aria-label="Período anterior"
+            style={{
+              width:           32,
+              height:          32,
+              borderRadius:    6,
+              border:          `1px solid ${D.border}`,
+              backgroundColor: 'transparent',
+              cursor:          'pointer',
+              display:         'flex',
+              alignItems:      'center',
+              justifyContent:  'center',
+              color:           D.textMuted,
+              flexShrink:      0,
+            }}
+          >
+            <ChevronLeft size={16} strokeWidth={2} />
+          </button>
+
+          <span style={{
+            fontSize:      18,
+            fontWeight:    600,
+            color:         D.text,
+            letterSpacing: '-0.01em',
+            lineHeight:    1.2,
+            userSelect:    'none',
+            minWidth:      200,
+            textAlign:     'center',
+          }}>
+            {periodLabel}
+          </span>
+
+          <button
+            onClick={() => { setOffset(o => o + 1); setPage(1) }}
+            aria-label="Período siguiente"
+            style={{
+              width:           32,
+              height:          32,
+              borderRadius:    6,
+              border:          `1px solid ${D.border}`,
+              backgroundColor: 'transparent',
+              cursor:          'pointer',
+              display:         'flex',
+              alignItems:      'center',
+              justifyContent:  'center',
+              color:           D.textMuted,
+              flexShrink:      0,
+            }}
+          >
+            <ChevronRight size={16} strokeWidth={2} />
+          </button>
+
+          {offset !== 0 && (
+            <button
+              onClick={() => { setOffset(0); setPage(1) }}
+              style={{
+                padding:         '6px 14px',
+                borderRadius:    6,
+                border:          `1px solid ${D.border}`,
+                backgroundColor: 'transparent',
+                cursor:          'pointer',
+                fontSize:        12,
+                fontWeight:      500,
+                color:           D.textMuted,
+                fontFamily:      'inherit',
+                lineHeight:      1,
+              }}
+            >
+              Hoy
+            </button>
+          )}
+        </div>
 
         {/* Right: period toggle + cancha select + export */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
