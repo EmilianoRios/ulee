@@ -55,6 +55,7 @@ async function fetchRows(
     .withIndex('by_venueId_date', (q) =>
       q.eq('venueId', venueId).gte('date', dateFrom).lte('date', dateTo)
     )
+    .order('desc')
     .filter((q) => q.neq(q.field('status'), 'maintenance'))
     .collect()
 

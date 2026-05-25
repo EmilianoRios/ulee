@@ -42,10 +42,13 @@ function computePeriodRange(period: Period): { dateFrom: string; dateTo: string 
     const dow = now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1
     const mon = new Date(now)
     mon.setUTCDate(now.getUTCDate() - dow)
-    return { dateFrom: mon.toISOString().slice(0, 10), dateTo: today }
+    const sun = new Date(mon)
+    sun.setUTCDate(mon.getUTCDate() + 6)
+    return { dateFrom: mon.toISOString().slice(0, 10), dateTo: sun.toISOString().slice(0, 10) }
   }
   // mes
-  return { dateFrom: `${today.slice(0, 7)}-01`, dateTo: today }
+  const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
+  return { dateFrom: `${today.slice(0, 7)}-01`, dateTo: lastDay.toISOString().slice(0, 10) }
 }
 
 type FinanceRowShape = {
@@ -96,7 +99,7 @@ export default function FinanzasPage() {
   const { activeVenueId } = useActiveVenue()
   const { isAuthenticated } = useConvexAuth()
 
-  const [period,        setPeriod]        = useState<Period>('semana')
+  const [period,        setPeriod]        = useState<Period>('mes')
   const [cancha,        setCancha]        = useState('todas')
   const [page,          setPage]          = useState(1)
   const [showExportTip, setShowExportTip] = useState(false)
