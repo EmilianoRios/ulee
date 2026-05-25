@@ -10,7 +10,7 @@ Dueños de complejos deportivos. Gestionan canchas y reservas día a día desde 
 
 ## Product Purpose
 
-Canchero es el dashboard operativo para dueños de sedes deportivas. Centraliza canchas, reservas y disponibilidad en un solo lugar. El éxito se mide en que un dueño pueda operar su negocio completo desde la app sin sentirse abrumado ni confundido.
+Ulee es el dashboard operativo para dueños de sedes deportivas. Centraliza canchas, reservas y disponibilidad en un solo lugar. El éxito se mide en que un dueño pueda operar su negocio completo desde la app sin sentirse abrumado ni confundido.
 
 ## Brand Personality
 
