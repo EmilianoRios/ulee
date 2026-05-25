@@ -25,6 +25,7 @@ interface FinancesTableProps {
 
 const COLS: { label: string; width?: number; align?: 'left' | 'right' }[] = [
   { label: 'Cliente' },
+  { label: 'Cancha',           width: 140 },
   { label: 'Día y horario',    width: 178 },
   { label: 'Fecha de reserva', width: 130 },
   { label: 'Mercado Pago',     width: 122, align: 'right' },
@@ -156,6 +157,7 @@ export function FinancesTable({ rows, page, totalPages, totalRows, onPageChange 
                     <td style={td}>
                       <span style={{ fontWeight: 500 }}>{row.cliente}</span>
                     </td>
+                    <td style={{ ...td, color: t.textoMuted.val }}>{row.cancha}</td>
                     <td style={{ ...td, color: t.textoMuted.val }}>{row.diayhorario}</td>
                     <td style={{ ...td, color: t.textoMuted.val }}>{row.fechaReserva}</td>
                     <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>

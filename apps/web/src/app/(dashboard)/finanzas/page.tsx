@@ -159,8 +159,12 @@ export default function FinanzasPage() {
     (r) => cancha === 'todas' || r.courtName === cancha
   )
 
-  // Unique cancha names derived from live data
-  const canchaOptions = [...new Set((allRows ?? []).map((r) => r.courtName))].sort()
+  // Unique cancha names derived from live data.
+  // Always include the currently selected cancha so the select stays consistent
+  // when navigating to a period where that court has no reservations.
+  const canchaOptionsSet = new Set((allRows ?? []).map((r) => r.courtName).filter(Boolean))
+  if (cancha !== 'todas') canchaOptionsSet.add(cancha)
+  const canchaOptions = [...canchaOptionsSet].sort()
 
   // KPIs — derived client-side from filtered rows
   const totalOnline   = filtered.reduce((s, r) => s + r.online, 0)
@@ -171,7 +175,7 @@ export default function FinanzasPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toTransaction)
 
-  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setPage(1) }, [])
+  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setPage(1); setCancha('todas') }, [])
   const handleCancha = useCallback((c: string)  => { setCancha(c);  setPage(1) }, [])
 
   const handleExportClick = useCallback(() => {
