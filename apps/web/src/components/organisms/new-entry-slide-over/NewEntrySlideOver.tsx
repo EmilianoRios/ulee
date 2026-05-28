@@ -893,9 +893,9 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           <button
             onClick={onClose}
             style={{
-              padding: '10px 16px', borderRadius: 7, border: `1px solid ${t.bordeNeutral.val}`,
+              padding: '10px 20px', borderRadius: 7, border: `1px solid ${t.bordeNeutral.val}`,
               backgroundColor: 'transparent', color: t.textoPrimario.val,
-              fontSize: 13, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 13, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit', minWidth: 80,
             }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.fondoHover.val }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
@@ -980,15 +980,15 @@ export function NewEntrySlideOver({
               display:        'flex',
               alignItems:     'center',
               justifyContent: 'space-between',
-              padding:        '14px 16px 10px',
+              padding:        '16px 24px 12px',
               flexShrink:     0,
             }}>
               <span style={{
-                fontSize:      13,
+                fontSize:      16,
                 fontWeight:    600,
                 color:         t.textoNav.val,
                 letterSpacing: '-0.01em',
-                lineHeight:    1,
+                lineHeight:    1.2,
               }}>
                 Nueva entrada
               </span>
@@ -1012,7 +1012,7 @@ export function NewEntrySlideOver({
             {/* Tab strip */}
             <div style={{
               display:      'flex',
-              padding:      '0 16px',
+              padding:      '0 24px',
               borderBottom: `1px solid ${t.divisor.val}`,
               flexShrink:   0,
             }}>
@@ -1023,7 +1023,7 @@ export function NewEntrySlideOver({
                     key={type}
                     onClick={() => setActiveType(type)}
                     style={{
-                      padding:         '0 12px 10px',
+                      padding:         '8px 14px 11px',
                       border:          'none',
                       borderBottom:    active ? `2px solid ${t.verdeCancha.val}` : '2px solid transparent',
                       backgroundColor: 'transparent',

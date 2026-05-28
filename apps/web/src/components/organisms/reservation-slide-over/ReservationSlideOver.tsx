@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'tamagui'
-import { X, Phone, Clock, Banknote, CreditCard } from 'lucide-react'
+import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText } from 'lucide-react'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { TimeSelect } from '@/components/atoms/time-select'
 
@@ -88,24 +88,25 @@ function isSlotFree(
 }
 
 const STATE_LABEL: Record<string, string> = {
-  señado:        'Señado — cobra en cancha',
+  señado:        'Señado · cobra al llegar',
   'en-cancha':   'En cancha',
   ausente:       'Ausente',
   pagado:        'Pagado',
   mantenimiento: 'Mantenimiento',
-  recurrente:    'Evento recurrente',
-  jugado:        'Jugado — cobro pendiente',
-  evento:        'Evento especial',
+  recurrente:    'Turno recurrente',
+  jugado:        'Jugado · cobro pendiente',
+  evento:        'Evento',
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function ActionButton({ label, onClick, variant = 'secondary', icon, disabled }: {
+function ActionButton({ label, onClick, variant = 'secondary', icon, disabled, compact }: {
   label:     string
   onClick:   () => void
   variant?:  'primary' | 'secondary' | 'danger'
   icon?:     React.ReactNode
   disabled?: boolean
+  compact?:  boolean
 }) {
   const t = useTheme()
   const palette = {
@@ -122,7 +123,7 @@ function ActionButton({ label, onClick, variant = 'secondary', icon, disabled }:
         display:         'flex',
         alignItems:      'center',
         gap:             6,
-        padding:         '9px 16px',
+        padding:         compact ? '9px 14px' : '11px 18px',
         borderRadius:    7,
         border:          `1px solid ${palette.border}`,
         backgroundColor: palette.bg,
@@ -131,7 +132,7 @@ function ActionButton({ label, onClick, variant = 'secondary', icon, disabled }:
         fontWeight:      500,
         fontFamily:      'inherit',
         cursor:          disabled ? 'not-allowed' : 'pointer',
-        flex:            1,
+        flex:            compact ? 'none' : 1,
         justifyContent:  'center',
         lineHeight:      1.3,
         opacity:         disabled ? 0.5 : 1,
@@ -254,7 +255,7 @@ function PaymentMethodButton({ label, icon, selected, onClick }: {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   const t = useTheme()
   return (
-    <span style={{ fontSize: 12, fontWeight: 500, color: t.textoMuted.val, letterSpacing: '0.02em' }}>
+    <span style={{ fontSize: 11, fontWeight: 700, color: t.textoMuted.val, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
       {children}
     </span>
   )
@@ -357,7 +358,7 @@ function EditForm({ reservation, fields, onChange, onConfirm, onCancel }: {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
         <ActionButton label="Guardar cambios" onClick={onConfirm} variant="primary" />
-        <ActionButton label="Cancelar" onClick={onCancel} variant="secondary" />
+        <ActionButton label="Cancelar" onClick={onCancel} variant="secondary" compact />
       </div>
     </div>
   )
@@ -462,7 +463,7 @@ function SeriesEditForm({ reservation, onConfirm, onCancel }: {
           variant="primary"
           disabled={!hasChanges}
         />
-        <ActionButton label="Cancelar" onClick={onCancel} variant="secondary" />
+        <ActionButton label="Cancelar" onClick={onCancel} variant="secondary" compact />
       </div>
     </div>
   )
@@ -531,7 +532,7 @@ function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, 
         />
         <PaymentMethodButton
           label="Mixto"
-          icon={<span style={{ fontSize: 13 }}>⇄</span>}
+          icon={<ArrowLeftRight size={14} strokeWidth={2} />}
           selected={mode === 'split'}
           onClick={() => selectMode('split')}
         />
@@ -647,10 +648,6 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
   const totalAssigned = cashAmount + onlineAmount
   const paymentReady  = pendingBalance > 0 && totalAssigned === pendingBalance
-
-  // Edit/delete visibility guards (based on display state)
-  const canEdit   = reservation?.state === 'señado' || reservation?.state === 'pagado' || reservation?.state === 'ausente'
-  const canDelete = reservation?.state === 'ausente'
 
   const statePalette = reservation ? ({
     señado:        { bg: t.acentoTerrazaClaro.val, color: t.acentoTerraza.val,       border: 'oklch(84% 0.07 42)'  },
@@ -773,14 +770,14 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0, flex: 1 }}>
 
               {/* Info rows */}
-              <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ padding: '16px 24px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <DetailRow
                   icon={<Clock size={14} strokeWidth={2} color={t.textoMuted.val} />}
                   label="Horario"
                   value={`${minutesToTime(reservation.startTime)} – ${minutesToTime(reservation.endTime)} · ${fmtDuration(durationMins)}`}
                 />
                 <DetailRow
-                  icon={<span style={{ width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>🏟</span>}
+                  icon={<MapPin size={14} strokeWidth={2} color={t.textoMuted.val} />}
                   label="Cancha"
                   value={court?.name ?? '—'}
                 />
@@ -800,18 +797,17 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   />
                 )}
                 {reservation.notes && (
-                  <div style={{ paddingTop: 4 }}>
-                    <span style={{ fontSize: 11, color: t.textoMuted.val, fontWeight: 500 }}>Nota</span>
-                    <p style={{ margin: '4px 0 0', fontSize: 13, color: t.textoPrimario.val, lineHeight: 1.5 }}>
-                      {reservation.notes}
-                    </p>
-                  </div>
+                  <DetailRow
+                    icon={<FileText size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                    label="Nota"
+                    value={reservation.notes}
+                  />
                 )}
               </div>
 
               {/* En cancha: progress bar */}
               {reservation.state === 'en-cancha' && (
-                <div style={{ padding: '0 24px 4px' }}>
+                <div style={{ padding: '8px 24px 16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 11, color: t.textoMuted.val, fontWeight: 500 }}>Transcurrido</div>
@@ -834,27 +830,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
               )}
 
               {/* ── Actions ──────────────────────────────────────────────────── */}
-              <div style={{ padding: '20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-                {/* ── Edit / Delete controls ──────────────────────────────────── */}
-                {!isEditing && !deleteConfirm && (canEdit || canDelete) && (
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                    {canEdit && (
-                      <ActionButton
-                        label="Editar"
-                        onClick={() => setIsEditing(true)}
-                        variant="secondary"
-                      />
-                    )}
-                    {canDelete && (
-                      <ActionButton
-                        label="Eliminar reserva"
-                        onClick={() => setDeleteConfirm(true)}
-                        variant="danger"
-                      />
-                    )}
-                  </div>
-                )}
+              <div style={{ padding: '16px 24px 28px', borderTop: `1px solid ${t.divisor.val}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
                 {/* ── Edit form ────────────────────────────────────────────────── */}
                 {isEditing && (
@@ -890,6 +866,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         label="Cancelar"
                         onClick={() => setDeleteConfirm(false)}
                         variant="secondary"
+                        compact
                       />
                     </div>
                   </div>
@@ -917,6 +894,12 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       onClick={() => setCancelDepositConfirm(true)}
                       variant="danger"
                     />
+                    <ActionButton
+                      label="Editar"
+                      onClick={() => setIsEditing(true)}
+                      variant="secondary"
+                      compact
+                    />
                   </>
                 )}
 
@@ -936,6 +919,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         label="Volver"
                         onClick={() => setCancelDepositConfirm(false)}
                         variant="secondary"
+                        compact
                       />
                     </div>
                   </div>
@@ -944,9 +928,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 {/* En cancha */}
                 {reservation.state === 'en-cancha' && !isEditing && !deleteConfirm && (
                   <>
-                    <div style={{ marginBottom: 4 }}>
-                      <SectionLabel>Extender reserva</SectionLabel>
-                    </div>
+                    <SectionLabel>Extender reserva</SectionLabel>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <ExtendButton label="+30 min" available={can30} active={extendMins === 30} onClick={() => setExtendMins(extendMins === 30 ? 0 : 30)} />
                       <ExtendButton label="+60 min" available={can60} active={extendMins === 60} onClick={() => setExtendMins(extendMins === 60 ? 0 : 60)} />
@@ -996,6 +978,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                                 label="Cancelar"
                                 onClick={() => setOverrideConfirmPending(false)}
                                 variant="secondary"
+                                compact
                               />
                             </div>
                           </>
@@ -1024,7 +1007,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 {/* En cancha — cobro */}
                 {reservation.state === 'en-cancha' && (
                   <>
-                    <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '4px 0' }} />
+                    <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '14px 0 8px' }} />
                     <SectionLabel>Cobro</SectionLabel>
                     <PaymentInput
                       pendingBalance={pendingBalance}
@@ -1042,39 +1025,49 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   </>
                 )}
 
-                {/* Ausente — estado final, sin acciones adicionales */}
+                {/* Ausente */}
                 {reservation.state === 'ausente' && !isEditing && !deleteConfirm && (
-                  <div style={{
-                    padding:         '10px 14px',
-                    backgroundColor: t.fondoHover.val,
-                    borderRadius:    7,
-                    fontSize:        13,
-                    color:           t.textoInactivo.val,
-                    textAlign:       'center',
-                  }}>
-                    La cancha fue liberada
-                  </div>
+                  <>
+                    <span style={{ fontSize: 13, color: t.textoInactivo.val }}>
+                      Cancha liberada.
+                    </span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <ActionButton
+                        label="Editar"
+                        onClick={() => setIsEditing(true)}
+                        variant="secondary"
+                        compact
+                      />
+                      <ActionButton
+                        label="Eliminar reserva"
+                        onClick={() => setDeleteConfirm(true)}
+                        variant="danger"
+                      />
+                    </div>
+                  </>
                 )}
 
                 {/* Pagado */}
-                {reservation.state === 'pagado' && !cancelPaidConfirm && (
+                {reservation.state === 'pagado' && !isEditing && !cancelPaidConfirm && (
                   <>
-                    <div style={{
-                      padding:         '10px 14px',
-                      backgroundColor: t.verdeCanchaFondo.val,
-                      borderRadius:    7,
-                      fontSize:        13,
-                      color:           t.verdeCanchaProfundo.val,
-                      fontWeight:      500,
-                      textAlign:       'center',
-                    }}>
-                      Reserva cobrada en su totalidad
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: t.verdeCanchaProfundo.val }}>
+                      <CheckCircle2 size={15} strokeWidth={2} />
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>Cobrada en su totalidad</span>
                     </div>
-                    <ActionButton
-                      label="Cancelar reserva"
-                      onClick={() => setCancelPaidConfirm(true)}
-                      variant="danger"
-                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <ActionButton
+                        label="Editar"
+                        onClick={() => setIsEditing(true)}
+                        variant="secondary"
+                        compact
+                      />
+                      <ActionButton
+                        label="Cancelar reserva"
+                        onClick={() => setCancelPaidConfirm(true)}
+                        variant="danger"
+                        compact
+                      />
+                    </div>
                   </>
                 )}
 
@@ -1094,6 +1087,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         label="Volver"
                         onClick={() => setCancelPaidConfirm(false)}
                         variant="secondary"
+                        compact
                       />
                     </div>
                   </div>
@@ -1104,7 +1098,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   <ActionButton
                     label="Liberar cancha"
                     onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
-                    variant="danger"
+                    variant="primary"
                   />
                 )}
 
@@ -1129,7 +1123,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       <SectionLabel>Cobrar turno</SectionLabel>
                       <div>
                         <label style={{ fontSize: 11, fontWeight: 500, color: t.textoMuted.val, marginBottom: 4, display: 'block' }}>
-                          Monto ($)
+                          Monto a cobrar ($)
                         </label>
                         <input
                           type="number"
@@ -1157,12 +1151,13 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         variant="primary"
                         disabled={customAmount <= 0 || !localPaymentReady}
                       />
-                      <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '4px 0' }} />
+                      <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '14px 0 8px' }} />
                       {reservation.seriesId && (
                         <ActionButton
                           label="Editar serie"
                           onClick={() => setIsEditingSeries(true)}
                           variant="secondary"
+                          compact
                         />
                       )}
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -1199,6 +1194,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         label="Volver"
                         onClick={() => setCancelSeriesConfirm(false)}
                         variant="secondary"
+                        compact
                       />
                     </div>
                   </div>
