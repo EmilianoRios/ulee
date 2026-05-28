@@ -156,22 +156,27 @@ export const updateSchedule = mutation({
     const venue = await ctx.db.get(args.venueId)
     if (!venue) throw new ConvexError('venue_not_found')
 
-    const today    = new Date().toISOString().slice(0, 10)
+    const today    = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
     const tomorrow = addDays(today, 1)
 
     const existing: ScheduleVersion[] = venue.scheduleHistory ?? []
 
-    // Close the currently active entry (the one without validTo)
-    const updated: ScheduleVersion[] = existing.map((entry) =>
-      entry.validTo === undefined
-        ? { ...entry, validTo: tomorrow }
-        : entry
-    )
-
     const normalizedSchedule = args.schedule.map(normalizeDaySchedule)
 
-    // Append new entry starting tomorrow
-    updated.push({ validFrom: tomorrow, schedule: normalizedSchedule })
+    // Upsert: if the last entry already starts tomorrow, update it in place.
+    // This handles same-day re-saves without creating zero-width orphan entries.
+    const last = existing.at(-1)
+    const isUpsert = last?.validFrom === tomorrow
+
+    const updated: ScheduleVersion[] = isUpsert
+      ? [...existing.slice(0, -1), { ...last!, schedule: normalizedSchedule }]
+      : existing.map((entry) =>
+          entry.validTo === undefined ? { ...entry, validTo: tomorrow } : entry
+        )
+
+    if (!isUpsert) {
+      updated.push({ validFrom: tomorrow, schedule: normalizedSchedule })
+    }
 
     await ctx.db.patch(args.venueId, {
       schedule:        normalizedSchedule,
