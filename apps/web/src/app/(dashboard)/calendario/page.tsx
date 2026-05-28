@@ -14,7 +14,7 @@ import { ScheduleWarningBanner }   from '@/components/molecules/schedule-warning
 import { ModuleLayout }       from '@/components/templates/module-layout'
 import { NewEntrySlideOver }  from '@/components/organisms/new-entry-slide-over'
 import type { EntryType }     from '@/components/organisms/new-entry-slide-over'
-import type { ReservationUpdateFields } from '@/components/organisms/reservation-slide-over'
+import type { ReservationUpdateFields, SeriesUpdateFields } from '@/components/organisms/reservation-slide-over'
 import type { CalendarViewMode }           from '@/components/molecules/calendar-header'
 import type { Court, CalendarReservation, CalendarReservationState } from '@/components/atoms/reservation-card'
 import { useActiveVenue } from '@/context/active-venue'
@@ -94,6 +94,7 @@ export default function CalendarioPage() {
   const updateReservation = useMutation(api.functions.reservations.mutations.updateReservation)
   const deleteReservation = useMutation(api.functions.reservations.mutations.deleteReservation)
   const cancelSeries      = useMutation(api.functions.reservations.series.cancelSeries)
+  const modifySeries      = useMutation(api.functions.reservations.series.modifySeries)
 
   const [currentDate,         setCurrentDate]         = useState(() => new Date())
   const [viewMode,            setViewMode]            = useState<CalendarViewMode>('dia')
@@ -188,6 +189,10 @@ export default function CalendarioPage() {
   const handleCancelSeries = useCallback(async (seriesId: string) => {
     await cancelSeries({ seriesId: seriesId as Id<'recurrenceSeries'> })
   }, [cancelSeries])
+
+  const handleModifySeries = useCallback(async (seriesId: string, fields: SeriesUpdateFields) => {
+    await modifySeries({ seriesId: seriesId as Id<'recurrenceSeries'>, ...fields })
+  }, [modifySeries])
 
   const isToday = new Date().toDateString() === currentDate.toDateString()
 
@@ -497,6 +502,7 @@ export default function CalendarioPage() {
                       }).catch((err) => console.error('deleteReservation failed:', err))
                     }}
                     onCancelSeries={handleCancelSeries}
+                    onModifySeries={handleModifySeries}
                   />
                 </div>
               )}

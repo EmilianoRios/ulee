@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react'
 
 import { ReservationCard }      from '@/components/atoms/reservation-card'
 import { ReservationSlideOver } from '@/components/organisms/reservation-slide-over'
-import type { ReservationBackendStatus, ReservationUpdateFields } from '@/components/organisms/reservation-slide-over'
+import type { ReservationBackendStatus, ReservationUpdateFields, SeriesUpdateFields } from '@/components/organisms/reservation-slide-over'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { resolveScheduleForDate } from '@canchero/backend'
 import type { DaySchedule, ScheduleVersion } from '@canchero/backend'
@@ -70,12 +70,13 @@ interface CalendarDayViewProps {
   onUpdate?:                 (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:                 (reservationId: string) => void
   onCancelSeries?:           (seriesId: string) => void
+  onModifySeries?:           (seriesId: string, fields: SeriesUpdateFields) => void
   mockNow?:                  Date
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, selectedDate, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, mockNow }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, selectedDate, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -471,6 +472,7 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
         onUpdate={onUpdate}
         onDelete={onDelete}
         onCancelSeries={onCancelSeries}
+        onModifySeries={onModifySeries}
       />
     </div>
   )

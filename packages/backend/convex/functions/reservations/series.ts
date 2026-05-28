@@ -151,8 +151,7 @@ export const cancelSeries = mutation({
 
     let cancelledCount = 0
     if (args.cancelFuture !== false) {
-      // Use UTC date string — consistent with how reservation dates are stored
-      const today = new Date().toISOString().slice(0, 10)
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
 
       const future = await ctx.db
         .query('reservations')
@@ -165,5 +164,161 @@ export const cancelSeries = mutation({
     }
 
     return { cancelledCount }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// modifySeries
+// ---------------------------------------------------------------------------
+// Patches an active recurrenceSeries and all future reservation instances.
+// If startTime/endTime changes, validates no conflicts (excluding own instances).
+// If endDate is extended, generates and inserts new reservation instances.
+// All writes are atomic within one Convex transaction.
+// ---------------------------------------------------------------------------
+
+export const modifySeries = mutation({
+  args: {
+    seriesId:    v.id('recurrenceSeries'),
+    clientName:  v.optional(v.string()),
+    clientPhone: v.optional(v.string()),
+    totalAmount: v.optional(v.number()),
+    notes:       v.optional(v.string()),
+    startTime:   v.optional(v.number()),
+    endTime:     v.optional(v.number()),
+    endDate:     v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // ── Eligibility guard ──────────────────────────────────────────────────
+    const series = await ctx.db.get(args.seriesId)
+    if (!series) throw new ConvexError('not_found')
+
+    await assertVenueAccess(ctx, series.venueId)
+
+    if (series.status !== 'active') throw new ConvexError('series_not_active')
+
+    // ── Build typed patch objects ──────────────────────────────────────────
+    const seriesPatch: {
+      clientName?: string; clientPhone?: string; totalAmount?: number
+      notes?: string; startTime?: number; endTime?: number; endDate?: string
+    } = {}
+    if (args.clientName  !== undefined) seriesPatch.clientName  = args.clientName
+    if (args.clientPhone !== undefined) seriesPatch.clientPhone = args.clientPhone
+    if (args.totalAmount !== undefined) seriesPatch.totalAmount = args.totalAmount
+    if (args.notes       !== undefined) seriesPatch.notes       = args.notes
+    if (args.startTime   !== undefined) seriesPatch.startTime   = args.startTime
+    if (args.endTime     !== undefined) seriesPatch.endTime     = args.endTime
+    if (args.endDate     !== undefined) seriesPatch.endDate     = args.endDate
+
+    if (Object.keys(seriesPatch).length === 0) throw new ConvexError('empty_patch')
+
+    // ── endDate validation ─────────────────────────────────────────────────
+    if (args.endDate !== undefined) {
+      if (!series.endDate) throw new ConvexError('series_is_indefinite')
+      if (args.endDate <= series.endDate) throw new ConvexError('end_date_not_extended')
+    }
+
+    // ── Time bounds validation ─────────────────────────────────────────────
+    if (args.startTime !== undefined || args.endTime !== undefined) {
+      const newStart = args.startTime ?? series.startTime
+      const newEnd   = args.endTime   ?? series.endTime
+      if (newStart < 0 || newStart > 1439) throw new ConvexError('invalid_start')
+      if (newEnd > 2879)                   throw new ConvexError('invalid_end')
+      if (newEnd <= newStart)              throw new ConvexError('end_before_start')
+    }
+
+    // ── Fetch future instances + other-series court reservations ──────────
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+
+    const futureInstances = await ctx.db
+      .query('reservations')
+      .withIndex('by_seriesId', (q) => q.eq('seriesId', args.seriesId))
+      .filter((q) => q.gte(q.field('date'), today))
+      .collect()
+
+    const needsConflictCheck = args.startTime !== undefined || args.endTime !== undefined || args.endDate !== undefined
+    const otherSeries = needsConflictCheck
+      ? (await ctx.db
+          .query('reservations')
+          .withIndex('by_courtId', (q) => q.eq('courtId', series.courtId))
+          .collect()
+        ).filter((r) => r.seriesId !== args.seriesId)
+      : []
+
+    // ── T3: Time-change conflict detection ─────────────────────────────────
+    if (args.startTime !== undefined || args.endTime !== undefined) {
+      const newStart = args.startTime ?? series.startTime
+      const newEnd   = args.endTime   ?? series.endTime
+      for (const instance of futureInstances) {
+        const window = buildConflictWindow(otherSeries, instance.date)
+        if (hasConflict(window, newStart, newEnd)) {
+          throw new ConvexError(JSON.stringify({ code: 'time_conflict', date: instance.date }))
+        }
+      }
+    }
+
+    // ── T4: endDate extension — generate new dates ─────────────────────────
+    let newDates: string[] = []
+    if (args.endDate !== undefined && series.endDate) {
+      const d = new Date(`${series.endDate}T12:00:00Z`)
+      d.setUTCDate(d.getUTCDate() + 1)
+      const dayAfterOld = d.toISOString().slice(0, 10)
+
+      newDates = expandSeries(dayAfterOld, series.diasSemana, series.weekInterval, args.endDate, 52)
+
+      const venue    = await ctx.db.get(series.venueId)
+      const holidays = venue?.holidays ?? []
+      const newStart = args.startTime ?? series.startTime
+      const newEnd   = args.endTime   ?? series.endTime
+
+      for (const date of newDates) {
+        if (holidays.some((h) => h.date === date)) {
+          throw new ConvexError(JSON.stringify({ code: 'holiday_conflict', date }))
+        }
+        const window = buildConflictWindow(otherSeries, date)
+        if (hasConflict(window, newStart, newEnd)) {
+          throw new ConvexError(JSON.stringify({ code: 'time_conflict', date }))
+        }
+      }
+    }
+
+    // ── T5: Atomic write phase ─────────────────────────────────────────────
+    await ctx.db.patch(args.seriesId, seriesPatch)
+
+    const instancePatch: {
+      clientName?: string; clientPhone?: string; totalAmount?: number
+      notes?: string; startTime?: number; endTime?: number
+    } = {}
+    if (args.clientName  !== undefined) instancePatch.clientName  = args.clientName
+    if (args.clientPhone !== undefined) instancePatch.clientPhone = args.clientPhone
+    if (args.totalAmount !== undefined) instancePatch.totalAmount = args.totalAmount
+    if (args.notes       !== undefined) instancePatch.notes       = args.notes
+    if (args.startTime   !== undefined) instancePatch.startTime   = args.startTime
+    if (args.endTime     !== undefined) instancePatch.endTime     = args.endTime
+
+    if (Object.keys(instancePatch).length > 0) {
+      await Promise.all(futureInstances.map((r) => ctx.db.patch(r._id, instancePatch)))
+    }
+
+    if (newDates.length > 0) {
+      const finalStart = args.startTime ?? series.startTime
+      const finalEnd   = args.endTime   ?? series.endTime
+      for (const date of newDates) {
+        await ctx.db.insert('reservations', {
+          venueId:     series.venueId,
+          courtId:     series.courtId,
+          date,
+          startTime:   finalStart,
+          endTime:     finalEnd,
+          clientName:  args.clientName  ?? series.clientName,
+          clientPhone: args.clientPhone ?? series.clientPhone,
+          totalAmount: args.totalAmount ?? series.totalAmount,
+          status:      'recurring',
+          notes:       args.notes ?? series.notes,
+          seriesId:    args.seriesId,
+        })
+      }
+    }
+
+    return { patchedCount: futureInstances.length, newInstanceCount: newDates.length }
   },
 })
