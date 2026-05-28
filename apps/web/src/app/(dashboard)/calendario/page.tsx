@@ -464,12 +464,12 @@ export default function CalendarioPage() {
                       setInitialSlotCourt(courtId)
                       setSlideOverOpen(true)
                     }}
-                    onUpdateStatus={(reservationId, status, paymentMethod, amount) => {
+                    onUpdateStatus={(reservationId, status, cashAmount, onlineAmount) => {
                       void updateStatus({
                         reservationId: reservationId as Id<'reservations'>,
                         status,
-                        ...(paymentMethod !== undefined && amount !== undefined
-                          ? { paymentMethod, paymentAmount: amount }
+                        ...(cashAmount !== undefined || onlineAmount !== undefined
+                          ? { cashAmount, onlineAmount }
                           : {}),
                       })
                     }}

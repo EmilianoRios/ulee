@@ -168,6 +168,8 @@ export const updateStatus = mutation({
     paymentMethod: v.optional(v.union(v.literal('cash'), v.literal('online'))),
     // deprecated — backend recalculates from depositAmount; kept for API compatibility
     paymentAmount: v.optional(v.number()),
+    cashAmount:    v.optional(v.number()),
+    onlineAmount:  v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Read reservation BEFORE patching so we have the current status for type resolution
@@ -181,6 +183,27 @@ export const updateStatus = mutation({
     // No payment inserted on absent transitions — existing deposit payment serves as retention evidence
     if (args.status === 'absent') return
 
+    const cash   = args.cashAmount   ?? 0
+    const online = args.onlineAmount ?? 0
+
+    if (cash > 0 || online > 0) {
+      if (cash < 0 || online < 0) throw new ConvexError('negative_payment_amount')
+
+      const hasDeposit     = reservation.depositAmount != null && reservation.depositAmount > 0
+      const paymentType    = hasDeposit ? 'balance' : resolvePaymentType(reservation.status)
+      const pendingBalance = hasDeposit
+        ? Math.max(0, reservation.totalAmount - reservation.depositAmount!)
+        : reservation.totalAmount
+
+      if (cash + online !== pendingBalance) throw new ConvexError('invalid_split_amounts')
+
+      const ts = Date.now()
+      if (cash   > 0) await ctx.db.insert('payments', { reservationId: args.reservationId, type: paymentType, amount: cash,   method: 'cash',   status: 'completed', timestamp: ts })
+      if (online > 0) await ctx.db.insert('payments', { reservationId: args.reservationId, type: paymentType, amount: online, method: 'online', status: 'completed', timestamp: ts })
+      return
+    }
+
+    // Legacy path — paymentMethod only (unchanged)
     if (args.paymentMethod !== undefined) {
       const hasDeposit    = reservation.depositAmount != null && reservation.depositAmount > 0
       const paymentType   = hasDeposit ? 'balance' : resolvePaymentType(reservation.status)
