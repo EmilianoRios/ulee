@@ -287,60 +287,108 @@ export default function ConfiguracionPage() {
   )
 
   return (
-    <ModuleLayout strip={strip}>
-      <div style={{
-        height:    '100%',
-        overflowY: 'auto',
-        padding:   '32px',
-        boxSizing: 'border-box',
-      }}>
-        <div style={{ maxWidth: 640, width: '100%' }}>
-          {activeTab === 'general'  && (
-            <ConfigGeneral
-              formId={FORM_ID}
-              onDirtyChange={onGeneralDirty}
-              onSaved={onGeneralSaved}
-              initialData={venue ? venueToGeneralData(venue) : null}
-              onSubmit={handleGeneralSubmit}
-            />
-          )}
-          {activeTab === 'horarios' && (
-            <ConfigHorarios
-              formId={FORM_ID}
-              onDirtyChange={onHorariosDirty}
-              onSaved={onHorariosSaved}
-              initialData={venue ? venueToScheduleData(venue) : null}
-              onSubmit={handleScheduleSubmit}
-            />
-          )}
-          {activeTab === 'precios'  && (
-            <ConfigPrecios
-              formId={FORM_ID}
-              onDirtyChange={onPreciosDirty}
-              onSaved={onPreciosSaved}
-              initialData={venue ? venueToPricingData(venue) : null}
-              onSubmit={handlePricingSubmit}
-            />
-          )}
-          {activeTab === 'feriados' && (
-            <ConfigFeriados
-              formId={FORM_ID}
-              venueId={activeVenueId ?? null}
-              onDirtyChange={onFeriadosDirty}
-              onSaved={onFeriadosSaved}
-              initialData={venue ? venueToHolidaysData(venue) : null}
-              onSubmit={handleHolidaysSubmit}
-            />
-          )}
-          {activeTab === 'equipo' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-              <EmployeeInvitePanelOrganism />
-              <div style={{ height: 1, backgroundColor: t.divisor.val }} />
-              <PendingInvitationsOrganism />
-            </div>
-          )}
+    <>
+      <ModuleLayout strip={strip}>
+        <div style={{
+          height:    '100%',
+          overflowY: 'auto',
+          padding:   '32px',
+          boxSizing: 'border-box',
+        }}>
+          <div style={{ maxWidth: 640, width: '100%' }}>
+            {activeTab === 'general'  && (
+              <ConfigGeneral
+                formId={FORM_ID}
+                onDirtyChange={onGeneralDirty}
+                onSaved={onGeneralSaved}
+                initialData={venue ? venueToGeneralData(venue) : null}
+                onSubmit={handleGeneralSubmit}
+              />
+            )}
+            {activeTab === 'horarios' && (
+              <ConfigHorarios
+                formId={FORM_ID}
+                onDirtyChange={onHorariosDirty}
+                onSaved={onHorariosSaved}
+                initialData={venue ? venueToScheduleData(venue) : null}
+                onSubmit={handleScheduleSubmit}
+              />
+            )}
+            {activeTab === 'precios'  && (
+              <ConfigPrecios
+                formId={FORM_ID}
+                onDirtyChange={onPreciosDirty}
+                onSaved={onPreciosSaved}
+                initialData={venue ? venueToPricingData(venue) : null}
+                onSubmit={handlePricingSubmit}
+              />
+            )}
+            {activeTab === 'feriados' && (
+              <ConfigFeriados
+                formId={FORM_ID}
+                venueId={activeVenueId ?? null}
+                onDirtyChange={onFeriadosDirty}
+                onSaved={onFeriadosSaved}
+                initialData={venue ? venueToHolidaysData(venue) : null}
+                onSubmit={handleHolidaysSubmit}
+              />
+            )}
+            {activeTab === 'equipo' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+                <EmployeeInvitePanelOrganism />
+                <div style={{ height: 1, backgroundColor: t.divisor.val }} />
+                <PendingInvitationsOrganism />
+              </div>
+            )}
+          </div>
         </div>
+      </ModuleLayout>
+
+      {/* Sticky save footer — animates in when the active tab has unsaved changes */}
+      <div
+        style={{
+          position:      'fixed',
+          bottom:        0,
+          left:          0,
+          right:         0,
+          zIndex:        50,
+          opacity:       isDirty ? 1 : 0,
+          transform:     isDirty ? 'translateY(0)' : 'translateY(100%)',
+          transition:    'opacity 200ms ease-out, transform 200ms ease-out',
+          pointerEvents: isDirty ? 'auto' : 'none',
+          display:       'flex',
+          alignItems:    'center',
+          justifyContent: 'flex-end',
+          padding:       '12px 32px',
+          backgroundColor: t.cabeceraOscura.val,
+          borderTop:     `1px solid oklch(30% 0.008 228)`,
+        }}
+      >
+        <button
+          form={FORM_ID}
+          type="submit"
+          style={{
+            display:         'flex',
+            alignItems:      'center',
+            gap:             6,
+            padding:         '6px 14px',
+            borderRadius:    7,
+            border:          'none',
+            backgroundColor: t.verdeCancha.val,
+            color:           'oklch(98% 0.004 155)',
+            fontSize:        12,
+            fontWeight:      500,
+            cursor:          'pointer',
+            lineHeight:      1,
+            fontFamily:      'inherit',
+            transition:      'background-color 200ms ease-out',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = t.verdeCanchaProfundo.val }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = t.verdeCancha.val }}
+        >
+          Guardar cambios
+        </button>
       </div>
-    </ModuleLayout>
+    </>
   )
 }

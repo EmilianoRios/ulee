@@ -829,6 +829,11 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       Reserva cobrada en su totalidad
                     </div>
                     <ActionButton
+                      variant="secondary"
+                      label="Iniciar turno"
+                      onClick={() => { onUpdateStatus?.(reservation.id, 'on_court'); onClose() }}
+                    />
+                    <ActionButton
                       label="Cancelar reserva"
                       onClick={() => setCancelPaidConfirm(true)}
                       variant="danger"

@@ -370,7 +370,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
   const defaultCourtId  = initialCourtId ?? courts[0]?.id ?? ''
   const defaultInicio   = initialTime ?? '09:00'
-  const defaultFin      = initialTime ? shiftTimeString(initialTime, 90) : '10:30'
+  const defaultFin      = initialTime ? shiftTimeString(initialTime, 60) : '10:00'
 
   const [errors,      setErrors]      = useState<Record<string, string>>({})
   const [submitting,  setSubmitting]  = useState(false)
@@ -492,7 +492,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           clientName:    cliente,
           clientPhone:   telefono,
           totalAmount:   hasMonto ? Number(monto) : 0,
-          status:        hasMonto ? STATE_TO_STATUS[estado] : 'absent',
+          status:        STATE_TO_STATUS[estado],
           notes:         notas || undefined,
           ...(hasMonto ? { paymentMethod } : {}),
         })
