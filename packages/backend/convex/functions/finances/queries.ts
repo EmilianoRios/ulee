@@ -4,7 +4,7 @@ import { getCurrentUser } from '../../lib/auth'
 import { minutesToTime } from '../../lib/time'
 import { aggregatePayments } from '../../lib/payments'
 import type { PaymentSummary } from '../../lib/payments'
-import type { Id } from '../../_generated/dataModel'
+import type { Doc, Id } from '../../_generated/dataModel'
 import type { QueryCtx } from '../../_generated/server'
 
 // ─── Return types ──────────────────────────────────────────────────────────────
@@ -21,6 +21,7 @@ export interface FinanceRow {
   total:        number        // online + cash (NOT reservation.totalAmount)
   depositTotal: number        // sum of completed payments where type === 'deposit'
   paymentType:  PaymentSummary['paymentType']
+  status:       Doc<'reservations'>['status']
 }
 
 export interface FinanceStats {
@@ -89,6 +90,7 @@ async function fetchRows(
       total:        summary.total,
       depositTotal: summary.depositTotal,
       paymentType:  summary.paymentType,
+      status:       r.status,
     }
   })
 }

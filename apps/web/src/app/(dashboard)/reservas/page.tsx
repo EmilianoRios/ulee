@@ -1,13 +1,15 @@
 'use client'
 
-import { Plus } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, ChevronDown } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { usePaginatedQuery, useQuery, useConvexAuth } from 'convex/react'
+import { useQuery, useConvexAuth } from 'convex/react'
 import { useRouter } from 'next/navigation'
-import { api, minutesToTime } from '@canchero/backend'
-import { ReservationsTable, type Reservation } from '@/components/organisms/reservations-table'
+import { api } from '@canchero/backend'
+import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { useActiveVenue } from '@/context/active-venue'
+import type { Id } from '@canchero/backend'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -19,6 +21,50 @@ function todayDate(): string {
 const TODAY = todayDate()
 const PAGE_SIZE = 8
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type FinanceRowShape = {
+  _id:          Id<'reservations'>
+  clientName:   string
+  courtName:    string
+  date:         string
+  startTime:    string
+  endTime:      string
+  online:       number
+  cash:         number
+  total:        number
+  depositTotal: number
+  paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
+  status:       'paid' | 'deposit_paid' | 'pending' | 'maintenance' | 'cancelled'
+}
+
+function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
+  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short' })
+  return {
+    id:          row._id,
+    cliente:     row.clientName,
+    cancha:      row.courtName,
+    diayhorario: `${dayLabel} ${row.startTime} – ${row.endTime}`,
+    estado:      row.status,
+    online:      row.online,
+    cash:        row.cash,
+    paymentType: row.paymentType,
+    total:       row.total,
+  }
+}
+
+// ─── Dark header tokens ───────────────────────────────────────────────────────
+
+const D = {
+  text:      'oklch(97% 0.006 220)',
+  textMuted: 'oklch(50% 0.012 228)',
+  border:    'oklch(35% 0.018 228)',
+  hover:     'oklch(30% 0.020 228)',
+  toggleBg:  'oklch(16% 0.020 228)',
+  toggleOn:  'oklch(32% 0.022 228)',
+  toggleOff: 'oklch(40% 0.012 228)',
+} as const
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReservasPage() {
@@ -28,64 +74,56 @@ export default function ReservasPage() {
   const router   = useRouter()
   const canQuery = isAuthenticated && activeVenueId !== null
 
-  // Paginated reservation list — skip when no venue selected or unauthenticated
-  const { results, status, loadMore } = usePaginatedQuery(
-    api.functions.reservations.queries.listByVenueAndDate,
-    canQuery ? { venueId: activeVenueId, date: TODAY } : 'skip',
-    { initialNumItems: PAGE_SIZE }
+  const [cancha, setCancha] = useState('todas')
+  const [page,   setPage]   = useState(1)
+
+  // Finance rows for today — replaces usePaginatedQuery on listByVenueAndDate
+  const allRows = useQuery(
+    api.functions.finances.queries.listByVenueAndPeriod,
+    canQuery ? { venueId: activeVenueId, dateFrom: TODAY, dateTo: TODAY } : 'skip'
   )
 
-  // Stats strip — skip when no venue selected or unauthenticated
+  const isLoading = activeVenueId !== null && allRows === undefined
+
+  // Stats strip — unchanged
   const stats = useQuery(
     api.functions.reservations.queries.statsByVenueAndDate,
     canQuery ? { venueId: activeVenueId, date: TODAY } : 'skip'
   )
 
-  // ── Adapt ReservationRow → Reservation (presentational shape) ──────────────
-  const rows: Reservation[] = (results ?? []).map((r) => ({
-    id:      r._id,
-    cliente: r.clientName,
-    cancha:  r.courtName,
-    horario: `${minutesToTime(r.startTime)} – ${minutesToTime(r.endTime)}`,
-    estado:  r.status,
-    total:   r.totalAmount,
-  }))
+  // Client-side cancha filter
+  const filtered = (allRows ?? []).filter(
+    (r) => cancha === 'todas' || r.courtName === cancha
+  )
 
-  // ── Pagination adaptation ──────────────────────────────────────────────────
-  // usePaginatedQuery is cursor-based; ReservationsTable expects offset pagination.
-  // Strategy: treat current results as page 1. When more data is available
-  // (status === 'CanLoadMore'), expose page 2 so the "next" button fires loadMore.
-  const canLoadMore  = status === 'CanLoadMore'
-  const page         = 1
-  const totalPages   = canLoadMore ? 2 : 1
+  const canchaOptionsSet = new Set((allRows ?? []).map((r) => r.courtName).filter(Boolean))
+  if (cancha !== 'todas') canchaOptionsSet.add(cancha)
+  const canchaOptions = [...canchaOptionsSet].sort()
 
-  function handlePageChange(next: number) {
-    if (next > 1 && canLoadMore) loadMore(PAGE_SIZE)
-  }
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toUnifiedRow)
 
   // ── Stats values (with loading fallback) ──────────────────────────────────
   const statsStrip: { value: string; label: string; delta?: string; positive?: boolean }[] = [
     {
-      value:    stats !== undefined ? String(stats.count)     : '...',
-      label:    'reservas hoy',
-      delta:    undefined,
+      value: stats !== undefined ? String(stats.count) : '...',
+      label: 'reservas hoy',
     },
     {
-      value:    stats !== undefined
+      value: stats !== undefined
         ? `$${stats.totalRevenue.toLocaleString('es-AR')}`
         : '...',
-      label:    'esta semana',
-      delta:    undefined,
+      label: 'esta semana',
     },
     {
-      value:    stats !== undefined ? String(stats.pendingCount) : '...',
-      label:    'pagos pendientes',
+      value: stats !== undefined ? String(stats.pendingCount) : '...',
+      label: 'pagos pendientes',
     },
     {
-      value:    stats !== undefined
+      value: stats !== undefined
         ? `${stats.activeCourts} de ${stats.totalCourts}`
         : '...',
-      label:    'canchas activas',
+      label: 'canchas activas',
     },
   ]
 
@@ -93,7 +131,7 @@ export default function ReservasPage() {
 
   const strip = (
     <>
-      {/* Dark header: module identity + primary action */}
+      {/* Dark header: module identity + cancha filter + primary action */}
       <div style={{
         height:          56,
         display:         'flex',
@@ -102,17 +140,60 @@ export default function ReservasPage() {
         padding:         '0 32px',
         backgroundColor: t.cabeceraOscura.val,
       }}>
-        <span style={{
-          fontSize:      15,
-          fontWeight:    600,
-          color:         'oklch(97% 0.006 220)',
-          letterSpacing: '-0.01em',
-          lineHeight:    1,
-          userSelect:    'none',
-        }}>
-          Reservas
-        </span>
+        {/* Left: title + cancha filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontSize:      15,
+            fontWeight:    600,
+            color:         D.text,
+            letterSpacing: '-0.01em',
+            lineHeight:    1,
+            userSelect:    'none',
+          }}>
+            Reservas
+          </span>
 
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <select
+              value={cancha}
+              onChange={(e) => { setCancha(e.target.value); setPage(1) }}
+              style={{
+                appearance:       'none',
+                WebkitAppearance: 'none',
+                backgroundColor:  'transparent',
+                border:           `1px solid ${D.border}`,
+                borderRadius:     6,
+                color:            D.text,
+                fontSize:         12,
+                fontWeight:       500,
+                padding:          '5px 28px 5px 10px',
+                cursor:           'pointer',
+                outline:          'none',
+                fontFamily:       'inherit',
+                lineHeight:       1,
+              }}
+            >
+              <option style={{ background: 'oklch(22% 0.024 228)' }} value="todas">Todas las canchas</option>
+              {canchaOptions.map((c) => (
+                <option key={c} style={{ background: 'oklch(22% 0.024 228)' }} value={c}>{c}</option>
+              ))}
+            </select>
+            <ChevronDown
+              size={12}
+              strokeWidth={2.5}
+              style={{
+                position:      'absolute',
+                right:         8,
+                top:           '50%',
+                transform:     'translateY(-50%)',
+                color:         D.textMuted,
+                pointerEvents: 'none',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Right: Nueva reserva button */}
         <button
           style={{
             display:         'flex',
@@ -196,21 +277,33 @@ export default function ReservasPage() {
       }}>
         {activeVenueId === null ? (
           <div style={{
-            flex:          1,
-            display:       'flex',
-            alignItems:    'center',
-            justifyContent:'center',
+            flex:           1,
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
           }}>
             <span style={{ fontSize: 14, color: t.textoMuted.val }}>
               Seleccioná una sede para ver las reservas
             </span>
           </div>
+        ) : isLoading ? (
+          <div style={{
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            height:         '100%',
+            color:          t.textoMuted.val,
+            fontSize:       14,
+          }}>
+            Cargando...
+          </div>
         ) : (
-          <ReservationsTable
-            rows={rows}
+          <UnifiedReservationTable
+            rows={pageRows}
             page={page}
             totalPages={totalPages}
-            onPageChange={handlePageChange}
+            totalRows={filtered.length}
+            onPageChange={setPage}
           />
         )}
       </div>

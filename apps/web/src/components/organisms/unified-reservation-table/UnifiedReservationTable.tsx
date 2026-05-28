@@ -2,39 +2,49 @@
 
 import { useTheme } from 'tamagui'
 import { Pagination } from '../../molecules/pagination'
+import { StatusChip } from '../../atoms/status-chip'
+import type { ReservationStatus } from '../../atoms/status-chip'
 
-export interface Transaction {
-  id:           string
-  cliente:      string
-  cancha:       string
-  diayhorario:  string
-  fechaReserva: string
-  online:       number
-  cash:         number
-  paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
-  total:        number
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface UnifiedRow {
+  id:          string
+  cliente:     string
+  cancha:      string
+  diayhorario: string
+  estado:      ReservationStatus
+  cash:        number
+  online:      number
+  paymentType: 'deposit' | 'balance' | 'full' | 'mixed' | 'none'
+  total:       number
 }
 
-interface FinancesTableProps {
-  rows:         Transaction[]
+export interface UnifiedReservationTableProps {
+  rows:         UnifiedRow[]
   page:         number
   totalPages:   number
   totalRows:    number
   onPageChange: (page: number) => void
 }
 
+// ─── Column definitions ───────────────────────────────────────────────────────
+
 const COLS: { label: string; width?: number; align?: 'left' | 'right' }[] = [
-  { label: 'Cliente' },
-  { label: 'Cancha',           width: 140 },
-  { label: 'Día y horario',    width: 178 },
-  { label: 'Fecha de reserva', width: 130 },
-  { label: 'Mercado Pago',     width: 122, align: 'right' },
-  { label: 'Efectivo',         width: 100, align: 'right' },
-  { label: 'Tipo',             width: 130 },
-  { label: 'Total',            width: 100, align: 'right' },
+  { label: 'Cliente'                                              },
+  { label: 'Cancha',        width: 140                           },
+  { label: 'Día y horario', width: 178                           },
+  { label: 'Estado',        width: 130                           },
+  { label: 'Efectivo',      width: 100, align: 'right'           },
+  { label: 'Mercado Pago',  width: 122, align: 'right'           },
+  { label: 'Tipo',          width: 130                           },
+  { label: 'Total',         width: 100, align: 'right'           },
 ]
 
-const PAYMENT_TYPE_LABELS: Record<Transaction['paymentType'], string> = {
+// ─── PaymentTypeBadge ─────────────────────────────────────────────────────────
+
+type PaymentType = UnifiedRow['paymentType']
+
+const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   deposit: 'Seña',
   balance: 'Saldo',
   full:    'Pago completo',
@@ -42,7 +52,7 @@ const PAYMENT_TYPE_LABELS: Record<Transaction['paymentType'], string> = {
   none:    'Pendiente',
 }
 
-const PAYMENT_TYPE_COLORS: Record<Transaction['paymentType'], { bg: string; text: string }> = {
+const PAYMENT_TYPE_COLORS: Record<PaymentType, { bg: string; text: string }> = {
   deposit: { bg: 'oklch(92% 0.04 230)',  text: 'oklch(35% 0.10 230)'  },
   balance: { bg: 'oklch(92% 0.05 160)',  text: 'oklch(35% 0.12 160)'  },
   full:    { bg: 'oklch(91% 0.06 145)',  text: 'oklch(32% 0.14 145)'  },
@@ -50,7 +60,7 @@ const PAYMENT_TYPE_COLORS: Record<Transaction['paymentType'], { bg: string; text
   none:    { bg: 'oklch(91% 0.00 0)',    text: 'oklch(50% 0.00 0)'    },
 }
 
-function PaymentTypeBadge({ type }: { type: Transaction['paymentType'] }) {
+function PaymentTypeBadge({ type }: { type: PaymentType }) {
   const { bg, text } = PAYMENT_TYPE_COLORS[type]
   return (
     <span style={{
@@ -72,11 +82,21 @@ function PaymentTypeBadge({ type }: { type: Transaction['paymentType'] }) {
   )
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function fmt(n: number): string {
   return '$' + n.toLocaleString('es-AR')
 }
 
-export function FinancesTable({ rows, page, totalPages, totalRows, onPageChange }: FinancesTableProps) {
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export function UnifiedReservationTable({
+  rows,
+  page,
+  totalPages,
+  totalRows,
+  onPageChange,
+}: UnifiedReservationTableProps) {
   const t = useTheme()
 
   const th: React.CSSProperties = {
@@ -159,16 +179,18 @@ export function FinancesTable({ rows, page, totalPages, totalRows, onPageChange 
                     </td>
                     <td style={{ ...td, color: t.textoMuted.val }}>{row.cancha}</td>
                     <td style={{ ...td, color: t.textoMuted.val }}>{row.diayhorario}</td>
-                    <td style={{ ...td, color: t.textoMuted.val }}>{row.fechaReserva}</td>
-                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.online > 0
-                        ? fmt(row.online)
-                        : <span style={{ color: t.textoInactivo.val }}>—</span>
-                      }
+                    <td style={td}>
+                      <StatusChip status={row.estado} />
                     </td>
                     <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {row.cash > 0
                         ? fmt(row.cash)
+                        : <span style={{ color: t.textoInactivo.val }}>—</span>
+                      }
+                    </td>
+                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {row.online > 0
+                        ? fmt(row.online)
                         : <span style={{ color: t.textoInactivo.val }}>—</span>
                       }
                     </td>

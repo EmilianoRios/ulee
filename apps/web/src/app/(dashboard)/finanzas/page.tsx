@@ -5,7 +5,7 @@ import { Lock, Download, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-r
 import { useTheme } from 'tamagui'
 import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
-import { FinancesTable, type Transaction } from '@/components/organisms/finances-table'
+import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { useActiveVenue } from '@/context/active-venue'
 import type { Id } from '@canchero/backend'
@@ -98,20 +98,21 @@ type FinanceRowShape = {
   total:        number
   depositTotal: number
   paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
+  status:       'paid' | 'deposit_paid' | 'pending' | 'maintenance' | 'cancelled'
 }
 
-function toTransaction(row: FinanceRowShape): Transaction {
+function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
   const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short' })
   return {
-    id:           row._id,
-    cliente:      row.clientName,
-    cancha:       row.courtName,
-    diayhorario:  `${dayLabel} ${row.startTime} – ${row.endTime}`,
-    fechaReserva: row.date.split('-').reverse().join('/'),
-    online:       row.online,
-    cash:         row.cash,
-    paymentType:  row.paymentType,
-    total:        row.total,
+    id:          row._id,
+    cliente:     row.clientName,
+    cancha:      row.courtName,
+    diayhorario: `${dayLabel} ${row.startTime} – ${row.endTime}`,
+    estado:      row.status,
+    online:      row.online,
+    cash:        row.cash,
+    paymentType: row.paymentType,
+    total:       row.total,
   }
 }
 
@@ -173,7 +174,7 @@ export default function FinanzasPage() {
   const totalGeneral  = filtered.reduce((s, r) => s + r.total,  0)
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toTransaction)
+  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toUnifiedRow)
 
   const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setPage(1); setCancha('todas') }, [])
   const handleCancha = useCallback((c: string)  => { setCancha(c);  setPage(1) }, [])
@@ -459,7 +460,7 @@ export default function FinanzasPage() {
               Cargando...
             </div>
           ) : (
-            <FinancesTable
+            <UnifiedReservationTable
               rows={pageRows}
               page={page}
               totalPages={totalPages}
