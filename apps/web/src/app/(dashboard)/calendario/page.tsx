@@ -137,11 +137,12 @@ export default function CalendarioPage() {
     priceOverride:  c.priceOverride ?? undefined,
   })) ?? []
 
-  const venuePricePerHour  = venueRaw?.pricingConfig?.pricePerHour
-  const venueNightRate      = venueRaw?.pricingConfig?.nightRatePrice
-  const venueNightRateStart = venueRaw?.pricingConfig?.nightRateStart !== undefined
+  const venuePricePerHour      = venueRaw?.pricingConfig?.pricePerHour
+  const venueNightRate          = venueRaw?.pricingConfig?.nightRatePrice
+  const venueNightRateStart     = venueRaw?.pricingConfig?.nightRateStart !== undefined
     ? minutesToTime(venueRaw.pricingConfig.nightRateStart)
     : undefined
+  const venueDepositPercentage  = venueRaw?.pricingConfig?.depositPercentage ?? 50
   const venueSchedule: DaySchedule[] = venueRaw?.schedule ?? []
   const venueScheduleHistory: ScheduleVersion[] = venueRaw?.scheduleHistory ?? []
 
@@ -515,6 +516,7 @@ export default function CalendarioPage() {
         venuePricePerHour={venuePricePerHour}
         venueNightRate={venueNightRate}
         venueNightRateStart={venueNightRateStart}
+        venueDepositPercentage={venueDepositPercentage}
         onClose={() => setSlideOverOpen(false)}
       />
     </>

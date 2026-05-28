@@ -35,8 +35,9 @@ export const create = mutation({
       v.literal('played'),
       v.literal('event'),
     )),
-    notes:         v.optional(v.string()),
-    paymentMethod: v.optional(v.union(v.literal('cash'), v.literal('online'))),
+    notes:               v.optional(v.string()),
+    paymentMethod:       v.optional(v.union(v.literal('cash'), v.literal('online'))),
+    customDepositAmount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await assertVenueAccess(ctx, args.venueId)
@@ -94,13 +95,19 @@ export const create = mutation({
       }
     }
 
+    // Validate customDepositAmount if provided
+    if (args.customDepositAmount !== undefined) {
+      if (args.customDepositAmount < 0 || args.customDepositAmount > args.totalAmount)
+        throw new ConvexError('invalid_deposit_amount')
+    }
+
     // Compute and freeze depositAmount when the reservation starts as paid or señado
     let depositAmount: number | undefined
     if (status === 'deposit_paid' || status === 'paid') {
       const pct = venue?.pricingConfig?.depositPercentage ?? 50
       depositAmount = status === 'paid'
         ? args.totalAmount
-        : Math.round(args.totalAmount * pct / 100)
+        : (args.customDepositAmount ?? Math.round(args.totalAmount * pct / 100))
     }
 
     const reservationId = await ctx.db.insert('reservations', {

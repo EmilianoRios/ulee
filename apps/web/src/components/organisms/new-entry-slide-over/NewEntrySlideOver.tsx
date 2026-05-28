@@ -12,17 +12,18 @@ import { TimeSelect } from '@/components/atoms/time-select'
 export type EntryType = 'reserva' | 'mantenimiento' | 'evento' | 'recurrente'
 
 interface NewEntrySlideOverProps {
-  open:                 boolean
-  defaultType?:         EntryType
-  initialTime?:         string
-  initialCourtId?:      string
-  courts:               Court[]
-  initialDate:          Date
-  venueId:              Id<'venues'> | null
-  venuePricePerHour?:   number
-  venueNightRate?:      number
-  venueNightRateStart?: string
-  onClose:              () => void
+  open:                    boolean
+  defaultType?:            EntryType
+  initialTime?:            string
+  initialCourtId?:         string
+  courts:                  Court[]
+  initialDate:             Date
+  venueId:                 Id<'venues'> | null
+  venuePricePerHour?:      number
+  venueNightRate?:         number
+  venueNightRateStart?:    string
+  venueDepositPercentage?: number
+  onClose:                 () => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -351,17 +352,18 @@ function TimeRangeField({ inicio, onInicio, fin, onFin, errorInicio, errorFin, f
 
 // ─── Form content ─────────────────────────────────────────────────────────────
 
-function FormContent({ type, courts, initialDate, initialTime, initialCourtId, venueId, venuePricePerHour, venueNightRate, venueNightRateStart, onClose }: {
-  type:                 EntryType
-  courts:               Court[]
-  initialDate:          Date
-  initialTime?:         string
-  initialCourtId?:      string
-  venueId:              Id<'venues'> | null
-  venuePricePerHour?:   number
-  venueNightRate?:      number
-  venueNightRateStart?: string
-  onClose:              () => void
+function FormContent({ type, courts, initialDate, initialTime, initialCourtId, venueId, venuePricePerHour, venueNightRate, venueNightRateStart, venueDepositPercentage, onClose }: {
+  type:                    EntryType
+  courts:                  Court[]
+  initialDate:             Date
+  initialTime?:            string
+  initialCourtId?:         string
+  venueId:                 Id<'venues'> | null
+  venuePricePerHour?:      number
+  venueNightRate?:         number
+  venueNightRateStart?:    string
+  venueDepositPercentage?: number
+  onClose:                 () => void
 }) {
   const t = useTheme()
 
@@ -388,7 +390,9 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [telefono,      setTelefono]      = useState('')
   const [monto,         setMonto]         = useState('')
   const [estado,        setEstado]        = useState<'señado' | 'pagado'>('señado')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash')
+  const [paymentMethod,   setPaymentMethod]   = useState<'cash' | 'online'>('cash')
+  const [sena,            setSena]            = useState('')
+  const [isDepositCustom, setIsDepositCustom] = useState(false)
 
   // Mantenimiento
   const [descripcion, setDescripcion] = useState('')
@@ -403,6 +407,10 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
     horaInicio && horaFin && horaInicio !== horaFin &&
     timeToMinutes(horaFin) <= timeToMinutes(horaInicio)
   )
+
+  const parsedMonto   = monto.trim() !== '' ? Number(monto) : 0
+  const pct           = venueDepositPercentage ?? 50
+  const showSenaField = estado === 'señado' && parsedMonto > 0
 
   // Auto-fill monto splitting the slot into day/night tramos when applicable
   useEffect(() => {
@@ -431,6 +439,21 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
     }
   }, [courtId, horaInicio, horaFin, courts, venuePricePerHour, venueNightRate, venueNightRateStart, type])
 
+  // Auto-recompute seña when monto changes (unless user has customized it)
+  useEffect(() => {
+    if (!isDepositCustom) {
+      setSena(parsedMonto > 0 ? String(Math.round(parsedMonto * pct / 100)) : '')
+    }
+  }, [monto, isDepositCustom, pct])
+
+  // Reset seña state when leaving señado
+  useEffect(() => {
+    if (estado !== 'señado') {
+      setSena('')
+      setIsDepositCustom(false)
+    }
+  }, [estado])
+
   // Recurrente
   const [frecuencia,     setFrecuencia]     = useState<'semanal' | 'quincenal'>('semanal')
   const [diasSemana,     setDiasSemana]     = useState<string[]>([])
@@ -440,11 +463,16 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   function validate(): boolean {
     const errs: Record<string, string> = {}
     if (type === 'reserva') {
-      if (!cliente.trim())  errs.cliente   = 'El nombre del cliente es obligatorio'
-      if (!telefono.trim()) errs.telefono  = 'El teléfono del cliente es obligatorio'
-      if (!courtId)         errs.courtId   = 'Seleccioná una cancha'
+      if (!cliente.trim())  errs.cliente    = 'El nombre del cliente es obligatorio'
+      if (!telefono.trim()) errs.telefono   = 'El teléfono del cliente es obligatorio'
+      if (!courtId)         errs.courtId    = 'Seleccioná una cancha'
       if (!horaInicio)      errs.horaInicio = 'Requerido'
-      if (!horaFin)         errs.horaFin   = 'Requerido'
+      if (!horaFin)         errs.horaFin    = 'Requerido'
+      if (showSenaField) {
+        const senaParsed = sena.trim() === '' ? 0 : Number(sena)
+        if (isNaN(senaParsed))          errs.sena = 'El monto de seña debe ser un número'
+        else if (senaParsed > parsedMonto) errs.sena = 'La seña no puede superar el monto total'
+      }
     }
     if (type === 'mantenimiento') {
       if (!descripcion.trim()) errs.descripcion = 'La descripción es obligatoria'
@@ -482,7 +510,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
     setSubmitError(null)
     try {
       if (type === 'reserva') {
-        const hasMonto = monto.trim() !== '' && Number(monto) > 0
+        const hasMonto = parsedMonto > 0
         await createReservation({
           venueId,
           courtId:       courtId as Id<'courts'>,
@@ -491,10 +519,13 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           endTime:       timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
           clientName:    cliente,
           clientPhone:   telefono,
-          totalAmount:   hasMonto ? Number(monto) : 0,
+          totalAmount:   hasMonto ? parsedMonto : 0,
           status:        STATE_TO_STATUS[estado],
           notes:         notas || undefined,
           ...(hasMonto ? { paymentMethod } : {}),
+          ...(estado === 'señado' && hasMonto
+            ? { customDepositAmount: sena.trim() === '' ? 0 : Number(sena) }
+            : {}),
         })
       } else if (type === 'recurrente') {
         const diasIso = diasSemana.map((k) => DIAS_SEMANA_TO_ISO[k]!)
@@ -560,6 +591,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
         // ConvexError with string payload — check known string codes
         if (message === 'no_occurrences_in_range') {
           message = 'No hay fechas válidas en el rango seleccionado.'
+        } else if (message === 'invalid_deposit_amount') {
+          message = 'El monto de seña ingresado no es válido.'
         }
       }
       setSubmitError(message)
@@ -636,6 +669,17 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                   </Field>
                 )}
               </div>
+
+              {showSenaField && (
+                <Field label="Monto de seña ($)" error={errors.sena}>
+                  <NumInput
+                    value={sena}
+                    onChange={(v) => { setSena(v); setIsDepositCustom(true) }}
+                    placeholder={String(parsedMonto > 0 ? Math.round(parsedMonto * pct / 100) : '')}
+                    error={errors.sena}
+                  />
+                </Field>
+              )}
 
               {monto.trim() !== '' && Number(monto) > 0 && (
                 <Field label="Método de pago" required>
@@ -873,7 +917,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
 export function NewEntrySlideOver({
   open, defaultType = 'reserva', initialTime, initialCourtId,
-  courts, initialDate, venueId, venuePricePerHour, venueNightRate, venueNightRateStart, onClose,
+  courts, initialDate, venueId, venuePricePerHour, venueNightRate, venueNightRateStart, venueDepositPercentage, onClose,
 }: NewEntrySlideOverProps) {
   const t = useTheme()
 
@@ -1012,6 +1056,7 @@ export function NewEntrySlideOver({
               venuePricePerHour={venuePricePerHour}
               venueNightRate={venueNightRate}
               venueNightRateStart={venueNightRateStart}
+              venueDepositPercentage={venueDepositPercentage}
               onClose={onClose}
             />
           </>
