@@ -93,6 +93,7 @@ export default function CalendarioPage() {
   const extendReservation = useMutation(api.functions.reservations.mutations.extendReservation)
   const updateReservation = useMutation(api.functions.reservations.mutations.updateReservation)
   const deleteReservation = useMutation(api.functions.reservations.mutations.deleteReservation)
+  const cancelSeries      = useMutation(api.functions.reservations.series.cancelSeries)
 
   const [currentDate,         setCurrentDate]         = useState(() => new Date())
   const [viewMode,            setViewMode]            = useState<CalendarViewMode>('dia')
@@ -164,6 +165,7 @@ export default function CalendarioPage() {
     depositAmount: r.depositAmount,
     courtId:       r.courtId as string,
     notes:         r.notes,
+    seriesId:      r.seriesId,
   })
 
   const reservations: CalendarReservation[] = rawReservations.map(mapReservation)
@@ -181,6 +183,10 @@ export default function CalendarioPage() {
     setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n })
   }, [])
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
+
+  const handleCancelSeries = useCallback(async (seriesId: string) => {
+    await cancelSeries({ seriesId: seriesId as Id<'recurrenceSeries'> })
+  }, [cancelSeries])
 
   const isToday = new Date().toDateString() === currentDate.toDateString()
 
@@ -489,6 +495,7 @@ export default function CalendarioPage() {
                         reservationId: reservationId as Id<'reservations'>,
                       }).catch((err) => console.error('deleteReservation failed:', err))
                     }}
+                    onCancelSeries={handleCancelSeries}
                   />
                 </div>
               )}

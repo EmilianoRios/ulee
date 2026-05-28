@@ -35,6 +35,7 @@ interface ReservationSlideOverProps {
   onExtend?:       (reservationId: string, additionalMinutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
   onUpdate?:       (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:       (reservationId: string) => void
+  onCancelSeries?: (seriesId: string) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -353,7 +354,7 @@ function EditForm({ reservation, fields, onChange, onConfirm, onCancel }: {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose, onUpdateStatus, onExtend, onUpdate, onDelete }: ReservationSlideOverProps) {
+export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries }: ReservationSlideOverProps) {
   const t = useTheme()
 
   const [extendMins,           setExtendMins]           = useState<0 | 30 | 60>(0)
@@ -363,6 +364,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const [deleteConfirm,        setDeleteConfirm]        = useState(false)
   const [cancelPaidConfirm,    setCancelPaidConfirm]    = useState(false)
   const [cancelDepositConfirm, setCancelDepositConfirm] = useState(false)
+  const [cancelSeriesConfirm,  setCancelSeriesConfirm]  = useState(false)
   const [overrideConfirmPending, setOverrideConfirmPending] = useState(false)
 
   useEffect(() => {
@@ -381,6 +383,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setDeleteConfirm(false)
     setCancelPaidConfirm(false)
     setCancelDepositConfirm(false)
+    setCancelSeriesConfirm(false)
     setOverrideConfirmPending(false)
   }, [reservation?.id])
 
@@ -872,12 +875,42 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 )}
 
                 {/* Recurrente */}
-                {reservation.state === 'recurrente' && (
-                  <ActionButton
-                    label="Cancelar este turno"
-                    onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
-                    variant="danger"
-                  />
+                {reservation.state === 'recurrente' && !cancelSeriesConfirm && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <ActionButton
+                      label="Cancelar este turno"
+                      onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                      variant="danger"
+                    />
+                    {reservation.seriesId && (
+                      <ActionButton
+                        label="Cancelar serie completa"
+                        onClick={() => setCancelSeriesConfirm(true)}
+                        variant="danger"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Recurrente — confirmación de cancelación de serie */}
+                {reservation.state === 'recurrente' && cancelSeriesConfirm && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: t.textoMuted.val, lineHeight: 1.4 }}>
+                      Esta acción cancelará todos los turnos futuros de la serie. ¿Confirmás?
+                    </span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <ActionButton
+                        label="Confirmar cancelación de serie"
+                        onClick={() => { onCancelSeries?.(reservation.seriesId!); onClose() }}
+                        variant="danger"
+                      />
+                      <ActionButton
+                        label="Volver"
+                        onClick={() => setCancelSeriesConfirm(false)}
+                        variant="secondary"
+                      />
+                    </div>
+                  </div>
                 )}
 
                 {/* Evento */}

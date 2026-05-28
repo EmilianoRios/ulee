@@ -33,6 +33,7 @@ export interface CalReservation {
   totalAmount:  number
   depositAmount?: number
   notes?:       string
+  seriesId?:    Id<'recurrenceSeries'>
 }
 
 export interface CalListResult {
@@ -138,6 +139,7 @@ export const listAllByVenueAndDate = query({
       totalAmount:  r.totalAmount,
       depositAmount: r.depositAmount,
       notes:        r.notes,
+      seriesId:     r.seriesId,
     })
 
     const reservations = ownDay.map(toCalReservation)

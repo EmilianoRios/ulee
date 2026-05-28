@@ -21,6 +21,7 @@ export interface CalendarReservation {
   depositAmount?: number
   courtId: string
   notes?: string
+  seriesId?: string
 }
 
 const STATE_LABEL: Record<CalendarReservationState, string> = {
