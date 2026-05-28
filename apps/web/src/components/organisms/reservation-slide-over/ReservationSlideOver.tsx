@@ -41,7 +41,7 @@ interface ReservationSlideOverProps {
   reservations?:   CalendarReservation[]
   now?:            Date
   onClose:         () => void
-  onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number) => void
+  onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
   onExtend?:       (reservationId: string, additionalMinutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
   onUpdate?:       (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:       (reservationId: string) => void
@@ -468,18 +468,18 @@ function SeriesEditForm({ reservation, onConfirm, onCancel }: {
   )
 }
 
-// ─── Split payment input ──────────────────────────────────────────────────────
+// ─── Payment input ────────────────────────────────────────────────────────────
 
-function SplitPaymentInput({ cashAmount, onlineAmount, pendingBalance, totalAssigned, paymentReady, onCashChange, onOnlineChange }: {
+function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, onChange }: {
+  pendingBalance: number
   cashAmount:     number
   onlineAmount:   number
-  pendingBalance: number
-  totalAssigned:  number
   paymentReady:   boolean
-  onCashChange:   (v: number) => void
-  onOnlineChange: (v: number) => void
+  onChange:       (cash: number, online: number) => void
 }) {
   const t = useTheme()
+  const [mode, setMode] = useState<'cash' | 'online' | 'split'>('cash')
+
   const inputStyle: React.CSSProperties = {
     width:           '100%',
     padding:         '7px 10px',
@@ -499,38 +499,79 @@ function SplitPaymentInput({ cashAmount, onlineAmount, pendingBalance, totalAssi
     marginBottom: 4,
     display:      'block',
   }
+
+  useEffect(() => {
+    if (mode === 'cash')   onChange(pendingBalance, 0)
+    if (mode === 'online') onChange(0, pendingBalance)
+  }, [pendingBalance]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function selectMode(next: 'cash' | 'online' | 'split') {
+    setMode(next)
+    if (next === 'cash')   onChange(pendingBalance, 0)
+    if (next === 'online') onChange(0, pendingBalance)
+    if (next === 'split')  onChange(cashAmount, onlineAmount)
+  }
+
+  const totalAssigned = cashAmount + onlineAmount
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div>
-          <label style={labelStyle}>Efectivo ($)</label>
-          <input
-            type="number"
-            min={0}
-            value={cashAmount}
-            onChange={(e) => onCashChange(Math.max(0, Number(e.target.value) || 0))}
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>Mercado Pago ($)</label>
-          <input
-            type="number"
-            min={0}
-            value={onlineAmount}
-            onChange={(e) => onOnlineChange(Math.max(0, Number(e.target.value) || 0))}
-            style={inputStyle}
-          />
-        </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <PaymentMethodButton
+          label="Efectivo"
+          icon={<Banknote size={14} strokeWidth={2} />}
+          selected={mode === 'cash'}
+          onClick={() => selectMode('cash')}
+        />
+        <PaymentMethodButton
+          label="Mercado Pago"
+          icon={<CreditCard size={14} strokeWidth={2} />}
+          selected={mode === 'online'}
+          onClick={() => selectMode('online')}
+        />
+        <PaymentMethodButton
+          label="Mixto"
+          icon={<span style={{ fontSize: 13 }}>⇄</span>}
+          selected={mode === 'split'}
+          onClick={() => selectMode('split')}
+        />
       </div>
-      <div style={{
-        fontSize:   12,
-        fontWeight: 500,
-        color:      paymentReady ? t.verdeCanchaProfundo.val : t.textoMuted.val,
-        transition: 'color 150ms ease-out',
-      }}>
-        Asignado: ${totalAssigned.toLocaleString('es-AR')} de ${pendingBalance.toLocaleString('es-AR')}
-      </div>
+
+      {mode === 'split' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div>
+            <label style={labelStyle}>Efectivo ($)</label>
+            <input
+              type="number"
+              min={0}
+              value={cashAmount}
+              onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0), onlineAmount)}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Mercado Pago ($)</label>
+            <input
+              type="number"
+              min={0}
+              value={onlineAmount}
+              onChange={(e) => onChange(cashAmount, Math.max(0, Number(e.target.value) || 0))}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+      )}
+
+      {mode === 'split' && (
+        <div style={{
+          fontSize:   12,
+          fontWeight: 500,
+          color:      paymentReady ? t.verdeCanchaProfundo.val : t.textoMuted.val,
+          transition: 'color 150ms ease-out',
+        }}>
+          Asignado: ${totalAssigned.toLocaleString('es-AR')} de ${pendingBalance.toLocaleString('es-AR')}
+        </div>
+      )}
     </div>
   )
 }
@@ -543,6 +584,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const [extendMins,           setExtendMins]           = useState<0 | 30 | 60>(0)
   const [cashAmount,           setCashAmount]           = useState<number>(0)
   const [onlineAmount,         setOnlineAmount]         = useState<number>(0)
+  const [customAmount,         setCustomAmount]         = useState<number>(0)
   const [isEditing,            setIsEditing]            = useState(false)
   const [editFields,           setEditFields]           = useState<ReservationUpdateFields>({})
   const [deleteConfirm,        setDeleteConfirm]        = useState(false)
@@ -569,6 +611,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setExtendMins(0)
     setCashAmount(newBalance)
     setOnlineAmount(0)
+    setCustomAmount(reservation?.amount ?? 0)
     setIsEditing(false)
     setEditFields({})
     setDeleteConfirm(false)
@@ -856,14 +899,12 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 {reservation.state === 'señado' && !isEditing && !deleteConfirm && !cancelDepositConfirm && (
                   <>
                     <SectionLabel>Cobro</SectionLabel>
-                    <SplitPaymentInput
+                    <PaymentInput
+                      pendingBalance={pendingBalance}
                       cashAmount={cashAmount}
                       onlineAmount={onlineAmount}
-                      pendingBalance={pendingBalance}
-                      totalAssigned={totalAssigned}
                       paymentReady={paymentReady}
-                      onCashChange={setCashAmount}
-                      onOnlineChange={setOnlineAmount}
+                      onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                     />
                     <ActionButton
                       label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
@@ -985,14 +1026,12 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   <>
                     <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '4px 0' }} />
                     <SectionLabel>Cobro</SectionLabel>
-                    <SplitPaymentInput
+                    <PaymentInput
+                      pendingBalance={pendingBalance}
                       cashAmount={cashAmount}
                       onlineAmount={onlineAmount}
-                      pendingBalance={pendingBalance}
-                      totalAssigned={totalAssigned}
                       paymentReady={paymentReady}
-                      onCashChange={setCashAmount}
-                      onOnlineChange={setOnlineAmount}
+                      onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                     />
                     <ActionButton
                       label={`${reservation.depositAmount != null ? 'Cobrar saldo' : 'Cobrar total'} · $${pendingBalance.toLocaleString('es-AR')}`}
@@ -1031,11 +1070,6 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                     }}>
                       Reserva cobrada en su totalidad
                     </div>
-                    <ActionButton
-                      variant="secondary"
-                      label="Iniciar turno"
-                      onClick={() => { onUpdateStatus?.(reservation.id, 'on_court'); onClose() }}
-                    />
                     <ActionButton
                       label="Cancelar reserva"
                       onClick={() => setCancelPaidConfirm(true)}
@@ -1087,31 +1121,67 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 )}
 
                 {/* Recurrente */}
-                {reservation.state === 'recurrente' && !cancelSeriesConfirm && !isEditingSeries && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {reservation.seriesId && (
-                      <ActionButton
-                        label="Editar serie"
-                        onClick={() => setIsEditingSeries(true)}
-                        variant="secondary"
+                {reservation.state === 'recurrente' && !cancelSeriesConfirm && !isEditingSeries && (() => {
+                  const localBalance = Math.max(0, reservation.depositAmount != null ? customAmount - reservation.depositAmount : customAmount)
+                  const localPaymentReady = localBalance > 0 && (cashAmount + onlineAmount) === localBalance
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <SectionLabel>Cobrar turno</SectionLabel>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 500, color: t.textoMuted.val, marginBottom: 4, display: 'block' }}>
+                          Monto ($)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={customAmount}
+                          onChange={(e) => setCustomAmount(Math.max(0, Number(e.target.value) || 0))}
+                          style={{
+                            width: '100%', padding: '7px 10px', borderRadius: 6,
+                            border: `1px solid ${t.bordeNeutral.val}`,
+                            backgroundColor: t.superficie.val, color: t.textoPrimario.val,
+                            fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                      <PaymentInput
+                        pendingBalance={localBalance}
+                        cashAmount={cashAmount}
+                        onlineAmount={onlineAmount}
+                        paymentReady={localPaymentReady}
+                        onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                       />
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
                       <ActionButton
-                        label="Cancelar este turno"
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
-                        variant="danger"
+                        label={`Confirmar cobro · $${localBalance.toLocaleString('es-AR')}`}
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount, customAmount); onClose() }}
+                        variant="primary"
+                        disabled={customAmount <= 0 || !localPaymentReady}
                       />
+                      <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '4px 0' }} />
                       {reservation.seriesId && (
                         <ActionButton
-                          label="Cancelar serie"
-                          onClick={() => setCancelSeriesConfirm(true)}
-                          variant="danger"
+                          label="Editar serie"
+                          onClick={() => setIsEditingSeries(true)}
+                          variant="secondary"
                         />
                       )}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <ActionButton
+                          label="Cancelar este turno"
+                          onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                          variant="danger"
+                        />
+                        {reservation.seriesId && (
+                          <ActionButton
+                            label="Cancelar serie"
+                            onClick={() => setCancelSeriesConfirm(true)}
+                            variant="danger"
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
 
                 {/* Recurrente — confirmación de cancelación de serie */}
                 {reservation.state === 'recurrente' && cancelSeriesConfirm && (
@@ -1144,26 +1214,45 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 )}
 
                 {/* Jugado */}
-                {reservation.state === 'jugado' && (
-                  <>
-                    <SectionLabel>Cobro</SectionLabel>
-                    <SplitPaymentInput
-                      cashAmount={cashAmount}
-                      onlineAmount={onlineAmount}
-                      pendingBalance={pendingBalance}
-                      totalAssigned={totalAssigned}
-                      paymentReady={paymentReady}
-                      onCashChange={setCashAmount}
-                      onOnlineChange={setOnlineAmount}
-                    />
-                    <ActionButton
-                      label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
-                      onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
-                      variant="primary"
-                      disabled={!paymentReady}
-                    />
-                  </>
-                )}
+                {reservation.state === 'jugado' && (() => {
+                  const localBalance = Math.max(0, reservation.depositAmount != null ? customAmount - reservation.depositAmount : customAmount)
+                  const localPaymentReady = localBalance > 0 && (cashAmount + onlineAmount) === localBalance
+                  return (
+                    <>
+                      <SectionLabel>Cobro</SectionLabel>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 500, color: t.textoMuted.val, marginBottom: 4, display: 'block' }}>
+                          Monto a cobrar ($)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={customAmount}
+                          onChange={(e) => setCustomAmount(Math.max(0, Number(e.target.value) || 0))}
+                          style={{
+                            width: '100%', padding: '7px 10px', borderRadius: 6,
+                            border: `1px solid ${t.bordeNeutral.val}`,
+                            backgroundColor: t.superficie.val, color: t.textoPrimario.val,
+                            fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                      <PaymentInput
+                        pendingBalance={localBalance}
+                        cashAmount={cashAmount}
+                        onlineAmount={onlineAmount}
+                        paymentReady={localPaymentReady}
+                        onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
+                      />
+                      <ActionButton
+                        label={`Confirmar cobro · $${localBalance.toLocaleString('es-AR')}`}
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount, customAmount); onClose() }}
+                        variant="primary"
+                        disabled={!localPaymentReady || customAmount <= 0}
+                      />
+                    </>
+                  )
+                })()}
 
               </div>
             </div>

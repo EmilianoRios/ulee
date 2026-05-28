@@ -65,7 +65,7 @@ interface CalendarDayViewProps {
   scheduleHistory:           ScheduleVersion[]
   selectedDate:              Date
   onSlotClick?:              (courtId: string, time: string) => void
-  onUpdateStatus?:           (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number) => void
+  onUpdateStatus?:           (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
   onExtend?:                 (reservationId: string, minutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
   onUpdate?:                 (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:                 (reservationId: string) => void

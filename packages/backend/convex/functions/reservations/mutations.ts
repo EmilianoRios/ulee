@@ -168,8 +168,9 @@ export const updateStatus = mutation({
     paymentMethod: v.optional(v.union(v.literal('cash'), v.literal('online'))),
     // deprecated — backend recalculates from depositAmount; kept for API compatibility
     paymentAmount: v.optional(v.number()),
-    cashAmount:    v.optional(v.number()),
-    onlineAmount:  v.optional(v.number()),
+    cashAmount:           v.optional(v.number()),
+    onlineAmount:         v.optional(v.number()),
+    totalAmountOverride:  v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Read reservation BEFORE patching so we have the current status for type resolution
@@ -177,6 +178,14 @@ export const updateStatus = mutation({
     if (!reservation) throw new ConvexError('not_found')
 
     await assertVenueAccess(ctx, reservation.venueId)
+
+    // Apply totalAmountOverride before computing pendingBalance
+    if (args.totalAmountOverride !== undefined) {
+      if (args.totalAmountOverride < 0) throw new ConvexError('invalid_amount_override')
+      if (args.totalAmountOverride > 0) {
+        await ctx.db.patch(args.reservationId, { totalAmount: args.totalAmountOverride })
+      }
+    }
 
     await ctx.db.patch(args.reservationId, { status: args.status })
 
@@ -189,11 +198,15 @@ export const updateStatus = mutation({
     if (cash > 0 || online > 0) {
       if (cash < 0 || online < 0) throw new ConvexError('negative_payment_amount')
 
+      const effectiveTotalAmount = (args.totalAmountOverride != null && args.totalAmountOverride > 0)
+        ? args.totalAmountOverride
+        : reservation.totalAmount
+
       const hasDeposit     = reservation.depositAmount != null && reservation.depositAmount > 0
       const paymentType    = hasDeposit ? 'balance' : resolvePaymentType(reservation.status)
       const pendingBalance = hasDeposit
-        ? Math.max(0, reservation.totalAmount - reservation.depositAmount!)
-        : reservation.totalAmount
+        ? Math.max(0, effectiveTotalAmount - reservation.depositAmount!)
+        : effectiveTotalAmount
 
       if (cash + online !== pendingBalance) throw new ConvexError('invalid_split_amounts')
 
