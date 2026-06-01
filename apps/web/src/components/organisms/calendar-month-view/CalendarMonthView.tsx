@@ -59,8 +59,8 @@ export function CalendarMonthView({
     textPrimary: t.textoPrimario.val,
     textInact:   t.textoInactivo.val,
     todayText:   t.verdeCanchaProfundo.val,
-    badgeBg:     t.verdeCancha.val,
-    badgeText:   'oklch(98% 0.004 155)',
+    badgeBg:     t.verdeCanchaActivo.val,
+    badgeText:   t.verdeCanchaProfundo.val,
   } as const
 
   return (
@@ -142,7 +142,7 @@ export function CalendarMonthView({
                 }
                 style={{
                   position:        'relative',
-                  padding:         '8px',
+                  padding:         '10px',
                   borderRight:     !isLastCol ? `1px solid ${C.divider}` : 'none',
                   borderBottom:    !isLastRow ? `1px solid ${C.divider}` : 'none',
                   backgroundColor: cellBg,
@@ -150,6 +150,7 @@ export function CalendarMonthView({
                   overflow:        'hidden',
                   minHeight:       0,
                   userSelect:      'none',
+                  transition:      'background-color 120ms ease-out',
                 }}
                 onMouseEnter={isCurrentMonth && !isToday ? (e) => {
                   ;(e.currentTarget as HTMLDivElement).style.backgroundColor = t.fondoHover.val
@@ -177,8 +178,8 @@ export function CalendarMonthView({
                 {isCurrentMonth && count > 0 && (
                   <span style={{
                     position:        'absolute',
-                    top:             6,
-                    right:           6,
+                    top:             8,
+                    right:           8,
                     minWidth:        18,
                     height:          18,
                     borderRadius:    9,

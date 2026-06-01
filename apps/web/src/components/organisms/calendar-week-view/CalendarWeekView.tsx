@@ -173,15 +173,16 @@ export function CalendarWeekView({
   // ── Token shortcuts ─────────────────────────────────────────────────────────
 
   const C = {
-    bg:          t.superficieContenido.val,
-    border:      t.bordeNeutral.val,
-    divider:     t.divisor.val,
-    textPrimary: t.textoPrimario.val,
-    textInact:   t.textoInactivo.val,
-    green:       t.verdeCancha.val,
-    inactiveBg:  'oklch(96% 0.004 240)',
-    todayHeader: t.verdeCanchaActivo.val,
-    todayText:   t.verdeCanchaProfundo.val,
+    bg:           t.superficieContenido.val,
+    border:       t.bordeNeutral.val,
+    divider:      t.divisor.val,
+    textPrimary:  t.textoPrimario.val,
+    textMuted:    t.textoMuted.val,
+    textInact:    t.textoInactivo.val,
+    green:        t.verdeCancha.val,
+    inactiveBg:   'oklch(96% 0.004 240)',
+    todayHeader:  t.verdeCanchaActivo.val,
+    todayText:    t.verdeCanchaProfundo.val,
   } as const
 
   // ── Grid template ──────────────────────────────────────────────────────────
@@ -235,15 +236,15 @@ export function CalendarWeekView({
                   position:        'sticky',
                   top:             0,
                   zIndex:          10,
-                  backgroundColor: isToday ? C.todayHeader : C.bg,
+                  backgroundColor: isToday ? C.todayHeader : day.isInactive ? C.inactiveBg : C.bg,
                   borderBottom:    `1px solid ${C.border}`,
                   borderRight:     colIdx < 6 ? `1px solid ${C.divider}` : 'none',
                   display:         'flex',
                   flexDirection:   'column',
                   alignItems:      'center',
                   justifyContent:  'center',
-                  gap:             2,
-                  padding:         '4px 8px',
+                  gap:             3,
+                  padding:         '6px 8px',
                 }}
               >
                 <span style={{
@@ -320,7 +321,7 @@ export function CalendarWeekView({
                     <span style={{
                       fontSize:           11,
                       fontWeight:         500,
-                      color:              C.textInact,
+                      color:              C.textMuted,
                       lineHeight:         1,
                       fontVariantNumeric: 'tabular-nums',
                     }}>
