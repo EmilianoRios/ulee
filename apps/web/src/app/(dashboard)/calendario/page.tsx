@@ -146,6 +146,7 @@ export default function CalendarioPage() {
   const venueDepositPercentage  = venueRaw?.pricingConfig?.depositPercentage ?? 50
   const venueSchedule: DaySchedule[] = venueRaw?.schedule ?? []
   const venueScheduleHistory: ScheduleVersion[] = venueRaw?.scheduleHistory ?? []
+  const venueHolidays = venueRaw?.holidays ?? []
 
   // Show warning when venue loaded but scheduleHistory was never explicitly configured
   const showScheduleWarning =
@@ -462,6 +463,7 @@ export default function CalendarioPage() {
                     spillovers={spillovers}
                     schedule={venueSchedule}
                     scheduleHistory={venueScheduleHistory}
+                    holidays={venueHolidays}
                     selectedDate={currentDate}
                     onSlotClick={(courtId, time) => {
                       setDefaultType('reserva')
