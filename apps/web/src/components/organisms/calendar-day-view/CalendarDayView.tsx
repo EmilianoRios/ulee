@@ -185,14 +185,15 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
   )
   const effectiveReservations = reservations.map((r) => {
     if (isPastDay) {
-      if (r.state === 'señado' || r.state === 'en-cancha') return { ...r, state: 'jugado' as const }
+      // pagado: settled — never transitions regardless of time
+      if (r.state === 'señado' || r.state === 'en-cancha' || r.state === 'pendiente') return { ...r, state: 'jugado' as const }
       return r
     }
     if (!isToday) return r
-    if (nowTotalMins > r.endTime && (r.state === 'señado' || r.state === 'en-cancha')) {
+    if (nowTotalMins > r.endTime && (r.state === 'señado' || r.state === 'en-cancha' || r.state === 'pendiente')) {
       return { ...r, state: 'jugado' as const }
     }
-    if (nowTotalMins >= r.startTime && nowTotalMins < r.endTime && r.state === 'señado') {
+    if (nowTotalMins >= r.startTime && nowTotalMins < r.endTime && (r.state === 'señado' || r.state === 'pendiente')) {
       return { ...r, state: 'en-cancha' as const }
     }
     return r
