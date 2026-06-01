@@ -97,6 +97,22 @@ const NAV_SECTIONS: NavSection[] = [
 ]
 
 
+// ─── Brand bolt icon ─────────────────────────────────────────────────────────
+function BoltIcon({ size = 20, color }: { size?: number; color: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <path d="M20 3L10 18h6L12 29l10-15h-6z" fill={color} />
+    </svg>
+  )
+}
+
 // ─── Venue switcher ───────────────────────────────────────────────────────────
 
 function VenueSwitcher({ collapsed }: { collapsed: boolean }) {
@@ -566,13 +582,7 @@ export function Sidebar() {
         justify={collapsed ? 'center' : 'flex-start'}
         style={{ flexShrink: 0, backgroundColor: C.headerBg }}
       >
-        <MapPin
-          size={collapsed ? 18 : 20}
-          // @ts-expect-error — OKLCH color
-          color={C.headerIcon}
-          strokeWidth={2}
-          style={{ flexShrink: 0 }}
-        />
+        <BoltIcon size={collapsed ? 18 : 20} color={C.headerIcon} />
         {!collapsed && (
           <YStack gap={2}>
             <Text

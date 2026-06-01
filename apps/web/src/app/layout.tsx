@@ -8,6 +8,7 @@ const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700
 export const metadata: Metadata = {
   title: 'Ulee!',
   description: 'Gestión de reservas deportivas',
+  icons: { icon: '/favicon.svg' },
 }
 
 export default function RootLayout({
