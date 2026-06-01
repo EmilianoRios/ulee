@@ -12,7 +12,9 @@ import type { QueryCtx } from '../../_generated/server'
 export interface FinanceRow {
   _id:          Id<'reservations'>
   clientName:   string
+  courtId:      Id<'courts'>
   courtName:    string
+  clientPhone:  string
   date:         string        // "YYYY-MM-DD"
   startTime:    string        // "HH:MM"
   endTime:      string        // "HH:MM"
@@ -20,6 +22,7 @@ export interface FinanceRow {
   cash:         number        // sum of completed payments where normalizeMethod === 'cash'
   total:        number        // online + cash (NOT reservation.totalAmount)
   depositTotal: number        // sum of completed payments where type === 'deposit'
+  totalAmount:  number        // reservation.totalAmount (gross amount)
   paymentType:  PaymentSummary['paymentType']
   status:       Doc<'reservations'>['status']
 }
@@ -79,16 +82,19 @@ async function fetchRows(
   return reservations.map((r, i) => {
     const summary = aggregatePayments(paymentSets[i])
     return {
-      _id:         r._id,
-      clientName:  r.clientName,
-      courtName:   courtMap.get(r.courtId) ?? '',
-      date:        r.date,
-      startTime:   minutesToTime(r.startTime),
-      endTime:     minutesToTime(r.endTime),
+      _id:          r._id,
+      clientName:   r.clientName,
+      courtId:      r.courtId,
+      courtName:    courtMap.get(r.courtId) ?? '',
+      clientPhone:  r.clientPhone ?? '',
+      date:         r.date,
+      startTime:    minutesToTime(r.startTime),
+      endTime:      minutesToTime(r.endTime),
       online:       summary.online,
       cash:         summary.cash,
       total:        summary.total,
       depositTotal: summary.depositTotal,
+      totalAmount:  r.totalAmount,
       paymentType:  summary.paymentType,
       status:       r.status,
     }

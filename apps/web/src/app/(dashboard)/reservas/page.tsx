@@ -1,21 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Plus, ChevronDown } from 'lucide-react'
 import { useTheme } from 'tamagui'
-import { useQuery, useConvexAuth } from 'convex/react'
+import { useQuery, useMutation, useConvexAuth } from 'convex/react'
 import { useRouter } from 'next/navigation'
 import { api } from '@canchero/backend'
+import type { Id } from '@canchero/backend'
 import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
+import { ReservationSlideOver } from '@/components/organisms/reservation-slide-over'
+import type { ReservationBackendStatus, ReservationUpdateFields, SeriesUpdateFields } from '@/components/organisms/reservation-slide-over'
+import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { useActiveVenue } from '@/context/active-venue'
-import type { Id } from '@canchero/backend'
+import { statusToCalendarState } from '@/lib/convex/status-map'
+import type { Doc } from '@canchero/backend'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Today's date as "YYYY-MM-DD" (client-side UTC-3 approximation). */
 function todayDate(): string {
   return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+function timeToMins(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
 }
 
 const TODAY = todayDate()
@@ -26,17 +36,38 @@ const PAGE_SIZE = 8
 type FinanceRowShape = {
   _id:          Id<'reservations'>
   clientName:   string
+  courtId:      Id<'courts'>
   courtName:    string
+  clientPhone:  string
   date:         string
   startTime:    string
   endTime:      string
   online:       number
   cash:         number
   total:        number
+  totalAmount:  number
   depositTotal: number
   paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
-  status:       'paid' | 'deposit_paid' | 'pending' | 'maintenance' | 'cancelled'
+  status:       Doc<'reservations'>['status']
 }
+
+type StatusTab = 'todas' | 'pendientes' | 'señadas' | 'pagadas'
+
+const TAB_FILTER: Record<StatusTab, Doc<'reservations'>['status'][]> = {
+  todas:      [],
+  pendientes: ['pending'],
+  señadas:    ['deposit_paid'],
+  pagadas:    ['paid', 'played'],
+}
+
+const TAB_LABELS: Record<StatusTab, string> = {
+  todas:      'Todas',
+  pendientes: 'Pendientes',
+  señadas:    'Señadas',
+  pagadas:    'Pagadas',
+}
+
+const STATUS_TABS: StatusTab[] = ['todas', 'pendientes', 'señadas', 'pagadas']
 
 function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
   const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short' })
@@ -50,6 +81,21 @@ function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
     cash:        row.cash,
     paymentType: row.paymentType,
     total:       row.total,
+  }
+}
+
+function toCalendarReservation(row: FinanceRowShape): CalendarReservation {
+  return {
+    id:            row._id,
+    courtId:       row.courtId as string,
+    clientName:    row.clientName,
+    phone:         row.clientPhone || undefined,
+    startTime:     timeToMins(row.startTime),
+    endTime:       timeToMins(row.endTime),
+    date:          row.date,
+    state:         statusToCalendarState(row.status),
+    amount:        row.totalAmount,
+    depositAmount: row.depositTotal > 0 ? row.depositTotal : undefined,
   }
 }
 
@@ -74,26 +120,46 @@ export default function ReservasPage() {
   const router   = useRouter()
   const canQuery = isAuthenticated && activeVenueId !== null
 
-  const [cancha, setCancha] = useState('todas')
-  const [page,   setPage]   = useState(1)
+  const [cancha,      setCancha]      = useState('todas')
+  const [page,        setPage]        = useState(1)
+  const [activeTab,   setActiveTab]   = useState<StatusTab>('todas')
+  const [selectedRow, setSelectedRow] = useState<FinanceRowShape | null>(null)
 
-  // Finance rows for today — replaces usePaginatedQuery on listByVenueAndDate
+  // ── Mutations (mirroring calendario/page.tsx) ─────────────────────────────
+  const updateStatus      = useMutation(api.functions.reservations.mutations.updateStatus)
+  const updateReservation = useMutation(api.functions.reservations.mutations.updateReservation)
+  const deleteReservation = useMutation(api.functions.reservations.mutations.deleteReservation)
+  const cancelSeries      = useMutation(api.functions.reservations.series.cancelSeries)
+  const modifySeries      = useMutation(api.functions.reservations.series.modifySeries)
+
+  // Finance rows for today
   const allRows = useQuery(
     api.functions.finances.queries.listByVenueAndPeriod,
     canQuery ? { venueId: activeVenueId, dateFrom: TODAY, dateTo: TODAY } : 'skip'
   )
 
+  // Courts — needed by ReservationSlideOver
+  const courtsRaw = useQuery(
+    api.functions.courts.queries.listByVenue,
+    canQuery ? { venueId: activeVenueId } : 'skip'
+  )
+
   const isLoading = activeVenueId !== null && allRows === undefined
 
-  // Stats strip — unchanged
+  // Stats strip
   const stats = useQuery(
     api.functions.reservations.queries.statsByVenueAndDate,
     canQuery ? { venueId: activeVenueId, date: TODAY } : 'skip'
   )
 
   // Client-side cancha filter
-  const filtered = (allRows ?? []).filter(
+  const canchaFiltered = (allRows ?? []).filter(
     (r) => cancha === 'todas' || r.courtName === cancha
+  )
+
+  // Client-side tab filter applied after cancha filter
+  const filtered = canchaFiltered.filter(
+    (r) => activeTab === 'todas' || TAB_FILTER[activeTab].includes(r.status)
   )
 
   const canchaOptionsSet = new Set((allRows ?? []).map((r) => r.courtName).filter(Boolean))
@@ -102,6 +168,12 @@ export default function ReservasPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toUnifiedRow)
+
+  const courts: Court[] = courtsRaw?.map((c) => ({
+    id:            c._id as string,
+    name:          c.name,
+    priceOverride: c.priceOverride ?? undefined,
+  })) ?? []
 
   // ── Stats values (with loading fallback) ──────────────────────────────────
   const statsStrip: { value: string; label: string; delta?: string; positive?: boolean }[] = [
@@ -126,6 +198,63 @@ export default function ReservasPage() {
       label: 'canchas activas',
     },
   ]
+
+  // ── Callbacks ─────────────────────────────────────────────────────────────
+
+  const handleRowClick = useCallback((id: string) => {
+    const row = (allRows ?? []).find((r) => r._id === id) as FinanceRowShape | undefined
+    if (row) setSelectedRow(row)
+  }, [allRows])
+
+  const handleCloseSlideOver = useCallback(() => setSelectedRow(null), [])
+
+  const handleUpdateStatus = useCallback((
+    reservationId: string,
+    status: ReservationBackendStatus,
+    cashAmount?: number,
+    onlineAmount?: number,
+    amountOverride?: number,
+  ) => {
+    void updateStatus({
+      reservationId: reservationId as Id<'reservations'>,
+      status,
+      ...(cashAmount !== undefined || onlineAmount !== undefined
+        ? { cashAmount, onlineAmount }
+        : {}),
+      ...(amountOverride !== undefined ? { totalAmountOverride: amountOverride } : {}),
+    })
+  }, [updateStatus])
+
+  const handleUpdate = useCallback((reservationId: string, fields: ReservationUpdateFields) => {
+    void updateReservation({
+      reservationId: reservationId as Id<'reservations'>,
+      ...(fields.startTime   !== undefined ? { startTime:   fields.startTime   } : {}),
+      ...(fields.endTime     !== undefined ? { endTime:     fields.endTime     } : {}),
+      ...(fields.clientName  !== undefined ? { clientName:  fields.clientName  } : {}),
+      ...(fields.clientPhone !== undefined ? { clientPhone: fields.clientPhone } : {}),
+      ...(fields.totalAmount !== undefined ? { totalAmount: fields.totalAmount } : {}),
+      ...(fields.notes       !== undefined ? { notes:       fields.notes       } : {}),
+    }).catch((err) => console.error('updateReservation failed:', err))
+  }, [updateReservation])
+
+  const handleDelete = useCallback((reservationId: string) => {
+    void deleteReservation({
+      reservationId: reservationId as Id<'reservations'>,
+    }).catch((err) => console.error('deleteReservation failed:', err))
+  }, [deleteReservation])
+
+  const handleCancelSeries = useCallback(async (seriesId: string) => {
+    await cancelSeries({ seriesId: seriesId as Id<'recurrenceSeries'> })
+  }, [cancelSeries])
+
+  const handleModifySeries = useCallback(async (seriesId: string, fields: SeriesUpdateFields) => {
+    await modifySeries({ seriesId: seriesId as Id<'recurrenceSeries'>, ...fields })
+  }, [modifySeries])
+
+  const handleTabChange = useCallback((tab: StatusTab) => {
+    setActiveTab(tab)
+    setPage(1)
+  }, [])
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -267,46 +396,91 @@ export default function ReservasPage() {
   )
 
   return (
-    <ModuleLayout strip={strip}>
-      <div style={{
-        height:        '100%',
-        padding:       '12px 32px',
-        boxSizing:     'border-box',
-        display:       'flex',
-        flexDirection: 'column',
-      }}>
-        {activeVenueId === null ? (
-          <div style={{
-            flex:           1,
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-          }}>
-            <span style={{ fontSize: 14, color: t.textoMuted.val }}>
-              Seleccioná una sede para ver las reservas
-            </span>
+    <>
+      <ModuleLayout strip={strip}>
+        <div style={{
+          height:        '100%',
+          padding:       '12px 32px',
+          boxSizing:     'border-box',
+          display:       'flex',
+          flexDirection: 'column',
+          gap:           12,
+        }}>
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            {STATUS_TABS.map((tab) => {
+              const isActive = activeTab === tab
+              return (
+                <button
+                  key={tab}
+                  onClick={() => handleTabChange(tab)}
+                  style={{
+                    padding:         '6px 16px',
+                    borderRadius:    7,
+                    border:          isActive
+                      ? `1px solid ${t.verdeCancha.val}`
+                      : `1px solid ${t.bordeNeutral.val}`,
+                    backgroundColor: isActive ? t.verdeCanchaFondo.val : 'transparent',
+                    color:           isActive ? t.verdeCanchaProfundo.val : t.textoMuted.val,
+                    fontSize:        12,
+                    fontWeight:      isActive ? 600 : 400,
+                    cursor:          'pointer',
+                    lineHeight:      1,
+                    fontFamily:      'inherit',
+                    transition:      'all 100ms ease-out',
+                  }}
+                >
+                  {TAB_LABELS[tab]}
+                </button>
+              )
+            })}
           </div>
-        ) : isLoading ? (
-          <div style={{
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-            height:         '100%',
-            color:          t.textoMuted.val,
-            fontSize:       14,
-          }}>
-            Cargando...
-          </div>
-        ) : (
-          <UnifiedReservationTable
-            rows={pageRows}
-            page={page}
-            totalPages={totalPages}
-            totalRows={filtered.length}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
-    </ModuleLayout>
+
+          {activeVenueId === null ? (
+            <div style={{
+              flex:           1,
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 14, color: t.textoMuted.val }}>
+                Seleccioná una sede para ver las reservas
+              </span>
+            </div>
+          ) : isLoading ? (
+            <div style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              height:         '100%',
+              color:          t.textoMuted.val,
+              fontSize:       14,
+            }}>
+              Cargando...
+            </div>
+          ) : (
+            <UnifiedReservationTable
+              rows={pageRows}
+              page={page}
+              totalPages={totalPages}
+              totalRows={filtered.length}
+              onPageChange={setPage}
+              onRowClick={handleRowClick}
+            />
+          )}
+        </div>
+      </ModuleLayout>
+
+      <ReservationSlideOver
+        reservation={selectedRow ? toCalendarReservation(selectedRow) : null}
+        courts={courts}
+        onClose={handleCloseSlideOver}
+        onUpdateStatus={handleUpdateStatus}
+        onUpdate={handleUpdate}
+        onDelete={handleDelete}
+        onCancelSeries={handleCancelSeries}
+        onModifySeries={handleModifySeries}
+      />
+    </>
   )
 }

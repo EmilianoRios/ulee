@@ -17,6 +17,8 @@ export function StatusChip({ status }: StatusChipProps) {
     ? { bg: t.verdeCanchaFondo.val,    color: t.verdeCanchaProfundo.val, border: t.verdeCanchaActivo.val }
     : status === 'deposit_paid'
     ? { bg: t.acentoTerrazaClaro.val,  color: t.acentoTerraza.val,       border: 'oklch(88% 0.06 42)'   }
+    : status === 'pending'
+    ? { bg: 'oklch(97% 0.06 95)',      color: 'oklch(50% 0.12 75)',       border: 'oklch(88% 0.08 90)'   }
     : { bg: 'transparent',             color: t.textoMuted.val,           border: t.bordeNeutral.val     }
 
   return (
