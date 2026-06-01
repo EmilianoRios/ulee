@@ -1179,8 +1179,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   </>
                 )}
 
-                {/* En cancha — cobro */}
-                {reservation.state === 'en-cancha' && (
+                {/* En cancha — cobro (solo si hay saldo pendiente; pagado ya está saldado) */}
+                {reservation.state === 'en-cancha' && pendingBalance > 0 && (
                   <>
                     <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '14px 0 8px' }} />
                     <SectionLabel>Cobro</SectionLabel>
