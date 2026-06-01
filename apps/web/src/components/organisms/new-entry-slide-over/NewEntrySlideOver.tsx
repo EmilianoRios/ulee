@@ -730,7 +730,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           {type === 'evento' && (
             <>
               <Field label="Nombre del evento" required error={errors.nombreEvento}>
-                <TxtInput value={nombreEvento} onChange={setNombreEvento} placeholder="Clínica pádel — Prof. Herrera" error={errors.nombreEvento} />
+                <TxtInput value={nombreEvento} onChange={setNombreEvento} placeholder="Clínica pádel, Prof. Herrera" error={errors.nombreEvento} />
               </Field>
 
               {whereWhenBlock}
@@ -751,7 +751,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                   <TxtInput value={cliente} onChange={setCliente} placeholder="Nombre" error={errors.cliente} />
                 </Field>
                 <Field label="Teléfono">
-                  <TxtInput value={telefono} onChange={setTelefono} placeholder="11 4523-8891" />
+                  <TxtInput value={telefono} onChange={setTelefono} placeholder="Opcional" />
                 </Field>
               </div>
 
@@ -831,30 +831,40 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                         cursor: 'pointer', textAlign: 'left', transition: 'all 120ms ease-out',
                       }}
                     >
-                      {sinVencimiento ? '✓ Sin vencimiento' : 'Sin vencimiento'}
+                      Sin vencimiento
                     </button>
                   </div>
                 </Field>
               </div>
 
               {/* Pago */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field
-                  label="Monto por turno ($)"
-                  required
-                  error={errors.monto}
-                  badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
-                >
-                  <NumInput value={monto} onChange={(v) => { setMonto(v); setIsMontoCustom(true) }} placeholder="9600" error={errors.monto} />
-                </Field>
-                <Field label="Estado inicial" required>
-                  <RadioGroup
-                    value={estado}
-                    onChange={(v) => setEstado(v as 'pendiente' | 'señado' | 'pagado')}
-                    options={[{ value: 'pendiente', label: 'A cobrar' }, { value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
+              <Field
+                label="Monto por turno ($)"
+                required
+                error={errors.monto}
+                badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
+              >
+                <NumInput value={monto} onChange={(v) => { setMonto(v); setIsMontoCustom(true) }} placeholder="9600" error={errors.monto} />
+              </Field>
+
+              <Field label="Estado inicial" required>
+                <RadioGroup
+                  value={estado}
+                  onChange={(v) => setEstado(v as 'pendiente' | 'señado' | 'pagado')}
+                  options={[{ value: 'pendiente', label: 'A cobrar' }, { value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
+                />
+              </Field>
+
+              {showSenaField && (
+                <Field label="Monto de seña ($)" error={errors.sena}>
+                  <NumInput
+                    value={sena}
+                    onChange={(v) => { setSena(v); setIsDepositCustom(true) }}
+                    placeholder={String(parsedMonto > 0 ? Math.round(parsedMonto * pct / 100) : '')}
+                    error={errors.sena}
                   />
                 </Field>
-              </div>
+              )}
 
               {estado !== 'pendiente' && (
                 <Field label="Método de pago" required>
