@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useLocalStorage } from '@/hooks/use-local-storage'
+import { getMonthGrid, isSameDay } from '../../../lib/calendar-utils'
 
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
@@ -10,48 +11,6 @@ const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
-
-interface CalendarCell {
-  date: Date
-  isCurrentMonth: boolean
-}
-
-function getMonthGrid(year: number, month: number): CalendarCell[][] {
-  const firstDay = new Date(year, month, 1)
-  const lastDay  = new Date(year, month + 1, 0)
-
-  // Monday-first: Monday=0 … Sunday=6
-  const startOffset = (firstDay.getDay() + 6) % 7
-
-  const cells: CalendarCell[] = []
-
-  for (let i = startOffset - 1; i >= 0; i--) {
-    cells.push({ date: new Date(year, month, -i), isCurrentMonth: false })
-  }
-
-  for (let d = 1; d <= lastDay.getDate(); d++) {
-    cells.push({ date: new Date(year, month, d), isCurrentMonth: true })
-  }
-
-  const remaining = (7 - (cells.length % 7)) % 7
-  for (let d = 1; d <= remaining; d++) {
-    cells.push({ date: new Date(year, month + 1, d), isCurrentMonth: false })
-  }
-
-  const weeks: CalendarCell[][] = []
-  for (let i = 0; i < cells.length; i += 7) {
-    weeks.push(cells.slice(i, i + 7))
-  }
-  return weeks
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth()    === b.getMonth()    &&
-    a.getDate()     === b.getDate()
-  )
-}
 
 interface CalendarMiniPickerProps {
   selectedDate: Date
@@ -251,9 +210,10 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
             key={wi}
             style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}
           >
-            {week.map(({ date, isCurrentMonth }, di) => {
-              const isSelected = isSameDay(date, selectedDate)
-              const isToday    = isSameDay(date, today)
+            {week.map((date, di) => {
+              const isCurrentMonth = date.getMonth() === viewMonth
+              const isSelected     = isSameDay(date, selectedDate)
+              const isToday        = isSameDay(date, today)
 
               const bgColor: string    = isSelected ? D.verde : 'transparent'
               const textColor: string  = isSelected

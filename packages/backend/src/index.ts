@@ -5,4 +5,4 @@ export { projectToCommonAxis, buildConflictWindow } from '../convex/lib/conflict
 export { resolveScheduleForDate, addDays, normalizeDaySchedule } from '../convex/lib/schedule'
 export type { ScheduleVersion } from '../convex/lib/schedule'
 export { timeToMinutes, minutesToTime, addMinutes } from '../convex/lib/time'
-export type { CalReservation, CalListResult } from '../convex/functions/reservations/queries'
+export type { CalReservation, CalListResult, CalDateRangeResult } from '../convex/functions/reservations/queries'
