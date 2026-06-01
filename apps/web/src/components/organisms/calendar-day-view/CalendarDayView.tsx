@@ -193,8 +193,6 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
       return { ...r, state: 'jugado' as const }
     }
     if (nowTotalMins >= r.startTime && nowTotalMins < r.endTime && (r.state === 'señado' || r.state === 'pendiente' || r.state === 'pagado')) {
-      // pagado: normalizar depositAmount = amount para que pendingBalance = 0 en SlideOver
-      if (r.state === 'pagado') return { ...r, state: 'en-cancha' as const, depositAmount: r.amount }
       return { ...r, state: 'en-cancha' as const }
     }
     return r

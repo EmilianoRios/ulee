@@ -189,7 +189,16 @@ export const updateStatus = mutation({
       }
     }
 
-    await ctx.db.patch(args.reservationId, { status: args.status })
+    const effectiveTotalAmount = (args.totalAmountOverride != null && args.totalAmountOverride > 0)
+      ? args.totalAmountOverride
+      : reservation.totalAmount
+
+    // When marking as paid, freeze depositAmount = full settled amount so the frontend
+    // can compute pendingBalance = 0 and hide the payment UI. After any future extension,
+    // totalAmount will exceed depositAmount, surfacing the extra charge automatically.
+    const statusPatch: Record<string, unknown> = { status: args.status }
+    if (args.status === 'paid') statusPatch.depositAmount = effectiveTotalAmount
+    await ctx.db.patch(args.reservationId, statusPatch)
 
     // No payment inserted on absent transitions — existing deposit payment serves as retention evidence
     if (args.status === 'absent') return
@@ -199,10 +208,6 @@ export const updateStatus = mutation({
 
     if (cash > 0 || online > 0) {
       if (cash < 0 || online < 0) throw new ConvexError('negative_payment_amount')
-
-      const effectiveTotalAmount = (args.totalAmountOverride != null && args.totalAmountOverride > 0)
-        ? args.totalAmountOverride
-        : reservation.totalAmount
 
       const hasDeposit     = reservation.depositAmount != null && reservation.depositAmount > 0
       const paymentType    = hasDeposit ? 'balance' : resolvePaymentType(reservation.status)
