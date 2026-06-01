@@ -488,6 +488,8 @@ function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, 
 }) {
   const t = useTheme()
   const [mode, setMode] = useState<'cash' | 'online' | 'split'>('cash')
+  const [cashStr,   setCashStr]   = useState(String(cashAmount))
+  const [onlineStr, setOnlineStr] = useState(String(onlineAmount))
 
   const inputStyle: React.CSSProperties = {
     width:           '100%',
@@ -509,16 +511,11 @@ function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, 
     display:      'block',
   }
 
-  useEffect(() => {
-    if (mode === 'cash')   onChange(pendingBalance, 0)
-    if (mode === 'online') onChange(0, pendingBalance)
-  }, [pendingBalance]) // eslint-disable-line react-hooks/exhaustive-deps
-
   function selectMode(next: 'cash' | 'online' | 'split') {
     setMode(next)
     if (next === 'cash')   onChange(pendingBalance, 0)
     if (next === 'online') onChange(0, pendingBalance)
-    if (next === 'split')  onChange(cashAmount, onlineAmount)
+    if (next === 'split')  { setCashStr(String(cashAmount)); setOnlineStr(String(onlineAmount)); onChange(cashAmount, onlineAmount) }
   }
 
   const totalAssigned = cashAmount + onlineAmount
@@ -553,8 +550,8 @@ function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, 
             <input
               type="number"
               min={0}
-              value={cashAmount}
-              onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0), onlineAmount)}
+              value={cashStr}
+              onChange={(e) => { setCashStr(e.target.value); onChange(Math.max(0, Number(e.target.value) || 0), onlineAmount) }}
               style={inputStyle}
             />
           </div>
@@ -563,8 +560,8 @@ function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, 
             <input
               type="number"
               min={0}
-              value={onlineAmount}
-              onChange={(e) => onChange(cashAmount, Math.max(0, Number(e.target.value) || 0))}
+              value={onlineStr}
+              onChange={(e) => { setOnlineStr(e.target.value); onChange(cashAmount, Math.max(0, Number(e.target.value) || 0)) }}
               style={inputStyle}
             />
           </div>
@@ -593,7 +590,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const [extendMins,           setExtendMins]           = useState<0 | 30 | 60>(0)
   const [cashAmount,           setCashAmount]           = useState<number>(0)
   const [onlineAmount,         setOnlineAmount]         = useState<number>(0)
-  const [customAmount,         setCustomAmount]         = useState<number>(0)
+  const [customAmountStr,      setCustomAmountStr]      = useState<string>('0')
   const [isEditing,            setIsEditing]            = useState(false)
   const [editFields,           setEditFields]           = useState<ReservationUpdateFields>({})
   const [deleteConfirm,        setDeleteConfirm]        = useState(false)
@@ -620,7 +617,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setExtendMins(0)
     setCashAmount(newBalance)
     setOnlineAmount(0)
-    setCustomAmount(reservation?.amount ?? 0)
+    setCustomAmountStr(String(reservation?.amount ?? 0))
     setIsEditing(false)
     setEditFields({})
     setDeleteConfirm(false)
@@ -654,8 +651,11 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
         : reservation.amount)
     : 0
 
-  const totalAssigned = cashAmount + onlineAmount
-  const paymentReady  = pendingBalance > 0 && totalAssigned === pendingBalance
+  const customAmount  = Math.max(0, Number(customAmountStr) || 0)
+
+  const totalAssigned     = cashAmount + onlineAmount
+  const paymentReady      = pendingBalance > 0 && totalAssigned === pendingBalance
+  const depositCoversTotal = pendingBalance === 0 && (reservation?.depositAmount ?? 0) > 0
 
   const statePalette = reservation ? ({
     pendiente:     { bg: 'oklch(95% 0.05 55)',      color: 'oklch(52% 0.15 55)',       border: 'oklch(80% 0.10 55)'  },
@@ -1041,19 +1041,29 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 {reservation.state === 'señado' && !isEditing && !deleteConfirm && !cancelDepositConfirm && (
                   <>
                     <SectionLabel>Cobro</SectionLabel>
-                    <PaymentInput
-                      pendingBalance={pendingBalance}
-                      cashAmount={cashAmount}
-                      onlineAmount={onlineAmount}
-                      paymentReady={paymentReady}
-                      onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
-                    />
-                    <ActionButton
-                      label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
-                      onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
-                      variant="primary"
-                      disabled={!paymentReady}
-                    />
+                    {depositCoversTotal ? (
+                      <ActionButton
+                        label="Confirmar como pagado"
+                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', 0, 0); onClose() }}
+                        variant="primary"
+                      />
+                    ) : (
+                      <>
+                        <PaymentInput
+                          pendingBalance={pendingBalance}
+                          cashAmount={cashAmount}
+                          onlineAmount={onlineAmount}
+                          paymentReady={paymentReady}
+                          onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
+                        />
+                        <ActionButton
+                          label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
+                          onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
+                          variant="primary"
+                          disabled={!paymentReady}
+                        />
+                      </>
+                    )}
                     <ActionButton
                       label="Cancelar y retener seña"
                       onClick={() => setCancelDepositConfirm(true)}
@@ -1293,8 +1303,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         <input
                           type="number"
                           min={0}
-                          value={customAmount}
-                          onChange={(e) => setCustomAmount(Math.max(0, Number(e.target.value) || 0))}
+                          value={customAmountStr}
+                          onChange={(e) => setCustomAmountStr(e.target.value)}
                           style={{
                             width: '100%', padding: '7px 10px', borderRadius: 6,
                             border: `1px solid ${t.bordeNeutral.val}`,
@@ -1388,8 +1398,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         <input
                           type="number"
                           min={0}
-                          value={customAmount}
-                          onChange={(e) => setCustomAmount(Math.max(0, Number(e.target.value) || 0))}
+                          value={customAmountStr}
+                          onChange={(e) => setCustomAmountStr(e.target.value)}
                           style={{
                             width: '100%', padding: '7px 10px', borderRadius: 6,
                             border: `1px solid ${t.bordeNeutral.val}`,
