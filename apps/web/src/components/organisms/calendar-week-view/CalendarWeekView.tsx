@@ -6,6 +6,8 @@ import { resolveScheduleForDate } from '@canchero/backend'
 import type { DaySchedule, ScheduleVersion } from '@canchero/backend'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { ReservationSlideOver } from '@/components/organisms/reservation-slide-over'
+import { computeOverlapLayout, COURT_PALETTES } from '@/lib/calendar-utils'
+import type { OverlapLayout } from '@/lib/calendar-utils'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -139,6 +141,16 @@ export function CalendarWeekView({
   }, [weekDays, byDate, spillovers])
 
   const TOTAL_SLOTS = Math.ceil((DAY_END_MIN - DAY_START_MIN) / SLOT_MINUTES)
+
+  // ── Overlap layouts per day ────────────────────────────────────────────────
+
+  const overlapLayouts = useMemo((): Record<string, Map<string, OverlapLayout>> => {
+    const out: Record<string, Map<string, OverlapLayout>> = {}
+    for (const day of weekDays) {
+      out[day.dateStr] = computeOverlapLayout(byDate[day.dateStr] ?? [])
+    }
+    return out
+  }, [weekDays, byDate])
 
   const timeLabels = useMemo(() => {
     const labels: string[] = []
@@ -348,47 +360,57 @@ export function CalendarWeekView({
             )
           })}
 
-          {/* ── Reservation pills per day column ─────────────────────────── */}
-          {weekDays.map((day, colIdx) =>
-            (byDate[day.dateStr] ?? []).map((res) => {
-              const rowStart  = 2 + Math.floor((res.startTime - DAY_START_MIN) / SLOT_MINUTES)
-              const rowEnd    = 2 + Math.ceil((res.endTime   - DAY_START_MIN) / SLOT_MINUTES)
-              const slotCount = rowEnd - rowStart
-              if (slotCount <= 0) return null
+          {/* ── Day column overlays — one transparent layer per day ──────── */}
+          {weekDays.map((day, colIdx) => {
+            const dayRes = byDate[day.dateStr] ?? []
+            if (dayRes.length === 0) return null
+            const layouts = overlapLayouts[day.dateStr] ?? new Map<string, OverlapLayout>()
 
-              const courtIdx = courts.findIndex((c) => c.id === res.courtId)
-              const court    = courts[courtIdx]
+            return (
+              <div
+                key={`overlay-${day.dateStr}`}
+                style={{
+                  gridRow:       `2 / ${2 + TOTAL_SLOTS}`,
+                  gridColumn:    colIdx + 2,
+                  position:      'relative',
+                  pointerEvents: 'none',
+                  zIndex:        2,
+                }}
+              >
+                {dayRes.map((res) => {
+                  const layout   = layouts.get(res.id) ?? { leftFraction: 0, widthFraction: 1 }
+                  const topPx    = Math.max(0, (res.startTime - DAY_START_MIN) / SLOT_MINUTES * SLOT_HEIGHT)
+                  const endBound = Math.min(res.endTime, DAY_END_MIN)
+                  const heightPx = Math.max(SLOT_HEIGHT / 2, (endBound - res.startTime) / SLOT_MINUTES * SLOT_HEIGHT)
 
-              return (
-                <div
-                  key={`pill-${day.dateStr}-${res.id}`}
-                  style={{
-                    gridRow:    `${rowStart} / ${rowEnd}`,
-                    gridColumn: colIdx + 2,
-                    position:   'relative',
-                    zIndex:     2,
-                  }}
-                >
-                  <WeekPill
-                    reservation={res}
-                    courtName={court?.name ?? ''}
-                    courtIdx={courtIdx >= 0 ? courtIdx : 0}
-                    slotCount={slotCount}
-                    onClick={() => {
-                      setSelected(res)
-                      onReservationClick(res)
-                    }}
-                  />
-                </div>
-              )
-            })
-          )}
+                  const courtIdx = courts.findIndex((c) => c.id === res.courtId)
+                  const court    = courts[courtIdx]
+
+                  return (
+                    <WeekPill
+                      key={res.id}
+                      reservation={res}
+                      courtName={court?.name ?? ''}
+                      courtIdx={courtIdx >= 0 ? courtIdx : 0}
+                      topPx={topPx}
+                      heightPx={heightPx}
+                      leftFraction={layout.leftFraction}
+                      widthFraction={layout.widthFraction}
+                      onClick={() => {
+                        setSelected(res)
+                        onReservationClick(res)
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            )
+          })}
 
           {/* ── Spillover pills — top of Monday column (col 2) ───────────── */}
           {spillovers.map((res) => {
-            const rowStart  = 2
-            const rowEnd    = 2 + Math.ceil((res.endTime - DAY_START_MIN) / SLOT_MINUTES)
-            if (rowEnd <= rowStart) return null
+            const slotCount = Math.ceil((res.endTime - DAY_START_MIN) / SLOT_MINUTES)
+            if (slotCount <= 0) return null
 
             const courtIdx = courts.findIndex((c) => c.id === res.courtId)
             const court    = courts[courtIdx]
@@ -397,7 +419,7 @@ export function CalendarWeekView({
               <div
                 key={`spillover-${res.id}`}
                 style={{
-                  gridRow:       `${rowStart} / ${rowEnd}`,
+                  gridRow:       `2 / ${2 + slotCount}`,
                   gridColumn:    2,
                   position:      'relative',
                   zIndex:        1,
@@ -409,7 +431,10 @@ export function CalendarWeekView({
                   reservation={res}
                   courtName={court?.name ?? ''}
                   courtIdx={courtIdx >= 0 ? courtIdx : 0}
-                  slotCount={rowEnd - rowStart}
+                  topPx={0}
+                  heightPx={slotCount * SLOT_HEIGHT}
+                  leftFraction={0}
+                  widthFraction={1}
                   onClick={() => {}}
                 />
               </div>
@@ -462,77 +487,96 @@ export function CalendarWeekView({
 
 // ─── WeekPill ─────────────────────────────────────────────────────────────────
 
-const COURT_PALETTES = [
-  { bg: 'oklch(92% 0.04 275)', border: 'oklch(70% 0.09 275)', text: 'oklch(28% 0.08 275)' },
-  { bg: 'oklch(92% 0.06 42)',  border: 'oklch(78% 0.10 42)',  text: 'oklch(32% 0.09 42)'  },
-  { bg: 'oklch(93% 0.04 200)', border: 'oklch(68% 0.10 200)', text: 'oklch(30% 0.08 200)' },
-  { bg: 'oklch(93% 0.05 130)', border: 'oklch(68% 0.12 130)', text: 'oklch(28% 0.10 130)' },
-  { bg: 'oklch(93% 0.05 350)', border: 'oklch(70% 0.10 350)', text: 'oklch(30% 0.09 350)' },
-  { bg: 'oklch(93% 0.04 60)',  border: 'oklch(72% 0.12 60)',  text: 'oklch(30% 0.09 60)'  },
-] as const
-
 interface WeekPillProps {
-  reservation: CalendarReservation
-  courtName:   string
-  courtIdx:    number
-  slotCount:   number
-  onClick:     () => void
+  reservation:   CalendarReservation
+  courtName:     string
+  courtIdx:      number
+  topPx:         number
+  heightPx:      number
+  leftFraction:  number
+  widthFraction: number
+  onClick:       () => void
 }
 
-function WeekPill({ reservation, courtName, courtIdx, slotCount, onClick }: WeekPillProps) {
-  const heightPx  = slotCount * SLOT_HEIGHT
-  const isCompact = heightPx < 60
-  const palette   = COURT_PALETTES[courtIdx % COURT_PALETTES.length]!
+function WeekPill({
+  reservation, courtName, courtIdx,
+  topPx, heightPx, leftFraction, widthFraction,
+  onClick,
+}: WeekPillProps) {
+  // Approximate pixel width for content-density decisions.
+  // Actual width may be wider on large screens; this uses the minimum column width
+  // so we never show more than what fits at the narrowest expected size.
+  const estimatedWidthPx = widthFraction * MIN_DAY_COL_WIDTH
+  const isTall           = heightPx >= 60
+  const isNarrow         = estimatedWidthPx < 64
+  const isVeryNarrow     = estimatedWidthPx < 44
 
+  const palette   = COURT_PALETTES[courtIdx % COURT_PALETTES.length]!
   const endMins   = reservation.endTime > 1440 ? reservation.endTime - 1440 : reservation.endTime
   const timeRange = `${minutesToTime(reservation.startTime)}–${minutesToTime(endMins)}`
+
+  // Native tooltip with full info for very narrow pills where text isn't visible
+  const tooltipText = isVeryNarrow
+    ? `${reservation.clientName} · ${timeRange}${courtName ? ` · ${courtName}` : ''}`
+    : undefined
 
   return (
     <div
       role="button"
       tabIndex={0}
+      title={tooltipText}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
       style={{
         position:        'absolute',
-        inset:           '2px 4px',
+        top:             topPx + 2,
+        height:          heightPx - 4,
+        left:            `calc(${leftFraction * 100}% + 2px)`,
+        width:           `calc(${widthFraction * 100}% - 4px)`,
+        minWidth:        24,
         backgroundColor: palette.bg,
         border:          `1.5px solid ${palette.border}`,
         borderRadius:    5,
-        padding:         isCompact ? '3px 6px' : '6px 8px',
+        padding:         isVeryNarrow ? '2px' : isNarrow ? '3px 4px' : isTall ? '6px 8px' : '3px 6px',
         cursor:          'pointer',
         overflow:        'hidden',
         display:         'flex',
         flexDirection:   'column',
         gap:             2,
+        pointerEvents:   'auto',
+        boxSizing:       'border-box',
       }}
     >
-      <span style={{
-        fontSize:        11,
-        fontWeight:      600,
-        color:           palette.text,
-        lineHeight:      1.2,
-        whiteSpace:      'nowrap',
-        overflow:        'hidden',
-        textOverflow:    'ellipsis',
-        userSelect:      'none',
-      }}>
-        {reservation.clientName}
-      </span>
-      <span style={{
-        fontSize:           10,
-        color:              palette.text,
-        opacity:            0.75,
-        lineHeight:         1.2,
-        userSelect:         'none',
-        fontVariantNumeric: 'tabular-nums',
-        whiteSpace:         'nowrap',
-        overflow:           'hidden',
-        textOverflow:       'ellipsis',
-      }}>
-        {timeRange}
-      </span>
-      {!isCompact && courtName && (
+      {!isVeryNarrow && (
+        <span style={{
+          fontSize:     11,
+          fontWeight:   600,
+          color:        palette.text,
+          lineHeight:   1.2,
+          whiteSpace:   'nowrap',
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+          userSelect:   'none',
+        }}>
+          {reservation.clientName}
+        </span>
+      )}
+      {!isNarrow && (
+        <span style={{
+          fontSize:           10,
+          color:              palette.text,
+          opacity:            0.75,
+          lineHeight:         1.2,
+          userSelect:         'none',
+          fontVariantNumeric: 'tabular-nums',
+          whiteSpace:         'nowrap',
+          overflow:           'hidden',
+          textOverflow:       'ellipsis',
+        }}>
+          {timeRange}
+        </span>
+      )}
+      {!isNarrow && isTall && courtName && (
         <span style={{
           fontSize:     10,
           color:        palette.text,

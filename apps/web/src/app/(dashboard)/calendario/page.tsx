@@ -23,6 +23,7 @@ import type { Court, CalendarReservation, CalendarReservationState } from '@/com
 import { useActiveVenue }          from '@/context/active-venue'
 import type { DaySchedule }        from '@canchero/backend'
 import { minutesToTime }           from '@canchero/backend'
+import { COURT_PALETTES }          from '@/lib/calendar-utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -538,49 +539,72 @@ export default function CalendarioPage() {
       </div>
     </div>
 
-    {/* Info strip: state legend + pending cobros */}
-    <div className="strip-scroll" style={{
-      height:       36,
-      display:      'flex',
-      alignItems:   'center',
-      justifyContent: 'space-between',
-      padding:      '0 32px',
-      borderBottom: `1px solid ${t.divisor.val}`,
-      overflowX:    'auto',
-      gap:          20,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-        {LEGEND.map(({ label, color, description }) => (
-          <span
-            key={label}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0, cursor: 'default' }}
-            onMouseEnter={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect()
-              setLegendTooltip({ text: description, x: rect.left + rect.width / 2, y: rect.bottom + 6 })
-            }}
-            onMouseLeave={() => setLegendTooltip(null)}
-          >
-            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
+    {/* Info strip: leyenda contextual según vista + cobros pendientes */}
+    {viewMode !== 'mes' && (
+      <div className="strip-scroll" style={{
+        height:         36,
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'space-between',
+        padding:        '0 32px',
+        borderBottom:   `1px solid ${t.divisor.val}`,
+        overflowX:      'auto',
+        gap:            20,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {viewMode === 'dia'
+            ? LEGEND.map(({ label, color, description }) => (
+                <span
+                  key={label}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0, cursor: 'default' }}
+                  onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setLegendTooltip({ text: description, x: rect.left + rect.width / 2, y: rect.bottom + 6 })
+                  }}
+                  onMouseLeave={() => setLegendTooltip(null)}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
+                </span>
+              ))
+            : courts.map((court, idx) => {
+                const palette = COURT_PALETTES[idx % COURT_PALETTES.length]!
+                return (
+                  <span
+                    key={court.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}
+                  >
+                    <span style={{
+                      width:           10,
+                      height:          10,
+                      borderRadius:    3,
+                      backgroundColor: palette.bg,
+                      border:          `1.5px solid ${palette.border}`,
+                      flexShrink:      0,
+                    }} />
+                    <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{court.name}</span>
+                  </span>
+                )
+              })
+          }
+        </div>
+        {viewMode === 'dia' && stats !== undefined && stats.pendingCount > 0 && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span style={{
+              fontSize:        11,
+              fontWeight:      500,
+              color:           'oklch(55% 0.15 42)',
+              backgroundColor: 'oklch(95% 0.04 42)',
+              borderRadius:    5,
+              padding:         '2px 8px',
+              lineHeight:      1.4,
+            }}>
+              {stats.pendingCount} cobro{stats.pendingCount !== 1 ? 's' : ''} pendiente{stats.pendingCount !== 1 ? 's' : ''}
+            </span>
           </span>
-        ))}
+        )}
       </div>
-      {viewMode === 'dia' && stats !== undefined && stats.pendingCount > 0 && (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <span style={{
-            fontSize:        11,
-            fontWeight:      500,
-            color:           'oklch(55% 0.15 42)',
-            backgroundColor: 'oklch(95% 0.04 42)',
-            borderRadius:    5,
-            padding:         '2px 8px',
-            lineHeight:      1.4,
-          }}>
-            {stats.pendingCount} cobro{stats.pendingCount !== 1 ? 's' : ''} pendiente{stats.pendingCount !== 1 ? 's' : ''}
-          </span>
-        </span>
-      )}
-    </div>
+    )}
     </>
   )
 
