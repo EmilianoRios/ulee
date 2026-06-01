@@ -65,7 +65,9 @@ function isHoyVisible(viewMode: CalendarViewMode, currentDate: Date): boolean {
     const mon = getMondayOfWeek(currentDate)
     const sun = new Date(mon)
     sun.setDate(mon.getDate() + 6)
-    return today < mon || today > sun
+    const todayStr = dateToStr(today)
+    const { startDate, endDate } = deriveWindow('semana', currentDate)
+    return todayStr < startDate || todayStr > endDate
   }
   return today.getFullYear() !== currentDate.getFullYear() ||
          today.getMonth()    !== currentDate.getMonth()
@@ -313,7 +315,7 @@ export default function CalendarioPage() {
       clientName:    r.clientName,
       phone:         r.clientPhone || undefined,
       startTime:     0,
-      endTime:       r.endTime - 1440,
+      endTime:       r.endTime,
       state:         STATUS_TO_STATE[r.status],
       amount:        r.totalAmount,
       depositAmount: r.depositAmount,
@@ -683,7 +685,6 @@ export default function CalendarioPage() {
                     byDate={rangeByDate}
                     viewYear={currentDate.getFullYear()}
                     viewMonth={currentDate.getMonth()}
-                    selectedDate={currentDate}
                     schedule={venueSchedule}
                     scheduleHistory={venueScheduleHistory}
                     holidays={venueHolidays}

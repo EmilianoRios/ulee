@@ -267,20 +267,22 @@ export function CalendarWeekView({
                   {dayNum}
                 </span>
                 {day.holiday !== null && (
-                  <span style={{
-                    fontSize:        9,
-                    fontWeight:      500,
-                    color:           'oklch(46% 0.15 30)',
-                    backgroundColor: 'oklch(94% 0.05 30)',
-                    borderRadius:    3,
-                    padding:         '1px 4px',
-                    lineHeight:      1.4,
-                    userSelect:      'none',
-                    maxWidth:        '100%',
-                    overflow:        'hidden',
-                    textOverflow:    'ellipsis',
-                    whiteSpace:      'nowrap',
-                  }}>
+                  <span
+                    title={day.holiday.reason}
+                    style={{
+                      fontSize:        9,
+                      fontWeight:      500,
+                      color:           'oklch(46% 0.15 30)',
+                      backgroundColor: 'oklch(94% 0.05 30)',
+                      borderRadius:    3,
+                      padding:         '1px 4px',
+                      lineHeight:      1.4,
+                      userSelect:      'none',
+                      maxWidth:        '100%',
+                      overflow:        'hidden',
+                      textOverflow:    'ellipsis',
+                      whiteSpace:      'nowrap',
+                    }}>
                     Feriado
                   </span>
                 )}
@@ -516,33 +518,32 @@ function WeekPill({ reservation, courtName, courtIdx, slotCount, onClick }: Week
       }}>
         {reservation.clientName}
       </span>
-      {!isCompact && (
-        <>
-          <span style={{
-            fontSize:           10,
-            color:              palette.text,
-            opacity:            0.75,
-            lineHeight:         1.2,
-            userSelect:         'none',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {timeRange}
-          </span>
-          {courtName && (
-            <span style={{
-              fontSize:     10,
-              color:        palette.text,
-              opacity:      0.65,
-              lineHeight:   1.2,
-              userSelect:   'none',
-              whiteSpace:   'nowrap',
-              overflow:     'hidden',
-              textOverflow: 'ellipsis',
-            }}>
-              {courtName}
-            </span>
-          )}
-        </>
+      <span style={{
+        fontSize:           10,
+        color:              palette.text,
+        opacity:            0.75,
+        lineHeight:         1.2,
+        userSelect:         'none',
+        fontVariantNumeric: 'tabular-nums',
+        whiteSpace:         'nowrap',
+        overflow:           'hidden',
+        textOverflow:       'ellipsis',
+      }}>
+        {timeRange}
+      </span>
+      {!isCompact && courtName && (
+        <span style={{
+          fontSize:     10,
+          color:        palette.text,
+          opacity:      0.65,
+          lineHeight:   1.2,
+          userSelect:   'none',
+          whiteSpace:   'nowrap',
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+        }}>
+          {courtName}
+        </span>
       )}
     </div>
   )

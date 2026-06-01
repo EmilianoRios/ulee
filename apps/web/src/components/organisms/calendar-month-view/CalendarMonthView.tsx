@@ -13,7 +13,6 @@ interface CalendarMonthViewProps {
   byDate:          Record<string, CalendarReservation[]>
   viewYear:        number
   viewMonth:       number
-  selectedDate:    Date
   schedule:        DaySchedule[]
   scheduleHistory: ScheduleVersion[]
   holidays:        { date: string; reason: string }[]
@@ -37,7 +36,6 @@ export function CalendarMonthView({
   byDate,
   viewYear,
   viewMonth,
-  selectedDate: _selectedDate,
   schedule,
   scheduleHistory,
   holidays,
