@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation, useConvexAuth } from 'convex/react'
@@ -10,22 +10,120 @@ import type { ScheduleVersion } from '@canchero/backend'
 
 import { CalendarMiniPicker }      from '@/components/molecules/calendar-mini-picker'
 import { CalendarDayView }         from '@/components/organisms/calendar-day-view'
+import { CalendarWeekView }        from '@/components/organisms/calendar-week-view'
+import { CalendarMonthView }       from '@/components/organisms/calendar-month-view'
 import { ScheduleWarningBanner }   from '@/components/molecules/schedule-warning-banner'
-import { ModuleLayout }       from '@/components/templates/module-layout'
-import { NewEntrySlideOver }  from '@/components/organisms/new-entry-slide-over'
-import type { EntryType }     from '@/components/organisms/new-entry-slide-over'
+import { ModuleLayout }            from '@/components/templates/module-layout'
+import { NewEntrySlideOver }       from '@/components/organisms/new-entry-slide-over'
+import type { EntryType }          from '@/components/organisms/new-entry-slide-over'
 import type { ReservationUpdateFields, SeriesUpdateFields } from '@/components/organisms/reservation-slide-over'
-import type { CalendarViewMode }           from '@/components/molecules/calendar-header'
+import type { CalendarViewMode }   from '@/components/molecules/calendar-header'
 import type { Court, CalendarReservation, CalendarReservationState } from '@/components/atoms/reservation-card'
-import { useActiveVenue } from '@/context/active-venue'
-import type { DaySchedule } from '@canchero/backend'
-import { minutesToTime } from '@canchero/backend'
+import { useActiveVenue }          from '@/context/active-venue'
+import type { DaySchedule }        from '@canchero/backend'
+import { minutesToTime }           from '@canchero/backend'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert a JS Date to "YYYY-MM-DD" using UTC-3 offset. */
-function dateFromDate(d: Date): string {
+function dateToStr(d: Date): string {
   return new Date(d.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+function getMondayOfWeek(d: Date): Date {
+  const dow = d.getDay() === 0 ? 7 : d.getDay()
+  const mon = new Date(d)
+  mon.setDate(d.getDate() - (dow - 1))
+  return mon
+}
+
+function deriveWindow(
+  viewMode: CalendarViewMode,
+  currentDate: Date,
+): { startDate: string; endDate: string } {
+  if (viewMode === 'dia') {
+    const s = dateToStr(currentDate)
+    return { startDate: s, endDate: s }
+  }
+  if (viewMode === 'semana') {
+    const mon = getMondayOfWeek(currentDate)
+    const sun = new Date(mon)
+    sun.setDate(mon.getDate() + 6)
+    return { startDate: dateToStr(mon), endDate: dateToStr(sun) }
+  }
+  // mes
+  const first = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+  const last  = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+  return { startDate: dateToStr(first), endDate: dateToStr(last) }
+}
+
+function isHoyVisible(viewMode: CalendarViewMode, currentDate: Date): boolean {
+  const today = new Date()
+  if (viewMode === 'dia') {
+    return today.toDateString() !== currentDate.toDateString()
+  }
+  if (viewMode === 'semana') {
+    const mon = getMondayOfWeek(currentDate)
+    const sun = new Date(mon)
+    sun.setDate(mon.getDate() + 6)
+    return today < mon || today > sun
+  }
+  return today.getFullYear() !== currentDate.getFullYear() ||
+         today.getMonth()    !== currentDate.getMonth()
+}
+
+const MONTH_NAMES_CAP = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+const MONTH_ABBREVS = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+]
+
+function formatHeaderDate(date: Date, viewMode: CalendarViewMode): string {
+  if (viewMode === 'dia') {
+    const raw = date.toLocaleDateString('es-AR', {
+      weekday: 'long',
+      day:     'numeric',
+      month:   'long',
+      year:    'numeric',
+    })
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
+  }
+  if (viewMode === 'mes') {
+    const month = MONTH_NAMES_CAP[date.getMonth()]!
+    return `${month} ${date.getFullYear()}`
+  }
+  // semana
+  const mon = getMondayOfWeek(date)
+  const sun = new Date(mon)
+  sun.setDate(mon.getDate() + 6)
+  const monDay  = mon.getDate()
+  const sunDay  = sun.getDate()
+  const monMon  = mon.getMonth()
+  const sunMon  = sun.getMonth()
+  const monYear = mon.getFullYear()
+  const sunYear = sun.getFullYear()
+  if (monMon === sunMon && monYear === sunYear) {
+    return `${monDay} – ${sunDay} ${MONTH_ABBREVS[monMon]!} ${monYear}`
+  }
+  if (monYear === sunYear) {
+    return `${monDay} ${MONTH_ABBREVS[monMon]!} – ${sunDay} ${MONTH_ABBREVS[sunMon]!} ${sunYear}`
+  }
+  return `${monDay} ${MONTH_ABBREVS[monMon]!} ${monYear} – ${sunDay} ${MONTH_ABBREVS[sunMon]!} ${sunYear}`
+}
+
+function prevLabel(viewMode: CalendarViewMode): string {
+  if (viewMode === 'semana') return 'Semana anterior'
+  if (viewMode === 'mes')    return 'Mes anterior'
+  return 'Día anterior'
+}
+
+function nextLabel(viewMode: CalendarViewMode): string {
+  if (viewMode === 'semana') return 'Semana siguiente'
+  if (viewMode === 'mes')    return 'Mes siguiente'
+  return 'Día siguiente'
 }
 
 // ─── Status mappings ──────────────────────────────────────────────────────────
@@ -60,16 +158,6 @@ const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
   { id: 'mes',    label: 'Mes'    },
 ]
 
-function formatHeaderDate(date: Date): string {
-  const raw = date.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day:     'numeric',
-    month:   'long',
-    year:    'numeric',
-  })
-  return raw.charAt(0).toUpperCase() + raw.slice(1)
-}
-
 // ─── Dark header tokens ───────────────────────────────────────────────────────
 
 const D = {
@@ -96,24 +184,39 @@ export default function CalendarioPage() {
   const cancelSeries      = useMutation(api.functions.reservations.series.cancelSeries)
   const modifySeries      = useMutation(api.functions.reservations.series.modifySeries)
 
-  const [currentDate,         setCurrentDate]         = useState(() => new Date())
-  const [viewMode,            setViewMode]            = useState<CalendarViewMode>('dia')
-  const [slideOverOpen,       setSlideOverOpen]       = useState(false)
-  const [defaultType,         setDefaultType]         = useState<EntryType>('reserva')
-  const [initialSlotTime,     setInitialSlotTime]     = useState<string | undefined>(undefined)
-  const [initialSlotCourt,    setInitialSlotCourt]    = useState<string | undefined>(undefined)
-  const [scheduleBannerDismissed, setScheduleBannerDismissed] = useState(false)
+  const [currentDate,              setCurrentDate]              = useState(() => new Date())
+  const [viewMode,                 setViewMode]                 = useState<CalendarViewMode>('dia')
+  const [slideOverOpen,            setSlideOverOpen]            = useState(false)
+  const [defaultType,              setDefaultType]              = useState<EntryType>('reserva')
+  const [initialSlotTime,          setInitialSlotTime]          = useState<string | undefined>(undefined)
+  const [initialSlotCourt,         setInitialSlotCourt]         = useState<string | undefined>(undefined)
+  const [scheduleBannerDismissed,  setScheduleBannerDismissed]  = useState(false)
 
-  const currentDateStr = dateFromDate(currentDate)
+  const currentDateStr = dateToStr(currentDate)
+  const canQuery       = isAuthenticated && activeVenueId !== null
 
-  // ── Convex queries — skip when no venue selected ───────────────────────────
-  const canQuery = isAuthenticated && activeVenueId !== null
-
+  // ── Day query — active only in 'dia' mode ─────────────────────────────────
   const reservationsRaw = useQuery(
     api.functions.reservations.queries.listAllByVenueAndDate,
-    canQuery ? { venueId: activeVenueId, date: currentDateStr } : 'skip'
+    canQuery && viewMode === 'dia'
+      ? { venueId: activeVenueId, date: currentDateStr }
+      : 'skip'
   )
 
+  // ── Range query — active only in 'semana' | 'mes' modes ──────────────────
+  const { startDate: rangeStart, endDate: rangeEnd } = useMemo(
+    () => deriveWindow(viewMode, currentDate),
+    [viewMode, currentDate]
+  )
+
+  const rangeRaw = useQuery(
+    api.functions.reservations.queries.listByVenueAndDateRange,
+    canQuery && (viewMode === 'semana' || viewMode === 'mes')
+      ? { venueId: activeVenueId, startDate: rangeStart, endDate: rangeEnd }
+      : 'skip'
+  )
+
+  // ── Common queries — always active when venue selected ───────────────────
   const courtsRaw = useQuery(
     api.functions.courts.queries.listByVenue,
     canQuery ? { venueId: activeVenueId } : 'skip'
@@ -126,38 +229,41 @@ export default function CalendarioPage() {
 
   const stats = useQuery(
     api.functions.reservations.queries.statsByVenueAndDate,
-    canQuery ? { venueId: activeVenueId, date: currentDateStr } : 'skip'
+    canQuery && viewMode === 'dia' ? { venueId: activeVenueId, date: currentDateStr } : 'skip'
   )
 
-  const isLoading = activeVenueId !== null && (reservationsRaw === undefined || courtsRaw === undefined)
+  // ── Loading state ─────────────────────────────────────────────────────────
+  const isLoadingDay   = viewMode === 'dia'   && activeVenueId !== null && (reservationsRaw === undefined || courtsRaw === undefined)
+  const isLoadingRange = (viewMode === 'semana' || viewMode === 'mes') && activeVenueId !== null && (rangeRaw === undefined || courtsRaw === undefined)
+  const isLoading      = isLoadingDay || isLoadingRange
 
   // ── Shape adaptation ───────────────────────────────────────────────────────
   const courts: Court[] = courtsRaw?.map((c) => ({
-    id:             c._id as string,
-    name:           c.name,
-    priceOverride:  c.priceOverride ?? undefined,
+    id:            c._id as string,
+    name:          c.name,
+    priceOverride: c.priceOverride ?? undefined,
   })) ?? []
 
-  const venuePricePerHour      = venueRaw?.pricingConfig?.pricePerHour
-  const venueNightRate          = venueRaw?.pricingConfig?.nightRatePrice
-  const venueNightRateStart     = venueRaw?.pricingConfig?.nightRateStart !== undefined
+  const venuePricePerHour     = venueRaw?.pricingConfig?.pricePerHour
+  const venueNightRate         = venueRaw?.pricingConfig?.nightRatePrice
+  const venueNightRateStart    = venueRaw?.pricingConfig?.nightRateStart !== undefined
     ? minutesToTime(venueRaw.pricingConfig.nightRateStart)
     : undefined
-  const venueDepositPercentage  = venueRaw?.pricingConfig?.depositPercentage ?? 50
-  const venueSchedule: DaySchedule[] = venueRaw?.schedule ?? []
+  const venueDepositPercentage = venueRaw?.pricingConfig?.depositPercentage ?? 50
+  const venueSchedule: DaySchedule[]          = venueRaw?.schedule        ?? []
   const venueScheduleHistory: ScheduleVersion[] = venueRaw?.scheduleHistory ?? []
-  const venueHolidays = venueRaw?.holidays ?? []
+  const venueHolidays                          = venueRaw?.holidays         ?? []
 
-  // Show warning when venue loaded but scheduleHistory was never explicitly configured
   const showScheduleWarning =
     venueRaw !== undefined &&
     activeVenueId !== null &&
     venueScheduleHistory.length === 0
 
+  // ── Day view reservation mapping ──────────────────────────────────────────
   const rawReservations = reservationsRaw?.reservations ?? []
   const rawSpillovers   = reservationsRaw?.spillovers   ?? []
 
-  const mapReservation = (r: typeof rawReservations[number]): CalendarReservation => ({
+  const mapReservation = useCallback((r: typeof rawReservations[number]): CalendarReservation => ({
     id:            r._id,
     clientName:    r.clientName,
     phone:         r.clientPhone || undefined,
@@ -169,23 +275,75 @@ export default function CalendarioPage() {
     courtId:       r.courtId as string,
     notes:         r.notes,
     seriesId:      r.seriesId,
-  })
+  }), [])
 
-  const reservations: CalendarReservation[] = rawReservations.map(mapReservation)
-  const spillovers:   CalendarReservation[] = rawSpillovers.map((r) => ({
+  const dayReservations: CalendarReservation[] = rawReservations.map(mapReservation)
+  const daySpillovers:   CalendarReservation[] = rawSpillovers.map((r) => ({
     ...mapReservation(r),
     startTime: 0,
     endTime:   r.endTime - 1440,
   }))
 
+  // ── Range view reservation mapping ────────────────────────────────────────
+  const rangeByDate = useMemo((): Record<string, CalendarReservation[]> => {
+    if (!rangeRaw) return {}
+    const result: Record<string, CalendarReservation[]> = {}
+    for (const [dateStr, resArr] of Object.entries(rangeRaw.byDate)) {
+      result[dateStr] = resArr.map((r) => ({
+        id:            r._id,
+        clientName:    r.clientName,
+        phone:         r.clientPhone || undefined,
+        startTime:     r.startTime,
+        endTime:       r.endTime,
+        state:         STATUS_TO_STATE[r.status],
+        amount:        r.totalAmount,
+        depositAmount: r.depositAmount,
+        courtId:       r.courtId as string,
+        notes:         r.notes,
+        seriesId:      r.seriesId,
+      }))
+    }
+    return result
+  }, [rangeRaw])
+
+  const rangeSpillovers: CalendarReservation[] = useMemo(() => {
+    if (!rangeRaw) return []
+    return rangeRaw.spillovers.map((r) => ({
+      id:            r._id,
+      clientName:    r.clientName,
+      phone:         r.clientPhone || undefined,
+      startTime:     0,
+      endTime:       r.endTime - 1440,
+      state:         STATUS_TO_STATE[r.status],
+      amount:        r.totalAmount,
+      depositAmount: r.depositAmount,
+      courtId:       r.courtId as string,
+      notes:         r.notes,
+      seriesId:      r.seriesId,
+    }))
+  }, [rangeRaw])
+
   // ── Navigation ─────────────────────────────────────────────────────────────
-  const prevDay = useCallback(() => {
-    setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })
-  }, [])
-  const nextDay = useCallback(() => {
-    setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n })
-  }, [])
+  const navigate = useCallback((delta: number) => {
+    setCurrentDate((d) => {
+      const n = new Date(d)
+      if (viewMode === 'dia') {
+        n.setDate(n.getDate() + delta)
+      } else if (viewMode === 'semana') {
+        n.setDate(n.getDate() + delta * 7)
+      } else {
+        n.setMonth(n.getMonth() + delta)
+        // clamp to last day of resulting month
+        const lastDay = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate()
+        if (n.getDate() > lastDay) n.setDate(lastDay)
+      }
+      return n
+    })
+  }, [viewMode])
+
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
+
+  const showHoy = isHoyVisible(viewMode, currentDate)
 
   const handleCancelSeries = useCallback(async (seriesId: string) => {
     await cancelSeries({ seriesId: seriesId as Id<'recurrenceSeries'> })
@@ -195,8 +353,8 @@ export default function CalendarioPage() {
     await modifySeries({ seriesId: seriesId as Id<'recurrenceSeries'>, ...fields })
   }, [modifySeries])
 
-  const isToday = new Date().toDateString() === currentDate.toDateString()
-
+  // ── Week start for CalendarWeekView ────────────────────────────────────────
+  const weekStart = useMemo(() => getMondayOfWeek(currentDate), [currentDate])
 
   const navBtn: React.CSSProperties = {
     width:           30,
@@ -242,8 +400,8 @@ export default function CalendarioPage() {
         <div style={{ width: 1, height: 14, backgroundColor: 'oklch(38% 0.016 228)', flexShrink: 0, marginRight: 4 }} />
 
         <button
-          onClick={prevDay}
-          aria-label="Día anterior"
+          onClick={() => navigate(-1)}
+          aria-label={prevLabel(viewMode)}
           style={navBtn}
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = D.hover }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
@@ -261,12 +419,12 @@ export default function CalendarioPage() {
           minWidth:      0,
           textAlign:     'center',
         }}>
-          {formatHeaderDate(currentDate)}
+          {formatHeaderDate(currentDate, viewMode)}
         </span>
 
         <button
-          onClick={nextDay}
-          aria-label="Día siguiente"
+          onClick={() => navigate(1)}
+          aria-label={nextLabel(viewMode)}
           style={navBtn}
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = D.hover }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
@@ -274,7 +432,7 @@ export default function CalendarioPage() {
           <ChevronRight size={15} strokeWidth={2} />
         </button>
 
-        {!isToday && (
+        {showHoy && (
           <button
             onClick={goToday}
             style={{
@@ -339,22 +497,20 @@ export default function CalendarioPage() {
           border:          `1px solid ${D.border}`,
         }}>
           {VIEW_OPTIONS.map(({ id, label }) => {
-            const isActive   = viewMode === id
-            const isDisabled = id !== 'dia'
+            const isActive = viewMode === id
             return (
               <button
                 key={id}
-                onClick={() => !isDisabled && setViewMode(id)}
+                onClick={() => setViewMode(id)}
                 style={{
                   padding:         '5px 14px',
                   borderRadius:    6,
                   border:          'none',
-                  cursor:          isDisabled ? 'not-allowed' : 'pointer',
+                  cursor:          'pointer',
                   fontSize:        12,
                   fontWeight:      isActive ? 600 : 400,
                   backgroundColor: isActive ? D.toggleOn : 'transparent',
                   color:           isActive ? D.text : D.toggleOff,
-                  opacity:         isDisabled && !isActive ? 0.4 : 1,
                   transition:      'background-color 120ms ease-out',
                   userSelect:      'none',
                   lineHeight:      1,
@@ -371,14 +527,14 @@ export default function CalendarioPage() {
 
     {/* Info strip: state legend + pending cobros */}
     <div className="strip-scroll" style={{
-      height:          36,
-      display:         'flex',
-      alignItems:      'center',
-      justifyContent:  'space-between',
-      padding:         '0 32px',
-      borderBottom:    `1px solid ${t.divisor.val}`,
-      overflowX:       'auto',
-      gap:             20,
+      height:       36,
+      display:      'flex',
+      alignItems:   'center',
+      justifyContent: 'space-between',
+      padding:      '0 32px',
+      borderBottom: `1px solid ${t.divisor.val}`,
+      overflowX:    'auto',
+      gap:          20,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
         {LEGEND.map(({ label, color }) => (
@@ -388,7 +544,7 @@ export default function CalendarioPage() {
           </span>
         ))}
       </div>
-      {isToday && stats !== undefined && stats.pendingCount > 0 && (
+      {viewMode === 'dia' && stats !== undefined && stats.pendingCount > 0 && (
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{
             fontSize:        11,
@@ -455,12 +611,12 @@ export default function CalendarioPage() {
                 }}>
                   <span style={{ fontSize: 14, color: t.textoMuted.val }}>Cargando...</span>
                 </div>
-              ) : (
+              ) : viewMode === 'dia' ? (
                 <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                   <CalendarDayView
                     courts={courts}
-                    reservations={reservations}
-                    spillovers={spillovers}
+                    reservations={dayReservations}
+                    spillovers={daySpillovers}
                     schedule={venueSchedule}
                     scheduleHistory={venueScheduleHistory}
                     holidays={venueHolidays}
@@ -506,6 +662,35 @@ export default function CalendarioPage() {
                     }}
                     onCancelSeries={handleCancelSeries}
                     onModifySeries={handleModifySeries}
+                  />
+                </div>
+              ) : viewMode === 'semana' ? (
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <CalendarWeekView
+                    courts={courts}
+                    byDate={rangeByDate}
+                    spillovers={rangeSpillovers}
+                    weekStart={weekStart}
+                    schedule={venueSchedule}
+                    scheduleHistory={venueScheduleHistory}
+                    holidays={venueHolidays}
+                    onReservationClick={() => {}}
+                  />
+                </div>
+              ) : (
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <CalendarMonthView
+                    byDate={rangeByDate}
+                    viewYear={currentDate.getFullYear()}
+                    viewMonth={currentDate.getMonth()}
+                    selectedDate={currentDate}
+                    schedule={venueSchedule}
+                    scheduleHistory={venueScheduleHistory}
+                    holidays={venueHolidays}
+                    onDayClick={(date) => {
+                      setCurrentDate(date)
+                      setViewMode('dia')
+                    }}
                   />
                 </div>
               )}
