@@ -267,7 +267,12 @@ export const extendReservation = mutation({
 
     await assertVenueAccess(ctx, reservation.venueId)
 
-    if (reservation.status !== 'on_court' && reservation.status !== 'paid' && reservation.status !== 'deposit_paid') {
+    if (
+      reservation.status !== 'on_court' &&
+      reservation.status !== 'paid'      &&
+      reservation.status !== 'deposit_paid' &&
+      reservation.status !== 'pending'
+    ) {
       throw new ConvexError('Solo se puede extender una reserva en curso')
     }
 

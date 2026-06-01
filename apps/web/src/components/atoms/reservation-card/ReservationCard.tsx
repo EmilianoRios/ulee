@@ -123,14 +123,67 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
     },
   }[reservation.state]
 
-  const isCompact = heightPx < 72
+  // 30-min slot = 40px  →  ultra-compact (single row)
+  // 60-min slot = 80px  →  normal (two rows)
+  // 90-min slot = 120px →  tall (three rows for en-cancha)
+  const isUltraCompact = heightPx < 55
+  const isTall         = heightPx >= 105
 
   const nowMins   = now.getHours() * 60 + now.getMinutes()
-  const startMins = reservation.startTime
-  const endMins   = reservation.endTime
+  const elapsed   = Math.max(0, nowMins - reservation.startTime)
+  const remaining = Math.max(0, reservation.endTime - nowMins)
 
-  const elapsed   = Math.max(0, nowMins - startMins)
-  const remaining = Math.max(0, endMins - nowMins)
+  // Per-state secondary content (right side of row 2, or middle of single row).
+  // Only show what requires action or is operationally relevant at a glance.
+  function resolveSecondary(): string | null {
+    switch (reservation.state) {
+      case 'en-cancha':
+        // Remaining time is the critical signal — not the amount
+        return remaining > 0 ? `${fmtDuration(remaining)} rest.` : null
+      case 'ausente':
+      case 'pagado':
+        // No pending action — time range alone is enough
+        return null
+      case 'mantenimiento':
+        // Show reason note if set; no amount
+        return reservation.notes ?? null
+      default:
+        // pendiente, señado, recurrente, jugado, evento → amount is actionable
+        return reservation.amount > 0
+          ? `$${reservation.amount.toLocaleString('es-AR')}`
+          : null
+    }
+  }
+
+  const secondary     = resolveSecondary()
+  const hasOvernight  = reservation.endTime > 1440
+  const displayName   = reservation.clientName || STATE_LABEL[reservation.state]
+
+  const timeRangeEl = (
+    <span style={{
+      fontSize:   10.5,
+      color:      palette.text,
+      opacity:    0.68,
+      lineHeight: 1.3,
+      whiteSpace: 'nowrap',
+      display:    'flex',
+      alignItems: 'center',
+      gap:        3,
+    }}>
+      {minutesToTime(reservation.startTime)} – {minutesToTime(reservation.endTime)}
+      {hasOvernight && (
+        <span style={{
+          fontSize:        8.5,
+          fontWeight:      600,
+          color:           'oklch(44% 0.12 275)',
+          backgroundColor: 'oklch(92% 0.04 275)',
+          borderRadius:    3,
+          padding:         '1px 3px',
+          lineHeight:      1.4,
+        }}>+1</span>
+      )}
+    </span>
+  )
 
   return (
     <div
@@ -144,11 +197,12 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
         backgroundColor: palette.bg,
         border:          `1.5px solid ${palette.border}`,
         borderRadius:    6,
-        padding:         isCompact ? '4px 8px' : '10px 12px',
+        padding:         isUltraCompact ? '3px 8px' : '7px 10px',
         cursor:          'pointer',
         display:         'flex',
         flexDirection:   'column',
-        gap:             4,
+        justifyContent:  'center',
+        gap:             isUltraCompact ? 0 : 4,
         overflow:        'hidden',
         userSelect:      'none',
         outline:         'none',
@@ -156,84 +210,122 @@ export function ReservationCard({ reservation, slotHeight, slotCount, now, onCli
         boxSizing:       'border-box',
       }}
     >
-      {reservation.state === 'jugado' && (
-        <div style={{
-          position:        'absolute',
-          top:             5,
-          right:           5,
-          width:           7,
-          height:          7,
-          borderRadius:    '50%',
-          backgroundColor: 'oklch(72% 0.17 58)',
-          boxShadow:       '0 0 0 2px oklch(91% 0.012 220)',
-          flexShrink:      0,
-        }} />
-      )}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, overflow: 'hidden' }}>
-        <span style={{
-          fontSize:      12,
-          fontWeight:    600,
-          color:         palette.text,
-          whiteSpace:    'nowrap',
-          overflow:      'hidden',
-          textOverflow:  'ellipsis',
-          lineHeight:    1.3,
-          letterSpacing: '-0.1px',
-          flex:          1,
-        }}>
-          {reservation.clientName}
-        </span>
-        <span style={{
-          fontSize:      10,
-          fontWeight:    500,
-          letterSpacing: '0.02em',
-          color:         palette.label,
-          whiteSpace:    'nowrap',
-          flexShrink:    0,
-          lineHeight:    1.5,
-        }}>
-          {STATE_LABEL[reservation.state]}
-        </span>
-      </div>
-
-      {!isCompact && (
-        <span style={{ fontSize: 11, color: palette.text, opacity: 0.65, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-          {minutesToTime(reservation.startTime)} – {minutesToTime(reservation.endTime)}
-          {reservation.endTime > 1440 && (
-            <span style={{
-              fontSize:        9,
-              fontWeight:      600,
-              color:           'oklch(44% 0.12 275)',
-              backgroundColor: 'oklch(92% 0.04 275)',
-              borderRadius:    3,
-              padding:         '1px 3px',
-              lineHeight:      1.4,
-            }}>+1</span>
-          )}
-        </span>
-      )}
-
-      {!isCompact && reservation.state === 'en-cancha' && heightPx >= 100 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 10, color: palette.text, opacity: 0.7, lineHeight: 1.4 }}>
-            {fmtDuration(elapsed)} jugados
+      {isUltraCompact ? (
+        /* ── Ultra-compact: single row ──────────────────────────────────────── */
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', minWidth: 0 }}>
+          <span style={{
+            fontSize:     11,
+            fontWeight:   600,
+            color:        palette.text,
+            whiteSpace:   'nowrap',
+            overflow:     'hidden',
+            textOverflow: 'ellipsis',
+            flex:         1,
+            minWidth:     0,
+            lineHeight:   1.3,
+          }}>
+            {displayName}
           </span>
-          <span style={{ fontSize: 10, color: palette.text, opacity: 0.7, lineHeight: 1.4 }}>
-            {fmtDuration(remaining)} restantes
+          <span style={{
+            fontSize:   9.5,
+            color:      palette.text,
+            opacity:    0.72,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            lineHeight: 1.3,
+          }}>
+            {reservation.state === 'en-cancha' && remaining > 0
+              ? `${fmtDuration(remaining)} rest.`
+              : `${minutesToTime(reservation.startTime)}–${minutesToTime(reservation.endTime)}`
+            }
+          </span>
+          <span style={{
+            fontSize:      9.5,
+            fontWeight:    500,
+            letterSpacing: '0.02em',
+            color:         palette.label,
+            whiteSpace:    'nowrap',
+            flexShrink:    0,
+            lineHeight:    1.3,
+          }}>
+            {STATE_LABEL[reservation.state]}
           </span>
         </div>
-      )}
+      ) : (
+        /* ── Normal / Tall: two-row layout ──────────────────────────────────── */
+        <>
+          {/* Row 1: name + state */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, overflow: 'hidden', minWidth: 0 }}>
+            <span style={{
+              fontSize:      12,
+              fontWeight:    600,
+              color:         palette.text,
+              whiteSpace:    'nowrap',
+              overflow:      'hidden',
+              textOverflow:  'ellipsis',
+              lineHeight:    1.3,
+              letterSpacing: '-0.1px',
+              flex:          1,
+              minWidth:      0,
+            }}>
+              {displayName}
+            </span>
+            <span style={{
+              fontSize:      10,
+              fontWeight:    500,
+              letterSpacing: '0.02em',
+              color:         palette.label,
+              whiteSpace:    'nowrap',
+              flexShrink:    0,
+              lineHeight:    1.5,
+              display:       'flex',
+              alignItems:    'center',
+              gap:           4,
+            }}>
+              {/* Jugado carries a payment-pending dot — inline, no absolute positioning */}
+              {reservation.state === 'jugado' && (
+                <span style={{
+                  width:           6,
+                  height:          6,
+                  borderRadius:    '50%',
+                  backgroundColor: 'oklch(72% 0.17 58)',
+                  display:         'inline-block',
+                  flexShrink:      0,
+                }} />
+              )}
+              {STATE_LABEL[reservation.state]}
+            </span>
+          </div>
 
-      {!isCompact && heightPx >= 88 && (
-        <span style={{
-          fontSize:    12,
-          fontWeight:  500,
-          color:       palette.text,
-          lineHeight:  1.3,
-          marginTop:   'auto',
-        }}>
-          ${reservation.amount.toLocaleString('es-AR')}
-        </span>
+          {/* Row 2: time range (left) + secondary content (right) */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, overflow: 'hidden' }}>
+            {timeRangeEl}
+            {secondary && (
+              <span style={{
+                fontSize:   11,
+                fontWeight: 500,
+                color:      palette.text,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                lineHeight: 1.3,
+              }}>
+                {secondary}
+              </span>
+            )}
+          </div>
+
+          {/* Row 3: elapsed + remaining detail — only for tall en-cancha cards */}
+          {isTall && reservation.state === 'en-cancha' && (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <span style={{ fontSize: 10, color: palette.text, opacity: 0.65, lineHeight: 1.4 }}>
+                {fmtDuration(elapsed)} jugados
+              </span>
+              <span style={{ fontSize: 10, color: palette.text, opacity: 0.65, lineHeight: 1.4 }}>
+                {fmtDuration(remaining)} restantes
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
