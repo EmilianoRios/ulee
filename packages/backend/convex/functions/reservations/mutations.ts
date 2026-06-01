@@ -223,14 +223,20 @@ export const updateStatus = mutation({
       return
     }
 
-    // Legacy path — paymentMethod only (unchanged)
+    // INVARIANT: always use effectiveTotalAmount (not reservation.totalAmount) for payment amounts.
+    // reservation.totalAmount is the pre-patch value; totalAmountOverride may have changed it.
+    // depositAmount is frozen at the value written by create() or the updateStatus('paid') path.
+    // extendReservation intentionally does NOT touch depositAmount — extension delta surfaces
+    // as (totalAmount - depositAmount) in the frontend. Do not break this invariant.
+
+    // Legacy path — paymentMethod only
     if (args.paymentMethod !== undefined) {
       const hasDeposit    = reservation.depositAmount != null && reservation.depositAmount > 0
       const paymentType   = hasDeposit ? 'balance' : resolvePaymentType(reservation.status)
       const pendingBalance = hasDeposit
-        ? Math.max(0, reservation.totalAmount - reservation.depositAmount!)
-        : reservation.totalAmount
-      const amount        = paymentType === 'balance' ? pendingBalance : reservation.totalAmount
+        ? Math.max(0, effectiveTotalAmount - reservation.depositAmount!)
+        : effectiveTotalAmount
+      const amount        = paymentType === 'balance' ? pendingBalance : effectiveTotalAmount
 
       await ctx.db.insert('payments', {
         reservationId: args.reservationId,
@@ -320,6 +326,9 @@ export const extendReservation = mutation({
       extraCharge = Math.round(pricePerHour * args.additionalMinutes / 60)
     }
 
+    // Do NOT patch depositAmount here. The frontend derives pendingBalance as
+    // (totalAmount - depositAmount). Leaving depositAmount unchanged causes the
+    // extension charge to surface automatically as the new pendingBalance delta.
     await ctx.db.patch(args.reservationId, {
       endTime:     newEndTime,
       totalAmount: reservation.totalAmount + extraCharge,

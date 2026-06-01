@@ -19,6 +19,7 @@ export interface CalendarReservation {
   state: CalendarReservationState
   amount: number
   depositAmount?: number
+  wasFullyPaid: boolean    // true when reservation reached paid status or had 100% deposit
   courtId: string
   date?: string       // "YYYY-MM-DD" — may be absent for spillovers
   notes?: string

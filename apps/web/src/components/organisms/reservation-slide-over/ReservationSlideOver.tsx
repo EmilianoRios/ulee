@@ -612,7 +612,9 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     const newBalance = reservation
       ? Math.max(0, (reservation.depositAmount != null && reservation.depositAmount > 0)
           ? reservation.amount - reservation.depositAmount
-          : reservation.amount)
+          : reservation.wasFullyPaid
+            ? 0
+            : reservation.amount)
       : 0
     setExtendMins(0)
     setCashAmount(newBalance)
@@ -648,14 +650,16 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const pendingBalance = reservation
     ? Math.max(0, reservation.depositAmount != null
         ? reservation.amount - reservation.depositAmount
-        : reservation.amount)
+        : reservation.wasFullyPaid
+          ? 0
+          : reservation.amount)
     : 0
 
   const customAmount  = Math.max(0, Number(customAmountStr) || 0)
 
   const totalAssigned     = cashAmount + onlineAmount
   const paymentReady      = pendingBalance > 0 && totalAssigned === pendingBalance
-  const depositCoversTotal = pendingBalance === 0 && (reservation?.depositAmount ?? 0) > 0
+  const depositCoversTotal = pendingBalance === 0 && ((reservation?.depositAmount ?? 0) > 0 || reservation?.wasFullyPaid === true)
 
   const statePalette = reservation ? ({
     pendiente:     { bg: 'oklch(95% 0.05 55)',      color: 'oklch(52% 0.15 55)',       border: 'oklch(80% 0.10 55)'  },
@@ -1192,7 +1196,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                     />
                     <ActionButton
-                      label={`${reservation.depositAmount != null ? 'Cobrar saldo' : 'Cobrar total'} · $${pendingBalance.toLocaleString('es-AR')}`}
+                      label={`${(reservation.depositAmount != null || reservation.wasFullyPaid) ? 'Cobrar saldo' : 'Cobrar total'} · $${pendingBalance.toLocaleString('es-AR')}`}
                       onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
                       variant="primary"
                       disabled={!paymentReady}
@@ -1291,7 +1295,10 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
                 {/* Recurrente */}
                 {reservation.state === 'recurrente' && !cancelSeriesConfirm && !isEditingSeries && (() => {
-                  const localBalance = Math.max(0, reservation.depositAmount != null ? customAmount - reservation.depositAmount : customAmount)
+                  const paidSoFar = reservation.depositAmount != null
+                    ? reservation.depositAmount
+                    : reservation.wasFullyPaid ? reservation.amount : 0
+                  const localBalance = Math.max(0, customAmount - paidSoFar)
                   const localPaymentReady = localBalance > 0 && (cashAmount + onlineAmount) === localBalance
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1386,7 +1393,10 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
                 {/* Jugado */}
                 {reservation.state === 'jugado' && (() => {
-                  const localBalance = Math.max(0, reservation.depositAmount != null ? customAmount - reservation.depositAmount : customAmount)
+                  const paidSoFar = reservation.depositAmount != null
+                    ? reservation.depositAmount
+                    : reservation.wasFullyPaid ? reservation.amount : 0
+                  const localBalance = Math.max(0, customAmount - paidSoFar)
                   const localPaymentReady = localBalance > 0 && (cashAmount + onlineAmount) === localBalance
                   return (
                     <>
