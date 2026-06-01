@@ -390,6 +390,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [cliente,       setCliente]       = useState('')
   const [telefono,      setTelefono]      = useState('')
   const [monto,         setMonto]         = useState('')
+  const [isMontoCustom, setIsMontoCustom] = useState(false)
   const [estado,        setEstado]        = useState<'pendiente' | 'señado' | 'pagado'>('señado')
   const [paymentMethod,   setPaymentMethod]   = useState<'cash' | 'online'>('cash')
   const [sena,            setSena]            = useState('')
@@ -416,6 +417,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   // Auto-fill monto splitting the slot into day/night tramos when applicable
   useEffect(() => {
     if (type !== 'reserva' && type !== 'recurrente') return
+    if (isMontoCustom) return
     const court   = courts.find((c) => c.id === courtId)
     const dayRate = court?.priceOverride ?? venuePricePerHour
     if (!dayRate) return
@@ -438,14 +440,15 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       setRateMode('day')
       setMonto(String(Math.round(dayRate * totalMin / 60)))
     }
-  }, [courtId, horaInicio, horaFin, courts, venuePricePerHour, venueNightRate, venueNightRateStart, type])
+  }, [courtId, horaInicio, horaFin, courts, venuePricePerHour, venueNightRate, venueNightRateStart, type, isMontoCustom])
 
-  // Auto-recompute seña when monto changes (unless user has customized it)
+  // Auto-recompute seña when monto changes or when switching back to señado (unless user has customized it)
   useEffect(() => {
+    if (estado !== 'señado') return
     if (!isDepositCustom) {
       setSena(parsedMonto > 0 ? String(Math.round(parsedMonto * pct / 100)) : '')
     }
-  }, [monto, isDepositCustom, pct])
+  }, [estado, monto, isDepositCustom, pct])
 
   // Reset seña state when leaving señado
   useEffect(() => {
@@ -656,7 +659,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 error={errors.monto}
                 badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
               >
-                <NumInput value={monto} onChange={setMonto} placeholder="4500" error={errors.monto} />
+                <NumInput value={monto} onChange={(v) => { setMonto(v); setIsMontoCustom(true) }} placeholder="4500" error={errors.monto} />
               </Field>
               {monto.trim() !== '' && Number(monto) > 0 && (
                 <Field label="Estado inicial" required>
@@ -832,7 +835,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                   error={errors.monto}
                   badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
                 >
-                  <NumInput value={monto} onChange={setMonto} placeholder="9600" error={errors.monto} />
+                  <NumInput value={monto} onChange={(v) => { setMonto(v); setIsMontoCustom(true) }} placeholder="9600" error={errors.monto} />
                 </Field>
                 <Field label="Estado inicial" required>
                   <RadioGroup
