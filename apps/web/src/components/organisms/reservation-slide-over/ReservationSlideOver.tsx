@@ -45,7 +45,7 @@ interface ReservationSlideOverProps {
   venueNightRatePrice?: number
   venueNightRateStart?: number   // minutes since midnight
   onClose:             () => void
-  onUpdateStatus?:     (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
+  onUpdateStatus?:     (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => Promise<void>
   onExtend?:           (reservationId: string, additionalMinutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
   onUpdate?:           (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:           (reservationId: string) => void
@@ -54,6 +54,12 @@ interface ReservationSlideOverProps {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getPaymentErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message.includes('invalid_split_amounts'))
+    return 'Los montos ingresados no coinciden con el saldo pendiente.'
+  return 'No se pudo registrar el cobro. Intentá de nuevo.'
+}
 
 function minutesToTime(mins: number): string {
   const h = Math.floor(mins / 60) % 24
@@ -602,6 +608,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const [cancelSeriesConfirm,  setCancelSeriesConfirm]  = useState(false)
   const [isEditingSeries,      setIsEditingSeries]      = useState(false)
   const [overrideConfirmPending, setOverrideConfirmPending] = useState(false)
+  const [isConfirmingPayment,   setIsConfirmingPayment]   = useState(false)
+  const [paymentError,          setPaymentError]          = useState<string | null>(null)
 
   useEffect(() => {
     if (!reservation) return
@@ -631,6 +639,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setCancelSeriesConfirm(false)
     setIsEditingSeries(false)
     setOverrideConfirmPending(false)
+    setIsConfirmingPayment(false)
+    setPaymentError(null)
   }, [reservation?.id])
 
   const isOpen = reservation !== null
@@ -1046,15 +1056,45 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                     />
                     <ActionButton
-                      label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
-                      onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
+                      label={isConfirmingPayment ? 'Procesando...' : `Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
+                      onClick={async () => {
+                        if (!onUpdateStatus) return
+                        setIsConfirmingPayment(true)
+                        setPaymentError(null)
+                        try {
+                          await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount)
+                          onClose()
+                        } catch (err) {
+                          setPaymentError(getPaymentErrorMessage(err))
+                        } finally {
+                          setIsConfirmingPayment(false)
+                        }
+                      }}
                       variant="primary"
-                      disabled={!paymentReady}
+                      disabled={!paymentReady || isConfirmingPayment}
                     />
+                    {paymentError && (
+                      <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', marginTop: 6 }}>
+                        {paymentError}
+                      </div>
+                    )}
                     <ActionButton
-                      label="Marcar ausente"
-                      onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                      label={isConfirmingPayment ? 'Procesando...' : 'Marcar ausente'}
+                      onClick={async () => {
+                        if (!onUpdateStatus) return
+                        setIsConfirmingPayment(true)
+                        setPaymentError(null)
+                        try {
+                          await onUpdateStatus(reservation.id, 'absent')
+                          onClose()
+                        } catch (err) {
+                          setPaymentError(getPaymentErrorMessage(err))
+                        } finally {
+                          setIsConfirmingPayment(false)
+                        }
+                      }}
                       variant="danger"
+                      disabled={isConfirmingPayment}
                     />
                     <ActionButton
                       label="Editar"
@@ -1070,11 +1110,31 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                   <>
                     <SectionLabel>Cobro</SectionLabel>
                     {depositCoversTotal ? (
-                      <ActionButton
-                        label="Confirmar como pagado"
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', 0, 0); onClose() }}
-                        variant="primary"
-                      />
+                      <>
+                        <ActionButton
+                          label={isConfirmingPayment ? 'Procesando...' : 'Confirmar como pagado'}
+                          onClick={async () => {
+                            if (!onUpdateStatus) return
+                            setIsConfirmingPayment(true)
+                            setPaymentError(null)
+                            try {
+                              await onUpdateStatus(reservation.id, 'paid', 0, 0)
+                              onClose()
+                            } catch (err) {
+                              setPaymentError(getPaymentErrorMessage(err))
+                            } finally {
+                              setIsConfirmingPayment(false)
+                            }
+                          }}
+                          variant="primary"
+                          disabled={isConfirmingPayment}
+                        />
+                        {paymentError && (
+                          <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', marginTop: 6 }}>
+                            {paymentError}
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <>
                         <PaymentInput
@@ -1085,11 +1145,28 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                           onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                         />
                         <ActionButton
-                          label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
-                          onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
+                          label={isConfirmingPayment ? 'Procesando...' : `Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
+                          onClick={async () => {
+                            if (!onUpdateStatus) return
+                            setIsConfirmingPayment(true)
+                            setPaymentError(null)
+                            try {
+                              await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount)
+                              onClose()
+                            } catch (err) {
+                              setPaymentError(getPaymentErrorMessage(err))
+                            } finally {
+                              setIsConfirmingPayment(false)
+                            }
+                          }}
                           variant="primary"
-                          disabled={!paymentReady}
+                          disabled={!paymentReady || isConfirmingPayment}
                         />
+                        {paymentError && (
+                          <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', marginTop: 6 }}>
+                            {paymentError}
+                          </div>
+                        )}
                       </>
                     )}
                     <ActionButton
@@ -1114,9 +1191,22 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                     </span>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <ActionButton
-                        label="Confirmar cancelación"
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                        label={isConfirmingPayment ? 'Procesando...' : 'Confirmar cancelación'}
+                        onClick={async () => {
+                          if (!onUpdateStatus) return
+                          setIsConfirmingPayment(true)
+                          setPaymentError(null)
+                          try {
+                            await onUpdateStatus(reservation.id, 'absent')
+                            onClose()
+                          } catch (err) {
+                            setPaymentError(getPaymentErrorMessage(err))
+                          } finally {
+                            setIsConfirmingPayment(false)
+                          }
+                        }}
                         variant="danger"
+                        disabled={isConfirmingPayment}
                       />
                       <ActionButton
                         label="Volver"
@@ -1238,11 +1328,28 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                     />
                     <ActionButton
-                      label={`${(reservation.depositAmount != null || reservation.wasFullyPaid) ? 'Cobrar saldo' : 'Cobrar total'} · $${pendingBalance.toLocaleString('es-AR')}`}
-                      onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
+                      label={isConfirmingPayment ? 'Procesando...' : `${(reservation.depositAmount != null || reservation.wasFullyPaid) ? 'Cobrar saldo' : 'Cobrar total'} · $${pendingBalance.toLocaleString('es-AR')}`}
+                      onClick={async () => {
+                        if (!onUpdateStatus) return
+                        setIsConfirmingPayment(true)
+                        setPaymentError(null)
+                        try {
+                          await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount)
+                          onClose()
+                        } catch (err) {
+                          setPaymentError(getPaymentErrorMessage(err))
+                        } finally {
+                          setIsConfirmingPayment(false)
+                        }
+                      }}
                       variant="primary"
-                      disabled={!paymentReady}
+                      disabled={!paymentReady || isConfirmingPayment}
                     />
+                    {paymentError && (
+                      <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', marginTop: 6 }}>
+                        {paymentError}
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1300,9 +1407,22 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                     </span>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <ActionButton
-                        label="Confirmar cancelación"
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                        label={isConfirmingPayment ? 'Procesando...' : 'Confirmar cancelación'}
+                        onClick={async () => {
+                          if (!onUpdateStatus) return
+                          setIsConfirmingPayment(true)
+                          setPaymentError(null)
+                          try {
+                            await onUpdateStatus(reservation.id, 'absent')
+                            onClose()
+                          } catch (err) {
+                            setPaymentError(getPaymentErrorMessage(err))
+                          } finally {
+                            setIsConfirmingPayment(false)
+                          }
+                        }}
                         variant="danger"
+                        disabled={isConfirmingPayment}
                       />
                       <ActionButton
                         label="Volver"
@@ -1317,9 +1437,22 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 {/* Mantenimiento */}
                 {reservation.state === 'mantenimiento' && (
                   <ActionButton
-                    label="Liberar cancha"
-                    onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                    label={isConfirmingPayment ? 'Procesando...' : 'Liberar cancha'}
+                    onClick={async () => {
+                      if (!onUpdateStatus) return
+                      setIsConfirmingPayment(true)
+                      setPaymentError(null)
+                      try {
+                        await onUpdateStatus(reservation.id, 'absent')
+                        onClose()
+                      } catch (err) {
+                        setPaymentError(getPaymentErrorMessage(err))
+                      } finally {
+                        setIsConfirmingPayment(false)
+                      }
+                    }}
                     variant="primary"
+                    disabled={isConfirmingPayment}
                   />
                 )}
 
@@ -1370,11 +1503,28 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                       />
                       <ActionButton
-                        label={`Confirmar cobro · $${localBalance.toLocaleString('es-AR')}`}
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount, customAmount); onClose() }}
+                        label={isConfirmingPayment ? 'Procesando...' : `Confirmar cobro · $${localBalance.toLocaleString('es-AR')}`}
+                        onClick={async () => {
+                          if (!onUpdateStatus) return
+                          setIsConfirmingPayment(true)
+                          setPaymentError(null)
+                          try {
+                            await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount, customAmount)
+                            onClose()
+                          } catch (err) {
+                            setPaymentError(getPaymentErrorMessage(err))
+                          } finally {
+                            setIsConfirmingPayment(false)
+                          }
+                        }}
                         variant="primary"
-                        disabled={customAmount <= 0 || !localPaymentReady}
+                        disabled={customAmount <= 0 || !localPaymentReady || isConfirmingPayment}
                       />
+                      {paymentError && (
+                        <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', marginTop: 6 }}>
+                          {paymentError}
+                        </div>
+                      )}
                       <div style={{ height: 1, backgroundColor: t.divisor.val, margin: '14px 0 8px' }} />
                       {reservation.seriesId && (
                         <ActionButton
@@ -1386,9 +1536,22 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       )}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <ActionButton
-                          label="Cancelar este turno"
-                          onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                          label={isConfirmingPayment ? 'Procesando...' : 'Cancelar este turno'}
+                          onClick={async () => {
+                            if (!onUpdateStatus) return
+                            setIsConfirmingPayment(true)
+                            setPaymentError(null)
+                            try {
+                              await onUpdateStatus(reservation.id, 'absent')
+                              onClose()
+                            } catch (err) {
+                              setPaymentError(getPaymentErrorMessage(err))
+                            } finally {
+                              setIsConfirmingPayment(false)
+                            }
+                          }}
                           variant="danger"
+                          disabled={isConfirmingPayment}
                         />
                         {reservation.seriesId && (
                           <ActionButton
@@ -1427,9 +1590,22 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 {/* Evento */}
                 {reservation.state === 'evento' && (
                   <ActionButton
-                    label="Cancelar evento"
-                    onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                    label={isConfirmingPayment ? 'Procesando...' : 'Cancelar evento'}
+                    onClick={async () => {
+                      if (!onUpdateStatus) return
+                      setIsConfirmingPayment(true)
+                      setPaymentError(null)
+                      try {
+                        await onUpdateStatus(reservation.id, 'absent')
+                        onClose()
+                      } catch (err) {
+                        setPaymentError(getPaymentErrorMessage(err))
+                      } finally {
+                        setIsConfirmingPayment(false)
+                      }
+                    }}
                     variant="danger"
+                    disabled={isConfirmingPayment}
                   />
                 )}
 
@@ -1468,11 +1644,28 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                         onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
                       />
                       <ActionButton
-                        label={`Confirmar cobro · $${localBalance.toLocaleString('es-AR')}`}
-                        onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount, customAmount); onClose() }}
+                        label={isConfirmingPayment ? 'Procesando...' : `Confirmar cobro · $${localBalance.toLocaleString('es-AR')}`}
+                        onClick={async () => {
+                          if (!onUpdateStatus) return
+                          setIsConfirmingPayment(true)
+                          setPaymentError(null)
+                          try {
+                            await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount, customAmount)
+                            onClose()
+                          } catch (err) {
+                            setPaymentError(getPaymentErrorMessage(err))
+                          } finally {
+                            setIsConfirmingPayment(false)
+                          }
+                        }}
                         variant="primary"
-                        disabled={!localPaymentReady || customAmount <= 0}
+                        disabled={!localPaymentReady || customAmount <= 0 || isConfirmingPayment}
                       />
+                      {paymentError && (
+                        <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', marginTop: 6 }}>
+                          {paymentError}
+                        </div>
+                      )}
                     </>
                   )
                 })()}

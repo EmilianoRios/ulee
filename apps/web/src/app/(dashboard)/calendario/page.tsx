@@ -675,8 +675,8 @@ export default function CalendarioPage() {
                       setInitialSlotCourt(courtId)
                       setSlideOverOpen(true)
                     }}
-                    onUpdateStatus={(reservationId, status, cashAmount, onlineAmount, amountOverride) => {
-                      void updateStatus({
+                    onUpdateStatus={async (reservationId, status, cashAmount, onlineAmount, amountOverride) => {
+                      await updateStatus({
                         reservationId: reservationId as Id<'reservations'>,
                         status,
                         ...(cashAmount !== undefined || onlineAmount !== undefined
@@ -722,7 +722,20 @@ export default function CalendarioPage() {
                     schedule={venueSchedule}
                     scheduleHistory={venueScheduleHistory}
                     holidays={venueHolidays}
-                    onReservationClick={() => {}}
+                    onReservationClick={(res) => res}
+                    venuePricePerHour={venuePricePerHour}
+                    venueNightRatePrice={venueNightRate}
+                    venueNightRateStart={venueRaw?.pricingConfig?.nightRateStart}
+                    onUpdateStatus={async (reservationId, status, cashAmount, onlineAmount, amountOverride) => {
+                      await updateStatus({
+                        reservationId: reservationId as Id<'reservations'>,
+                        status,
+                        ...(cashAmount !== undefined || onlineAmount !== undefined
+                          ? { cashAmount, onlineAmount }
+                          : {}),
+                        ...(amountOverride !== undefined ? { totalAmountOverride: amountOverride } : {}),
+                      })
+                    }}
                   />
                 </div>
               ) : (

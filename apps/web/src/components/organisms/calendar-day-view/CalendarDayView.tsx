@@ -69,7 +69,7 @@ interface CalendarDayViewProps {
   venueNightRatePrice?:      number
   venueNightRateStart?:      number   // minutes since midnight
   onSlotClick?:              (courtId: string, time: string) => void
-  onUpdateStatus?:           (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
+  onUpdateStatus?:           (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => Promise<void>
   onExtend?:                 (reservationId: string, minutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
   onUpdate?:                 (reservationId: string, fields: ReservationUpdateFields) => void
   onDelete?:                 (reservationId: string) => void

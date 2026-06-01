@@ -6,6 +6,7 @@ import { resolveScheduleForDate } from '@canchero/backend'
 import type { DaySchedule, ScheduleVersion } from '@canchero/backend'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { ReservationSlideOver } from '@/components/organisms/reservation-slide-over'
+import type { ReservationBackendStatus } from '@/components/organisms/reservation-slide-over'
 import { computeOverlapLayout, COURT_PALETTES } from '@/lib/calendar-utils'
 import type { OverlapLayout } from '@/lib/calendar-utils'
 
@@ -54,14 +55,18 @@ const DAY_ABBREVS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface CalendarWeekViewProps {
-  courts:             Court[]
-  byDate:             Record<string, CalendarReservation[]>
-  spillovers:         CalendarReservation[]
-  weekStart:          Date
-  schedule:           DaySchedule[]
-  scheduleHistory:    ScheduleVersion[]
-  holidays:           { date: string; reason: string }[]
-  onReservationClick: (reservation: CalendarReservation) => void
+  courts:               Court[]
+  byDate:               Record<string, CalendarReservation[]>
+  spillovers:           CalendarReservation[]
+  weekStart:            Date
+  schedule:             DaySchedule[]
+  scheduleHistory:      ScheduleVersion[]
+  holidays:             { date: string; reason: string }[]
+  onReservationClick:   (reservation: CalendarReservation) => void
+  onUpdateStatus?:      (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => Promise<void>
+  venuePricePerHour?:   number
+  venueNightRatePrice?: number
+  venueNightRateStart?: number
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -75,6 +80,10 @@ export function CalendarWeekView({
   scheduleHistory,
   holidays,
   onReservationClick,
+  onUpdateStatus,
+  venuePricePerHour,
+  venueNightRatePrice,
+  venueNightRateStart,
 }: CalendarWeekViewProps) {
   const t = useTheme()
 
@@ -479,7 +488,11 @@ export function CalendarWeekView({
         courts={courts}
         reservations={Object.values(byDate).flat()}
         now={realNow}
+        venuePricePerHour={venuePricePerHour}
+        venueNightRatePrice={venueNightRatePrice}
+        venueNightRateStart={venueNightRateStart}
         onClose={() => setSelected(null)}
+        onUpdateStatus={onUpdateStatus}
       />
     </div>
   )

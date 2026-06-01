@@ -120,10 +120,11 @@ export default function ReservasPage() {
   const router   = useRouter()
   const canQuery = isAuthenticated && activeVenueId !== null
 
-  const [cancha,      setCancha]      = useState('todas')
-  const [page,        setPage]        = useState(1)
-  const [activeTab,   setActiveTab]   = useState<StatusTab>('todas')
-  const [selectedRow, setSelectedRow] = useState<FinanceRowShape | null>(null)
+  const [cancha,        setCancha]        = useState('todas')
+  const [page,          setPage]          = useState(1)
+  const [activeTab,     setActiveTab]     = useState<StatusTab>('todas')
+  const [selectedRow,   setSelectedRow]   = useState<FinanceRowShape | null>(null)
+  const [paymentError,  setPaymentError]  = useState<string | null>(null)
 
   // ── Mutations (mirroring calendario/page.tsx) ─────────────────────────────
   const updateStatus      = useMutation(api.functions.reservations.mutations.updateStatus)
@@ -206,23 +207,35 @@ export default function ReservasPage() {
     if (row) setSelectedRow(row)
   }, [allRows])
 
-  const handleCloseSlideOver = useCallback(() => setSelectedRow(null), [])
+  const handleCloseSlideOver = useCallback(() => {
+    setSelectedRow(null)
+    setPaymentError(null)
+  }, [])
 
-  const handleUpdateStatus = useCallback((
+  const handleUpdateStatus = useCallback(async (
     reservationId: string,
     status: ReservationBackendStatus,
     cashAmount?: number,
     onlineAmount?: number,
     amountOverride?: number,
-  ) => {
-    void updateStatus({
-      reservationId: reservationId as Id<'reservations'>,
-      status,
-      ...(cashAmount !== undefined || onlineAmount !== undefined
-        ? { cashAmount, onlineAmount }
-        : {}),
-      ...(amountOverride !== undefined ? { totalAmountOverride: amountOverride } : {}),
-    })
+  ): Promise<void> => {
+    try {
+      setPaymentError(null)
+      await updateStatus({
+        reservationId: reservationId as Id<'reservations'>,
+        status,
+        ...(cashAmount !== undefined || onlineAmount !== undefined
+          ? { cashAmount, onlineAmount }
+          : {}),
+        ...(amountOverride !== undefined ? { totalAmountOverride: amountOverride } : {}),
+      })
+    } catch (err) {
+      const msg = err instanceof Error && err.message.includes('invalid_split_amounts')
+        ? 'Los montos ingresados no coinciden con el saldo pendiente.'
+        : 'No se pudo registrar el cobro. Intentá de nuevo.'
+      setPaymentError(msg)
+      throw err
+    }
   }, [updateStatus])
 
   const handleUpdate = useCallback((reservationId: string, fields: ReservationUpdateFields) => {
