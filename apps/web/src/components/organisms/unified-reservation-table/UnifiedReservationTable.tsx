@@ -25,6 +25,7 @@ export interface UnifiedReservationTableProps {
   totalPages:   number
   totalRows:    number
   onPageChange: (page: number) => void
+  onRowClick?:  (id: string) => void
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -96,6 +97,7 @@ export function UnifiedReservationTable({
   totalPages,
   totalRows,
   onPageChange,
+  onRowClick,
 }: UnifiedReservationTableProps) {
   const t = useTheme()
 
@@ -173,7 +175,14 @@ export function UnifiedReservationTable({
               </thead>
               <tbody>
                 {rows.map((row, idx) => (
-                  <tr key={row.id} className="table-row" role="row" aria-rowindex={idx + 1}>
+                  <tr
+                    key={row.id}
+                    className="table-row"
+                    role="row"
+                    aria-rowindex={idx + 1}
+                    onClick={onRowClick ? () => onRowClick(row.id) : undefined}
+                    style={onRowClick ? { cursor: 'pointer' } : undefined}
+                  >
                     <td style={td}>
                       <span style={{ fontWeight: 500 }}>{row.cliente}</span>
                     </td>

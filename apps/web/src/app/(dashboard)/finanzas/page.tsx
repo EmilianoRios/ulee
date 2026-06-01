@@ -98,7 +98,8 @@ type FinanceRowShape = {
   total:        number
   depositTotal: number
   paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
-  status:       'paid' | 'deposit_paid' | 'pending' | 'maintenance' | 'cancelled'
+  status:       'paid' | 'deposit_paid' | 'pending' | 'played' | 'maintenance' | 'cancelled'
+  totalAmount:  number
 }
 
 function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
@@ -172,6 +173,9 @@ export default function FinanzasPage() {
   const totalCash     = filtered.reduce((s, r) => s + r.cash,   0)
   const totalSenias   = filtered.reduce((s, r) => s + r.depositTotal, 0)
   const totalGeneral  = filtered.reduce((s, r) => s + r.total,  0)
+  const totalACobrar  = filtered
+    .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid')
+    .reduce((s, r) => s + (r.totalAmount - r.total), 0)
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toUnifiedRow)
@@ -189,10 +193,11 @@ export default function FinanzasPage() {
   }, [])
 
   const KPIS = [
-    { value: fmt(totalOnline),  label: 'Mercado Pago' },
-    { value: fmt(totalCash),    label: 'Efectivo'     },
-    { value: fmt(totalSenias),  label: 'Señas'        },
-    { value: fmt(totalGeneral), label: 'Total', bold: true },
+    { value: fmt(totalOnline),   label: 'Mercado Pago' },
+    { value: fmt(totalCash),     label: 'Efectivo'     },
+    { value: fmt(totalSenias),   label: 'Señas'        },
+    { value: fmt(totalACobrar),  label: 'A Cobrar'     },
+    { value: fmt(totalGeneral),  label: 'Total', bold: true },
   ]
 
   const strip = (

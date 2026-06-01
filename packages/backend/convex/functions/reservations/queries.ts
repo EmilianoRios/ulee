@@ -47,11 +47,12 @@ export interface CalDateRangeResult {
 }
 
 export interface ReservationStats {
-  count:        number
-  totalRevenue: number
-  pendingCount: number
-  activeCourts: number
-  totalCourts:  number
+  count:         number
+  totalRevenue:  number
+  pendingCount:  number
+  pendingAmount: number   // SUM(totalAmount) for reservations with status pending | played | deposit_paid
+  activeCourts:  number
+  totalCourts:   number
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +203,9 @@ export const statsByVenueAndDate = query({
     const pendingCount = reservations.filter(
       (r) => r.status === 'pending' || r.status === 'deposit_paid' || r.status === 'on_court'
     ).length
+    const pendingAmount = reservations
+      .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid')
+      .reduce((s, r) => s + r.totalAmount, 0)
 
     const courts = await ctx.db
       .query('courts')
@@ -212,9 +216,10 @@ export const statsByVenueAndDate = query({
     const totalCourts  = courts.length
 
     return {
-      count:        reservations.length,
+      count:         reservations.length,
       totalRevenue,
       pendingCount,
+      pendingAmount,
       activeCourts,
       totalCourts,
     }
