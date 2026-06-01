@@ -56,9 +56,10 @@ const TAB_OPTIONS: { type: EntryType; label: string }[] = [
   { type: 'recurrente',    label: 'Recurrente' },
 ]
 
-const STATE_TO_STATUS: Record<'señado' | 'pagado', 'deposit_paid' | 'paid'> = {
-  señado: 'deposit_paid',
-  pagado: 'paid',
+const STATE_TO_STATUS: Record<'pendiente' | 'señado' | 'pagado', 'pending' | 'deposit_paid' | 'paid'> = {
+  pendiente: 'pending',
+  señado:    'deposit_paid',
+  pagado:    'paid',
 }
 
 const DIAS_SEMANA = [
@@ -90,8 +91,8 @@ function Field({ label, required, error, badge, children }: {
   const t = useTheme()
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-        <span style={{ fontSize: 12, fontWeight: 500, color: t.textoMuted.val, letterSpacing: '0.02em' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: t.textoMuted.val, letterSpacing: '0.01em' }}>
           {label}
           {required && <span style={{ color: 'oklch(55% 0.18 25)', marginLeft: 2 }}>*</span>}
         </span>
@@ -133,9 +134,9 @@ function TxtInput({ value, onChange, placeholder, error }: {
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
-        width: '100%', padding: '8px 11px', borderRadius: 7,
+        width: '100%', padding: '9px 12px', borderRadius: 7,
         border: `1.5px solid ${borderColor(t, focused, error)}`,
-        backgroundColor: t.superficieContenido.val, fontSize: 13,
+        backgroundColor: t.superficieContenido.val, fontSize: 14,
         color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
         fontFamily: 'inherit', transition: 'border-color 120ms ease-out',
       }}
@@ -158,9 +159,9 @@ function NumInput({ value, onChange, placeholder, error }: {
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
-        width: '100%', padding: '8px 11px', borderRadius: 7,
+        width: '100%', padding: '9px 12px', borderRadius: 7,
         border: `1.5px solid ${borderColor(t, focused, error)}`,
-        backgroundColor: t.superficieContenido.val, fontSize: 13,
+        backgroundColor: t.superficieContenido.val, fontSize: 14,
         color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
         fontFamily: 'inherit', transition: 'border-color 120ms ease-out',
       }}
@@ -181,9 +182,9 @@ function DateInput({ value, onChange, error }: {
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
-        width: '100%', padding: '8px 11px', borderRadius: 7,
+        width: '100%', padding: '9px 12px', borderRadius: 7,
         border: `1.5px solid ${borderColor(t, focused, error)}`,
-        backgroundColor: t.superficieContenido.val, fontSize: 13,
+        backgroundColor: t.superficieContenido.val, fontSize: 14,
         color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
         fontFamily: 'inherit', transition: 'border-color 120ms ease-out',
       }}
@@ -211,9 +212,9 @@ function SelectInput({ value, onChange, options, error }: {
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         style={{
-          width: '100%', padding: '8px 32px 8px 11px', borderRadius: 7,
+          width: '100%', padding: '9px 32px 9px 12px', borderRadius: 7,
           border: `1.5px solid ${borderColor(t, focused, error)}`,
-          backgroundColor: t.superficieContenido.val, fontSize: 13,
+          backgroundColor: t.superficieContenido.val, fontSize: 14,
           color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
           fontFamily: 'inherit', appearance: 'none', cursor: 'pointer',
           transition: 'border-color 120ms ease-out',
@@ -307,12 +308,12 @@ function RadioGroup({ value, onChange, options }: {
             type="button"
             onClick={() => onChange(o.value)}
             style={{
-              flex: 1, padding: '8px 12px', borderRadius: 7, fontFamily: 'inherit',
+              flex: 1, padding: '10px 14px', borderRadius: 7, fontFamily: 'inherit',
               border: `1.5px solid ${active ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
               backgroundColor: active ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
               color: active ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
-              fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer',
-              transition: 'all 120ms ease-out',
+              fontSize: 14, fontWeight: active ? 600 : 400, cursor: 'pointer',
+              transition: 'all 120ms ease-out', whiteSpace: 'nowrap',
             }}
           >
             {o.label}
@@ -389,7 +390,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [cliente,       setCliente]       = useState('')
   const [telefono,      setTelefono]      = useState('')
   const [monto,         setMonto]         = useState('')
-  const [estado,        setEstado]        = useState<'señado' | 'pagado'>('señado')
+  const [estado,        setEstado]        = useState<'pendiente' | 'señado' | 'pagado'>('señado')
   const [paymentMethod,   setPaymentMethod]   = useState<'cash' | 'online'>('cash')
   const [sena,            setSena]            = useState('')
   const [isDepositCustom, setIsDepositCustom] = useState(false)
@@ -464,7 +465,6 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
     const errs: Record<string, string> = {}
     if (type === 'reserva') {
       if (!cliente.trim())  errs.cliente    = 'El nombre del cliente es obligatorio'
-      if (!telefono.trim()) errs.telefono   = 'El teléfono del cliente es obligatorio'
       if (!courtId)         errs.courtId    = 'Seleccioná una cancha'
       if (!horaInicio)      errs.horaInicio = 'Requerido'
       if (!horaFin)         errs.horaFin    = 'Requerido'
@@ -522,7 +522,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           totalAmount:   hasMonto ? parsedMonto : 0,
           status:        STATE_TO_STATUS[estado],
           notes:         notas || undefined,
-          ...(hasMonto ? { paymentMethod } : {}),
+          ...(hasMonto && estado !== 'pendiente' ? { paymentMethod } : {}),
           ...(estado === 'señado' && hasMonto
             ? { customDepositAmount: sena.trim() === '' ? 0 : Number(sena) }
             : {}),
@@ -632,8 +632,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   return (
     <>
       {/* Body */}
-      <div className="calendar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="calendar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {type === 'reserva' && (
             <>
@@ -642,8 +642,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 <Field label="Cliente" required error={errors.cliente}>
                   <TxtInput value={cliente} onChange={setCliente} placeholder="Nombre" error={errors.cliente} />
                 </Field>
-                <Field label="Teléfono" required error={errors.telefono}>
-                  <TxtInput value={telefono} onChange={setTelefono} placeholder="11 4523-8891" error={errors.telefono} />
+                <Field label="Teléfono">
+                  <TxtInput value={telefono} onChange={setTelefono} placeholder="Opcional" />
                 </Field>
               </div>
 
@@ -651,24 +651,22 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
               {whereWhenBlock}
 
               {/* Pago */}
-              <div style={{ display: 'grid', gridTemplateColumns: monto.trim() !== '' && Number(monto) > 0 ? '1fr 1fr' : '1fr', gap: 10 }}>
-                <Field
-                  label="Monto ($)"
-                  error={errors.monto}
-                  badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
-                >
-                  <NumInput value={monto} onChange={setMonto} placeholder="4500" error={errors.monto} />
+              <Field
+                label="Monto ($)"
+                error={errors.monto}
+                badge={rateMode === 'night' ? 'Tarifa nocturna' : rateMode === 'mixed' ? 'Tarifa mixta' : undefined}
+              >
+                <NumInput value={monto} onChange={setMonto} placeholder="4500" error={errors.monto} />
+              </Field>
+              {monto.trim() !== '' && Number(monto) > 0 && (
+                <Field label="Estado inicial" required>
+                  <RadioGroup
+                    value={estado}
+                    onChange={(v) => setEstado(v as 'pendiente' | 'señado' | 'pagado')}
+                    options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }, { value: 'pendiente', label: 'A cobrar' }]}
+                  />
                 </Field>
-                {monto.trim() !== '' && Number(monto) > 0 && (
-                  <Field label="Estado inicial" required>
-                    <RadioGroup
-                      value={estado}
-                      onChange={(v) => setEstado(v as 'señado' | 'pagado')}
-                      options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
-                    />
-                  </Field>
-                )}
-              </div>
+              )}
 
               {showSenaField && (
                 <Field label="Monto de seña ($)" error={errors.sena}>
@@ -681,7 +679,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 </Field>
               )}
 
-              {monto.trim() !== '' && Number(monto) > 0 && (
+              {monto.trim() !== '' && Number(monto) > 0 && estado !== 'pendiente' && (
                 <Field label="Método de pago" required>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <PaymentMethodButton
@@ -871,7 +869,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
       {/* Footer */}
       <div style={{
-        padding: '16px 24px 24px', borderTop: `1px solid ${t.divisor.val}`,
+        padding: '16px 28px 28px', borderTop: `1px solid ${t.divisor.val}`,
         flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8,
       }}>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -879,10 +877,10 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
             onClick={handleSubmit}
             disabled={submitting}
             style={{
-              flex: 1, padding: '10px 20px', borderRadius: 7, border: 'none',
+              flex: 1, padding: '13px 20px', borderRadius: 7, border: 'none',
               backgroundColor: submitting ? t.verdeCanchaActivo.val : t.verdeCancha.val,
               color: submitting ? t.verdeCanchaProfundo.val : 'oklch(98% 0.004 155)',
-              fontSize: 13, fontWeight: 500, cursor: submitting ? 'not-allowed' : 'pointer',
+              fontSize: 15, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit', transition: 'background-color 120ms ease-out',
             }}
             onMouseEnter={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
@@ -893,9 +891,9 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           <button
             onClick={onClose}
             style={{
-              padding: '10px 20px', borderRadius: 7, border: `1px solid ${t.bordeNeutral.val}`,
+              padding: '13px 20px', borderRadius: 7, border: `1px solid ${t.bordeNeutral.val}`,
               backgroundColor: 'transparent', color: t.textoPrimario.val,
-              fontSize: 13, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit', minWidth: 80,
+              fontSize: 14, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit', minWidth: 90,
             }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.fondoHover.val }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
@@ -958,7 +956,7 @@ export function NewEntrySlideOver({
         aria-label="Nuevo ingreso"
         style={{
           position: 'fixed', top: '50%', left: '50%',
-          width: 440, height: 'min(90vh, 680px)',
+          width: 520, height: 'min(90vh, 780px)',
           backgroundColor: t.superficieContenido.val,
           border: `1px solid ${t.bordeNeutral.val}`,
           borderRadius: 12,
@@ -980,11 +978,11 @@ export function NewEntrySlideOver({
               display:        'flex',
               alignItems:     'center',
               justifyContent: 'space-between',
-              padding:        '16px 24px 12px',
+              padding:        '18px 28px 14px',
               flexShrink:     0,
             }}>
               <span style={{
-                fontSize:      16,
+                fontSize:      18,
                 fontWeight:    600,
                 color:         t.textoNav.val,
                 letterSpacing: '-0.01em',
@@ -1012,7 +1010,7 @@ export function NewEntrySlideOver({
             {/* Tab strip */}
             <div style={{
               display:      'flex',
-              padding:      '0 24px',
+              padding:      '0 28px',
               borderBottom: `1px solid ${t.divisor.val}`,
               flexShrink:   0,
             }}>

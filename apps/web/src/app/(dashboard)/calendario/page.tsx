@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation, useConvexAuth } from 'convex/react'
@@ -131,6 +132,7 @@ function nextLabel(viewMode: CalendarViewMode): string {
 // ─── Status mappings ──────────────────────────────────────────────────────────
 
 const STATUS_TO_STATE: Record<Doc<'reservations'>['status'], CalendarReservationState> = {
+  pending:       'pendiente',
   deposit_paid:  'señado',
   on_court:      'en-cancha',
   absent:        'ausente',
@@ -143,15 +145,16 @@ const STATUS_TO_STATE: Record<Doc<'reservations'>['status'], CalendarReservation
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const LEGEND: { label: string; color: string }[] = [
-  { label: 'Pagado',        color: 'oklch(90% 0.008 220)' },
-  { label: 'En cancha',     color: 'oklch(68% 0.13 155)'  },
-  { label: 'Señado',        color: 'oklch(78% 0.09 42)'   },
-  { label: 'Ausente',       color: 'oklch(60% 0.010 224)' },
-  { label: 'Jugado',        color: 'oklch(76% 0.018 222)' },
-  { label: 'Mantenimiento', color: 'oklch(76% 0.13 88)'   },
-  { label: 'Recurrente',    color: 'oklch(70% 0.09 275)'  },
-  { label: 'Evento',        color: 'oklch(68% 0.10 200)'  },
+const LEGEND: { label: string; color: string; description: string }[] = [
+  { label: 'En cancha',     color: 'oklch(68% 0.13 155)',  description: 'El cliente está jugando ahora mismo' },
+  { label: 'Señado',        color: 'oklch(78% 0.09 42)',   description: 'Pagó una seña, abona el saldo al llegar' },
+  { label: 'Pendiente',     color: 'oklch(80% 0.10 55)',   description: 'Reserva confirmada sin pago previo, cobra al llegar' },
+  { label: 'Pagado',        color: 'oklch(90% 0.008 220)', description: 'Cobrada en su totalidad' },
+  { label: 'Jugado',        color: 'oklch(76% 0.018 222)', description: 'Terminó de jugar, cobro pendiente' },
+  { label: 'Ausente',       color: 'oklch(60% 0.010 224)', description: 'El cliente no se presentó' },
+  { label: 'Recurrente',    color: 'oklch(70% 0.09 275)',  description: 'Turno fijo semanal o quincenal' },
+  { label: 'Mantenimiento', color: 'oklch(76% 0.13 88)',   description: 'Cancha fuera de servicio' },
+  { label: 'Evento',        color: 'oklch(68% 0.10 200)',  description: 'Evento especial o torneo' },
 ]
 
 const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
@@ -193,6 +196,7 @@ export default function CalendarioPage() {
   const [initialSlotTime,          setInitialSlotTime]          = useState<string | undefined>(undefined)
   const [initialSlotCourt,         setInitialSlotCourt]         = useState<string | undefined>(undefined)
   const [scheduleBannerDismissed,  setScheduleBannerDismissed]  = useState(false)
+  const [legendTooltip,            setLegendTooltip]            = useState<{ text: string; x: number; y: number } | null>(null)
 
   const currentDateStr = dateToStr(currentDate)
   const canQuery       = isAuthenticated && activeVenueId !== null
@@ -275,6 +279,7 @@ export default function CalendarioPage() {
     amount:        r.totalAmount,
     depositAmount: r.depositAmount,
     courtId:       r.courtId as string,
+    date:          r.date,
     notes:         r.notes,
     seriesId:      r.seriesId,
   }), [])
@@ -301,6 +306,7 @@ export default function CalendarioPage() {
         amount:        r.totalAmount,
         depositAmount: r.depositAmount,
         courtId:       r.courtId as string,
+        date:          r.date,
         notes:         r.notes,
         seriesId:      r.seriesId,
       }))
@@ -320,6 +326,7 @@ export default function CalendarioPage() {
       amount:        r.totalAmount,
       depositAmount: r.depositAmount,
       courtId:       r.courtId as string,
+      date:          r.date,
       notes:         r.notes,
       seriesId:      r.seriesId,
     }))
@@ -539,8 +546,16 @@ export default function CalendarioPage() {
       gap:          20,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-        {LEGEND.map(({ label, color }) => (
-          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}>
+        {LEGEND.map(({ label, color, description }) => (
+          <span
+            key={label}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0, cursor: 'default' }}
+            onMouseEnter={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              setLegendTooltip({ text: description, x: rect.left + rect.width / 2, y: rect.bottom + 6 })
+            }}
+            onMouseLeave={() => setLegendTooltip(null)}
+          >
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
             <span style={{ fontSize: 12, color: t.textoMuted.val, lineHeight: 1 }}>{label}</span>
           </span>
@@ -714,6 +729,27 @@ export default function CalendarioPage() {
         venueDepositPercentage={venueDepositPercentage}
         onClose={() => setSlideOverOpen(false)}
       />
+      {legendTooltip && createPortal(
+        <div style={{
+          position:        'fixed',
+          left:            legendTooltip.x,
+          top:             legendTooltip.y,
+          transform:       'translateX(-50%)',
+          backgroundColor: 'oklch(15% 0.01 222)',
+          color:           'oklch(96% 0.003 222)',
+          fontSize:        11,
+          padding:         '5px 10px',
+          borderRadius:    5,
+          pointerEvents:   'none',
+          zIndex:          9999,
+          whiteSpace:      'nowrap',
+          boxShadow:       '0 2px 8px oklch(0% 0 0 / 0.15)',
+          lineHeight:      1.4,
+        }}>
+          {legendTooltip.text}
+        </div>,
+        document.body,
+      )}
     </>
   )
 }

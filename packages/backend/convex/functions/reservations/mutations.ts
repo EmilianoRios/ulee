@@ -9,7 +9,7 @@ import { addMinutes } from '../../lib/time'
 import type { Id } from '../../_generated/dataModel'
 
 // Statuses that require schedule bounds validation on create
-const SCHEDULE_CHECKED_STATUSES = new Set(['deposit_paid', 'paid', 'absent', 'on_court'])
+const SCHEDULE_CHECKED_STATUSES = new Set(['pending', 'deposit_paid', 'paid', 'absent', 'on_court'])
 
 // ---------------------------------------------------------------------------
 // Mutations
@@ -26,6 +26,7 @@ export const create = mutation({
     clientPhone: v.string(),
     totalAmount: v.number(),
     status:      v.optional(v.union(
+      v.literal('pending'),
       v.literal('deposit_paid'),
       v.literal('on_court'),
       v.literal('absent'),
@@ -156,6 +157,7 @@ export const updateStatus = mutation({
   args: {
     reservationId:  v.id('reservations'),
     status: v.union(
+      v.literal('pending'),
       v.literal('deposit_paid'),
       v.literal('on_court'),
       v.literal('absent'),
@@ -353,7 +355,7 @@ export const updateReservation = mutation({
 
     await assertVenueAccess(ctx, reservation.venueId)
 
-    if (reservation.status !== 'deposit_paid' && reservation.status !== 'absent') {
+    if (reservation.status !== 'pending' && reservation.status !== 'deposit_paid' && reservation.status !== 'absent') {
       throw new ConvexError('No se puede editar una reserva en este estado')
     }
 

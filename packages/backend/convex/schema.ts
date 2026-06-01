@@ -153,6 +153,7 @@ export default defineSchema({
     clientName: v.string(),
     clientPhone: v.string(),
     status: v.union(
+      v.literal('pending'),            // pendiente — reserva confirmada, cobro a realizarse en cancha
       v.literal('deposit_paid'),       // señado
       v.literal('on_court'),           // en-cancha
       v.literal('absent'),             // ausente

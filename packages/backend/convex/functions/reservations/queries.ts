@@ -200,7 +200,7 @@ export const statsByVenueAndDate = query({
 
     const totalRevenue = reservations.reduce((s, r) => s + r.totalAmount, 0)
     const pendingCount = reservations.filter(
-      (r) => r.status === 'deposit_paid' || r.status === 'on_court'
+      (r) => r.status === 'pending' || r.status === 'deposit_paid' || r.status === 'on_court'
     ).length
 
     const courts = await ctx.db

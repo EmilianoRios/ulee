@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'tamagui'
-import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText } from 'lucide-react'
+import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText, CalendarDays } from 'lucide-react'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { TimeSelect } from '@/components/atoms/time-select'
 
 export type ReservationBackendStatus =
+  | 'pending'
   | 'deposit_paid'
   | 'on_court'
   | 'absent'
@@ -57,6 +58,12 @@ function minutesToTime(mins: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+function fmtDate(dateStr: string): string {
+  const d = new Date(`${dateStr}T12:00:00`)
+  const raw = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
 function timeToMins(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return (h ?? 0) * 60 + (m ?? 0)
@@ -88,6 +95,7 @@ function isSlotFree(
 }
 
 const STATE_LABEL: Record<string, string> = {
+  pendiente:     'Pendiente · a cobrar',
   señado:        'Señado · cobra al llegar',
   'en-cancha':   'En cancha',
   ausente:       'Ausente',
@@ -650,6 +658,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const paymentReady  = pendingBalance > 0 && totalAssigned === pendingBalance
 
   const statePalette = reservation ? ({
+    pendiente:     { bg: 'oklch(95% 0.05 55)',      color: 'oklch(52% 0.15 55)',       border: 'oklch(80% 0.10 55)'  },
     señado:        { bg: t.acentoTerrazaClaro.val, color: t.acentoTerraza.val,       border: 'oklch(84% 0.07 42)'  },
     'en-cancha':   { bg: t.verdeCanchaActivo.val,  color: t.verdeCanchaProfundo.val,  border: t.verdeCancha.val     },
     ausente:       { bg: t.fondoHover.val,          color: t.textoInactivo.val,        border: t.divisor.val         },
@@ -771,6 +780,13 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
               {/* Info rows */}
               <div style={{ padding: '16px 24px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {reservation.date && (
+                  <DetailRow
+                    icon={<CalendarDays size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                    label="Fecha"
+                    value={fmtDate(reservation.date)}
+                  />
+                )}
                 <DetailRow
                   icon={<Clock size={14} strokeWidth={2} color={t.textoMuted.val} />}
                   label="Horario"
@@ -788,14 +804,132 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                     value={reservation.phone}
                   />
                 )}
-                {reservation.amount > 0 && (
-                  <DetailRow
-                    icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
-                    label="Total"
-                    value={`$${reservation.amount.toLocaleString('es-AR')}`}
-                    valueWeight={600}
-                  />
-                )}
+
+                {/* ── Monto contextual por estado ─────────────────────────── */}
+                {(() => {
+                  const dep = reservation.depositAmount ?? 0
+                  const hasDeposit = dep > 0
+                  const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`
+
+                  // Señado y En cancha con seña: mostrar seña + saldo
+                  if (
+                    (reservation.state === 'señado' || reservation.state === 'en-cancha') &&
+                    hasDeposit
+                  ) {
+                    return (
+                      <>
+                        <DetailRow
+                          icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                          label="Seña pagada"
+                          value={fmt(dep)}
+                        />
+                        <DetailRow
+                          icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                          label="Saldo pendiente"
+                          value={fmt(pendingBalance)}
+                          valueWeight={600}
+                        />
+                      </>
+                    )
+                  }
+
+                  // En cancha sin seña
+                  if (reservation.state === 'en-cancha' && !hasDeposit && reservation.amount > 0) {
+                    return (
+                      <DetailRow
+                        icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                        label="A cobrar"
+                        value={fmt(reservation.amount)}
+                        valueWeight={600}
+                      />
+                    )
+                  }
+
+                  // Jugado: saldo si tiene seña, o total si no
+                  if (reservation.state === 'jugado') {
+                    if (hasDeposit && pendingBalance > 0) {
+                      return (
+                        <>
+                          <DetailRow
+                            icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                            label="Seña pagada"
+                            value={fmt(dep)}
+                          />
+                          <DetailRow
+                            icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                            label="Saldo pendiente"
+                            value={fmt(pendingBalance)}
+                            valueWeight={600}
+                          />
+                        </>
+                      )
+                    }
+                    if (reservation.amount > 0) {
+                      return (
+                        <DetailRow
+                          icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                          label="A cobrar"
+                          value={fmt(reservation.amount)}
+                          valueWeight={600}
+                        />
+                      )
+                    }
+                    return null
+                  }
+
+                  // Pendiente: a cobrar al llegar
+                  if (reservation.state === 'pendiente' && reservation.amount > 0) {
+                    return (
+                      <DetailRow
+                        icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                        label="A cobrar al llegar"
+                        value={fmt(reservation.amount)}
+                        valueWeight={600}
+                      />
+                    )
+                  }
+
+                  // Ausente: seña retenida si la había, nada si no
+                  if (reservation.state === 'ausente') {
+                    if (hasDeposit) {
+                      return (
+                        <DetailRow
+                          icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                          label="Seña retenida"
+                          value={fmt(dep)}
+                        />
+                      )
+                    }
+                    return null
+                  }
+
+                  // Recurrente: por turno
+                  if (reservation.state === 'recurrente' && reservation.amount > 0) {
+                    return (
+                      <DetailRow
+                        icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                        label="Por turno"
+                        value={fmt(reservation.amount)}
+                        valueWeight={600}
+                      />
+                    )
+                  }
+
+                  // Pagado y resto: total estándar
+                  if (reservation.amount > 0) {
+                    return (
+                      <DetailRow
+                        icon={<Banknote size={14} strokeWidth={2} color={t.textoMuted.val} />}
+                        label="Total"
+                        value={fmt(reservation.amount)}
+                        valueWeight={600}
+                      />
+                    )
+                  }
+
+                  return null
+                })()}
+
                 {reservation.notes && (
                   <DetailRow
                     icon={<FileText size={14} strokeWidth={2} color={t.textoMuted.val} />}
@@ -870,6 +1004,37 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       />
                     </div>
                   </div>
+                )}
+
+                {/* Pendiente */}
+                {reservation.state === 'pendiente' && !isEditing && !deleteConfirm && (
+                  <>
+                    <SectionLabel>Cobro</SectionLabel>
+                    <PaymentInput
+                      pendingBalance={pendingBalance}
+                      cashAmount={cashAmount}
+                      onlineAmount={onlineAmount}
+                      paymentReady={paymentReady}
+                      onChange={(cash, online) => { setCashAmount(cash); setOnlineAmount(online) }}
+                    />
+                    <ActionButton
+                      label={`Confirmar cobro · $${pendingBalance.toLocaleString('es-AR')}`}
+                      onClick={() => { onUpdateStatus?.(reservation.id, 'paid', cashAmount, onlineAmount); onClose() }}
+                      variant="primary"
+                      disabled={!paymentReady}
+                    />
+                    <ActionButton
+                      label="Marcar ausente"
+                      onClick={() => { onUpdateStatus?.(reservation.id, 'absent'); onClose() }}
+                      variant="danger"
+                    />
+                    <ActionButton
+                      label="Editar"
+                      onClick={() => setIsEditing(true)}
+                      variant="secondary"
+                      compact
+                    />
+                  </>
                 )}
 
                 {/* Señado */}
