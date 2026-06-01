@@ -100,9 +100,9 @@ function Field({ label, required, error, badge, children }: {
           <span style={{
             fontSize: 10, fontWeight: 600, lineHeight: 1,
             padding: '2px 6px', borderRadius: 4,
-            backgroundColor: 'oklch(22% 0.04 255 / 0.08)',
-            color: 'oklch(55% 0.12 255)',
-            border: '1px solid oklch(55% 0.12 255 / 0.25)',
+            backgroundColor: 'oklch(93% 0.025 42)',
+            color: 'oklch(44% 0.11 42)',
+            border: '1px solid oklch(84% 0.07 42)',
             letterSpacing: '0.02em',
             whiteSpace: 'nowrap',
           }}>

@@ -245,9 +245,10 @@ export default function CalendarioPage() {
 
   // ── Shape adaptation ───────────────────────────────────────────────────────
   const courts: Court[] = courtsRaw?.map((c) => ({
-    id:            c._id as string,
-    name:          c.name,
-    priceOverride: c.priceOverride ?? undefined,
+    id:                     c._id as string,
+    name:                   c.name,
+    priceOverride:          c.priceOverride          ?? undefined,
+    nightRatePriceOverride: c.nightRatePriceOverride ?? undefined,
   })) ?? []
 
   const venuePricePerHour     = venueRaw?.pricingConfig?.pricePerHour
@@ -641,6 +642,9 @@ export default function CalendarioPage() {
                     scheduleHistory={venueScheduleHistory}
                     holidays={venueHolidays}
                     selectedDate={currentDate}
+                    venuePricePerHour={venuePricePerHour}
+                    venueNightRatePrice={venueNightRate}
+                    venueNightRateStart={venueRaw?.pricingConfig?.nightRateStart}
                     onSlotClick={(courtId, time) => {
                       setDefaultType('reserva')
                       setInitialSlotTime(time)

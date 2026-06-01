@@ -65,6 +65,9 @@ interface CalendarDayViewProps {
   scheduleHistory:           ScheduleVersion[]
   holidays?:                 { date: string; reason: string }[]
   selectedDate:              Date
+  venuePricePerHour?:        number
+  venueNightRatePrice?:      number
+  venueNightRateStart?:      number   // minutes since midnight
   onSlotClick?:              (courtId: string, time: string) => void
   onUpdateStatus?:           (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
   onExtend?:                 (reservationId: string, minutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
@@ -77,13 +80,13 @@ interface CalendarDayViewProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, holidays = [], selectedDate, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, mockNow }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, holidays = [], selectedDate, venuePricePerHour, venueNightRatePrice, venueNightRateStart, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const [realNow,     setRealNow]     = useState(() => new Date())
-  const [selected,    setSelected]    = useState<CalendarReservation | null>(null)
+  const [selectedId,  setSelectedId]  = useState<string | null>(null)
   const [hoveredSlot, setHoveredSlot] = useState<string | null>(null)
 
   // If mockNow is provided, use it directly on every render — no stale state
@@ -183,6 +186,8 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
     () => getArgentinaDateString(selectedDate) < getArgentinaDateString(now),
     [selectedDate, now],
   )
+  // Derive selected from effectiveReservations so the SlideOver auto-updates when Convex mutates
+  // (selectedId is the stable key; the object is recomputed from fresh data on every render)
   const effectiveReservations = reservations.map((r) => {
     if (isPastDay) {
       if (r.state === 'señado' || r.state === 'en-cancha' || r.state === 'pendiente') return { ...r, state: 'jugado' as const }
@@ -197,6 +202,8 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
     }
     return r
   })
+
+  const selected = selectedId ? (effectiveReservations.find((r) => r.id === selectedId) ?? null) : null
 
   // ── Current time line ───────────────────────────────────────────────────────
   const withinDay   = nowTotalMins >= DAY_START_MIN && nowTotalMins < DAY_END_MIN
@@ -398,7 +405,7 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
                   slotHeight={SLOT_HEIGHT}
                   slotCount={slotCount}
                   now={now}
-                  onClick={() => setSelected(res)}
+                  onClick={() => setSelectedId(res.id)}
                 />
               </div>
             )
@@ -475,7 +482,10 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
         courts={courts}
         reservations={effectiveReservations}
         now={now}
-        onClose={() => setSelected(null)}
+        venuePricePerHour={venuePricePerHour}
+        venueNightRatePrice={venueNightRatePrice}
+        venueNightRateStart={venueNightRateStart}
+        onClose={() => setSelectedId(null)}
         onUpdateStatus={onUpdateStatus}
         onExtend={onExtend}
         onUpdate={onUpdate}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'tamagui'
-import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText, CalendarDays } from 'lucide-react'
+import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText, CalendarDays, Moon } from 'lucide-react'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { TimeSelect } from '@/components/atoms/time-select'
 
@@ -37,17 +37,20 @@ export interface ReservationUpdateFields {
 }
 
 interface ReservationSlideOverProps {
-  reservation:     CalendarReservation | null
-  courts:          Court[]
-  reservations?:   CalendarReservation[]
-  now?:            Date
-  onClose:         () => void
-  onUpdateStatus?: (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
-  onExtend?:       (reservationId: string, additionalMinutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
-  onUpdate?:       (reservationId: string, fields: ReservationUpdateFields) => void
-  onDelete?:       (reservationId: string) => void
-  onCancelSeries?:  (seriesId: string) => void
-  onModifySeries?:  (seriesId: string, fields: SeriesUpdateFields) => void
+  reservation:         CalendarReservation | null
+  courts:              Court[]
+  reservations?:       CalendarReservation[]
+  now?:                Date
+  venuePricePerHour?:  number
+  venueNightRatePrice?: number
+  venueNightRateStart?: number   // minutes since midnight
+  onClose:             () => void
+  onUpdateStatus?:     (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
+  onExtend?:           (reservationId: string, additionalMinutes: 30 | 60, overrideSchedule?: boolean) => Promise<void>
+  onUpdate?:           (reservationId: string, fields: ReservationUpdateFields) => void
+  onDelete?:           (reservationId: string) => void
+  onCancelSeries?:     (seriesId: string) => void
+  onModifySeries?:     (seriesId: string, fields: SeriesUpdateFields) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -584,7 +587,7 @@ function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, 
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, onClose, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries }: ReservationSlideOverProps) {
+export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, venuePricePerHour, venueNightRatePrice, venueNightRateStart, onClose, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries }: ReservationSlideOverProps) {
   const t = useTheme()
 
   const [extendMins,           setExtendMins]           = useState<0 | 30 | 60>(0)
@@ -644,8 +647,29 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const can30 = reservation ? isSlotFree(reservation.courtId, endMins, endMins + 30, reservations, reservation.id) : false
   const can60 = reservation ? isSlotFree(reservation.courtId, endMins, endMins + 60, reservations, reservation.id) : false
 
-  const extraCharge  = reservation && durationMins > 0 ? Math.round(reservation.amount / durationMins * extendMins) : 0
+  const extraCharge = (() => {
+    if (!reservation || extendMins === 0) return 0
+    const basePrice  = court?.priceOverride ?? venuePricePerHour ?? 0
+    const nightPrice = court?.nightRatePriceOverride ?? venueNightRatePrice
+    const extStart   = reservation.endTime
+    const extEnd     = extStart + extendMins
+    if (nightPrice && venueNightRateStart != null) {
+      const dayPart   = Math.max(0, Math.min(extEnd, venueNightRateStart) - extStart)
+      const nightPart = Math.max(0, extEnd - Math.max(extStart, venueNightRateStart))
+      return Math.round(basePrice * dayPart / 60 + nightPrice * nightPart / 60)
+    }
+    return Math.round(basePrice * extendMins / 60)
+  })()
   const newEndTime   = reservation && extendMins > 0 ? minutesToTime(addMins(reservation.endTime, extendMins)) : ''
+
+  const hasNightRateSplit = (() => {
+    if (!reservation || extendMins === 0) return false
+    const nightPrice = court?.nightRatePriceOverride ?? venueNightRatePrice
+    if (!nightPrice || venueNightRateStart == null) return false
+    const extStart  = reservation.endTime
+    const extEnd    = extStart + extendMins
+    return Math.max(0, extEnd - Math.max(extStart, venueNightRateStart)) > 0
+  })()
 
   const pendingBalance = reservation
     ? Math.max(0, reservation.depositAmount != null
@@ -1137,6 +1161,24 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                             ${extraCharge.toLocaleString('es-AR')}
                           </span>
                         </div>
+
+                        {hasNightRateSplit && (
+                          <div style={{
+                            display:         'inline-flex',
+                            alignSelf:       'flex-start',
+                            alignItems:      'center',
+                            gap:             5,
+                            padding:         '4px 9px',
+                            borderRadius:    9999,
+                            backgroundColor: 'oklch(93% 0.025 42)',
+                            border:          '1px solid oklch(84% 0.07 42)',
+                          }}>
+                            <Moon size={11} strokeWidth={2} color="oklch(44% 0.11 42)" />
+                            <span style={{ fontSize: 11, fontWeight: 500, color: 'oklch(44% 0.11 42)', lineHeight: 1 }}>
+                              Incluye tarifa nocturna
+                            </span>
+                          </div>
+                        )}
 
                         {overrideConfirmPending ? (
                           <>
