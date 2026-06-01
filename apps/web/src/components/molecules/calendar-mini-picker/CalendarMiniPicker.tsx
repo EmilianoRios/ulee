@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useLocalStorage } from '@/hooks/use-local-storage'
+import { getMonthGrid, isSameDay } from '../../../lib/calendar-utils'
 
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
@@ -10,48 +11,6 @@ const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
-
-interface CalendarCell {
-  date: Date
-  isCurrentMonth: boolean
-}
-
-function getMonthGrid(year: number, month: number): CalendarCell[][] {
-  const firstDay = new Date(year, month, 1)
-  const lastDay  = new Date(year, month + 1, 0)
-
-  // Monday-first: Monday=0 … Sunday=6
-  const startOffset = (firstDay.getDay() + 6) % 7
-
-  const cells: CalendarCell[] = []
-
-  for (let i = startOffset - 1; i >= 0; i--) {
-    cells.push({ date: new Date(year, month, -i), isCurrentMonth: false })
-  }
-
-  for (let d = 1; d <= lastDay.getDate(); d++) {
-    cells.push({ date: new Date(year, month, d), isCurrentMonth: true })
-  }
-
-  const remaining = (7 - (cells.length % 7)) % 7
-  for (let d = 1; d <= remaining; d++) {
-    cells.push({ date: new Date(year, month + 1, d), isCurrentMonth: false })
-  }
-
-  const weeks: CalendarCell[][] = []
-  for (let i = 0; i < cells.length; i += 7) {
-    weeks.push(cells.slice(i, i + 7))
-  }
-  return weeks
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth()    === b.getMonth()    &&
-    a.getDate()     === b.getDate()
-  )
-}
 
 interface CalendarMiniPickerProps {
   selectedDate: Date
@@ -112,23 +71,25 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
     transition:      'background-color 100ms ease-out',
   }
 
-  const toggleBtn: React.CSSProperties = {
+  const panelToggleBtn: React.CSSProperties = {
     ...navBtnBase,
-    width:  28,
-    height: 28,
+    width:           26,
+    height:          26,
+    color:           D.textMuted,
+    marginLeft:      4,
   }
 
-  const collapsedToggleResting: React.CSSProperties = {
-    width:           28,
-    height:          28,
+  const expandToggleBtn: React.CSSProperties = {
+    width:           30,
+    height:          30,
     borderRadius:    7,
-    border:          '1px solid oklch(50% 0.18 155 / 0.35)',
-    backgroundColor: 'oklch(50% 0.18 155 / 0.12)',
+    border:          `1px solid ${D.border}`,
+    backgroundColor: D.hover,
     cursor:          'pointer',
     display:         'flex',
     alignItems:      'center',
     justifyContent:  'center',
-    color:           D.verde,
+    color:           D.text,
     padding:         0,
     flexShrink:      0,
     transition:      'background-color 100ms ease-out',
@@ -151,11 +112,11 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
         <button
           onClick={() => setCollapsed(false)}
           aria-label="Expandir selector de fecha"
-          style={collapsedToggleResting}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.22)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.12)' }}
+          style={expandToggleBtn}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(36% 0.022 228)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = D.hover }}
         >
-          <ChevronRight size={14} strokeWidth={2} />
+          <PanelLeftOpen size={14} strokeWidth={2} />
         </button>
       </div>
     )
@@ -176,7 +137,7 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
     }}>
 
       {/* Month header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           onClick={prevMonth}
           aria-label="Mes anterior"
@@ -188,6 +149,8 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
         </button>
 
         <span style={{
+          flex:          1,
+          textAlign:     'center',
           fontSize:      13,
           fontWeight:    600,
           color:         D.text,
@@ -205,6 +168,18 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
         >
           <ChevronRight size={14} strokeWidth={2} />
+        </button>
+
+        <div style={{ width: 1, height: 14, backgroundColor: D.border, flexShrink: 0 }} />
+
+        <button
+          onClick={() => setCollapsed(true)}
+          aria-label="Colapsar selector de fecha"
+          style={panelToggleBtn}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = D.hover; (e.currentTarget as HTMLButtonElement).style.color = D.text }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = D.textMuted }}
+        >
+          <PanelLeftClose size={14} strokeWidth={2} />
         </button>
       </div>
 
@@ -235,9 +210,10 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
             key={wi}
             style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}
           >
-            {week.map(({ date, isCurrentMonth }, di) => {
-              const isSelected = isSameDay(date, selectedDate)
-              const isToday    = isSameDay(date, today)
+            {week.map((date, di) => {
+              const isCurrentMonth = date.getMonth() === viewMonth
+              const isSelected     = isSameDay(date, selectedDate)
+              const isToday        = isSameDay(date, today)
 
               const bgColor: string    = isSelected ? D.verde : 'transparent'
               const textColor: string  = isSelected
@@ -293,18 +269,6 @@ export function CalendarMiniPicker({ selectedDate, onSelectDate }: CalendarMiniP
         ))}
       </div>
 
-      {/* Collapse toggle */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', paddingTop: 8 }}>
-        <button
-          onClick={() => setCollapsed(true)}
-          aria-label="Colapsar selector de fecha"
-          style={collapsedToggleResting}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.22)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'oklch(50% 0.18 155 / 0.12)' }}
-        >
-          <ChevronLeft size={14} strokeWidth={2} />
-        </button>
-      </div>
     </div>
   )
 }

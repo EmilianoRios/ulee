@@ -63,6 +63,7 @@ interface CalendarDayViewProps {
   spillovers?:               CalendarReservation[]
   schedule:                  DaySchedule[]
   scheduleHistory:           ScheduleVersion[]
+  holidays?:                 { date: string; reason: string }[]
   selectedDate:              Date
   onSlotClick?:              (courtId: string, time: string) => void
   onUpdateStatus?:           (reservationId: string, status: ReservationBackendStatus, cashAmount?: number, onlineAmount?: number, amountOverride?: number) => void
@@ -76,7 +77,7 @@ interface CalendarDayViewProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, selectedDate, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, mockNow }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, holidays = [], selectedDate, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -140,6 +141,11 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
     const entry = scheduleForDate.find((s) => s.dayOfWeek === dayOfWeek)
     return entry !== undefined && !entry.active
   }, [scheduleForDate, dayOfWeek])
+
+  const holidayReason = useMemo(() => {
+    const match = holidays.find((h) => h.date === dateStr)
+    return match?.reason ?? null
+  }, [holidays, dateStr])
 
   const TOTAL_SLOTS = Math.ceil((DAY_END_MIN - DAY_START_MIN) / SLOT_MINUTES)
 
@@ -220,11 +226,14 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
     headerBg:   t.cabeceraOscura.val,
   } as const
 
-  // ── Inactive day empty state ────────────────────────────────────────────────
-  if (isInactiveDay) {
+  // ── Inactive day / holiday empty state ─────────────────────────────────────
+  if (isInactiveDay || holidayReason !== null) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <span style={{ fontSize: 14, color: C.textMuted }}>Sin actividad este día</span>
+        {holidayReason !== null && (
+          <span style={{ fontSize: 12, color: C.textInact }}>{holidayReason}</span>
+        )}
       </div>
     )
   }

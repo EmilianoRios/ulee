@@ -41,6 +41,11 @@ export interface CalListResult {
   spillovers:   CalReservation[]   // started on date-1, end projected to [0, endTime-1440]
 }
 
+export interface CalDateRangeResult {
+  byDate:     Record<string, CalReservation[]>   // "YYYY-MM-DD" → reservations for that date
+  spillovers: CalReservation[]                    // prev-day overflows into startDate
+}
+
 export interface ReservationStats {
   count:        number
   totalRevenue: number
@@ -213,5 +218,79 @@ export const statsByVenueAndDate = query({
       activeCourts,
       totalCourts,
     }
+  },
+})
+
+export const listByVenueAndDateRange = query({
+  args: {
+    venueId:   v.id('venues'),
+    startDate: v.string(),   // "YYYY-MM-DD" inclusive
+    endDate:   v.string(),   // "YYYY-MM-DD" inclusive
+  },
+  handler: async (ctx, args): Promise<CalDateRangeResult> => {
+    await getCurrentUser(ctx)
+
+    const prevDate = addDays(args.startDate, -1)
+
+    // Fetch date range and spillover day in parallel
+    const [rangeRows, prevDayRows] = await Promise.all([
+      ctx.db
+        .query('reservations')
+        .withIndex('by_venueId_date', (q) =>
+          q.eq('venueId', args.venueId)
+           .gte('date', args.startDate)
+           .lte('date', args.endDate)
+        )
+        .collect(),
+      ctx.db
+        .query('reservations')
+        .withIndex('by_venueId_date', (q) =>
+          q.eq('venueId', args.venueId).eq('date', prevDate)
+        )
+        .collect(),
+    ])
+
+    // Batch court lookup across all rows
+    const allRows = [...rangeRows, ...prevDayRows]
+    const courtIds = [...new Set(allRows.map((r) => r.courtId))]
+    const courts = await Promise.all(courtIds.map((id) => ctx.db.get(id)))
+    const courtMap = new Map(
+      courts.filter(Boolean).map((c) => [c!._id, c!.name])
+    )
+
+    const toCalReservation = (r: typeof rangeRows[number]): CalReservation => ({
+      _id:           r._id,
+      courtId:       r.courtId,
+      courtName:     courtMap.get(r.courtId) ?? '',
+      clientName:    r.clientName,
+      clientPhone:   r.clientPhone,
+      startTime:     r.startTime,
+      endTime:       r.endTime,
+      date:          r.date,
+      status:        r.status,
+      totalAmount:   r.totalAmount,
+      depositAmount: r.depositAmount,
+      notes:         r.notes,
+      seriesId:      r.seriesId,
+    })
+
+    // Group range rows by date
+    const byDate: Record<string, CalReservation[]> = {}
+    for (const r of rangeRows) {
+      const entry = toCalReservation(r)
+      if (byDate[r.date] === undefined) byDate[r.date] = []
+      byDate[r.date]!.push(entry)
+    }
+
+    // Spillovers: prev-day reservations that cross midnight into startDate
+    const spillovers = prevDayRows
+      .filter((r) => r.endTime > 1440)
+      .map((r) => ({
+        ...toCalReservation(r),
+        startTime: 0,                // begins at 00:00 in startDate's view
+        endTime:   r.endTime - 1440, // projected to startDate's axis
+      }))
+
+    return { byDate, spillovers }
   },
 })

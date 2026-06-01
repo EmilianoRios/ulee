@@ -6,13 +6,14 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 export type CalendarViewMode = 'dia' | 'semana' | 'mes'
 
 interface CalendarHeaderProps {
-  currentDate: Date
-  viewMode: CalendarViewMode
-  onPrevDay: () => void
-  onNextDay: () => void
-  onToday: () => void
+  currentDate:      Date
+  viewMode:         CalendarViewMode
+  onPrev:           () => void
+  onNext:           () => void
+  onToday:          () => void
+  isHoyVisible:     boolean
   onViewModeChange: (mode: CalendarViewMode) => void
-  action?: React.ReactNode
+  action?:          React.ReactNode
 }
 
 const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
@@ -21,19 +22,75 @@ const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
   { id: 'mes',    label: 'Mes' },
 ]
 
-function formatDate(date: Date): string {
-  const raw = date.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day:     'numeric',
-    month:   'long',
-    year:    'numeric',
-  })
-  return raw.charAt(0).toUpperCase() + raw.slice(1)
+const MONTH_NAMES_CAP = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+const MONTH_ABBREVS = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+]
+
+function getMondayOfWeek(d: Date): Date {
+  const dow = d.getDay() === 0 ? 7 : d.getDay()
+  const mon = new Date(d)
+  mon.setDate(d.getDate() - (dow - 1))
+  return mon
+}
+
+function formatDateLabel(date: Date, viewMode: CalendarViewMode): string {
+  if (viewMode === 'dia') {
+    const raw = date.toLocaleDateString('es-AR', {
+      weekday: 'long',
+      day:     'numeric',
+      month:   'long',
+      year:    'numeric',
+    })
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
+  }
+
+  if (viewMode === 'mes') {
+    const month = MONTH_NAMES_CAP[date.getMonth()]!
+    return `${month} ${date.getFullYear()}`
+  }
+
+  // semana
+  const mon = getMondayOfWeek(date)
+  const sun = new Date(mon)
+  sun.setDate(mon.getDate() + 6)
+
+  const monDay  = mon.getDate()
+  const sunDay  = sun.getDate()
+  const monMon  = mon.getMonth()
+  const sunMon  = sun.getMonth()
+  const monYear = mon.getFullYear()
+  const sunYear = sun.getFullYear()
+
+  if (monMon === sunMon && monYear === sunYear) {
+    return `${monDay} – ${sunDay} ${MONTH_ABBREVS[monMon]!} ${monYear}`
+  }
+  if (monYear === sunYear) {
+    return `${monDay} ${MONTH_ABBREVS[monMon]!} – ${sunDay} ${MONTH_ABBREVS[sunMon]!} ${sunYear}`
+  }
+  return `${monDay} ${MONTH_ABBREVS[monMon]!} ${monYear} – ${sunDay} ${MONTH_ABBREVS[sunMon]!} ${sunYear}`
+}
+
+function prevLabel(viewMode: CalendarViewMode): string {
+  if (viewMode === 'semana') return 'Semana anterior'
+  if (viewMode === 'mes')    return 'Mes anterior'
+  return 'Día anterior'
+}
+
+function nextLabel(viewMode: CalendarViewMode): string {
+  if (viewMode === 'semana') return 'Semana siguiente'
+  if (viewMode === 'mes')    return 'Mes siguiente'
+  return 'Día siguiente'
 }
 
 function NavButton({ onClick, label, children }: {
-  onClick: () => void
-  label: string
+  onClick:  () => void
+  label:    string
   children: React.ReactNode
 }) {
   const t = useTheme()
@@ -65,14 +122,14 @@ function NavButton({ onClick, label, children }: {
 export function CalendarHeader({
   currentDate,
   viewMode,
-  onPrevDay,
-  onNextDay,
+  onPrev,
+  onNext,
   onToday,
+  isHoyVisible,
   onViewModeChange,
   action,
 }: CalendarHeaderProps) {
   const t = useTheme()
-  const isToday = new Date().toDateString() === currentDate.toDateString()
 
   return (
     <div style={{
@@ -86,7 +143,7 @@ export function CalendarHeader({
 
       {/* Date navigation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <NavButton onClick={onPrevDay} label="Día anterior">
+        <NavButton onClick={onPrev} label={prevLabel(viewMode)}>
           <ChevronLeft size={16} strokeWidth={2} />
         </NavButton>
 
@@ -100,14 +157,14 @@ export function CalendarHeader({
           userSelect:    'none',
           minWidth:      260,
         }}>
-          {formatDate(currentDate)}
+          {formatDateLabel(currentDate, viewMode)}
         </h1>
 
-        <NavButton onClick={onNextDay} label="Día siguiente">
+        <NavButton onClick={onNext} label={nextLabel(viewMode)}>
           <ChevronRight size={16} strokeWidth={2} />
         </NavButton>
 
-        {!isToday && (
+        {isHoyVisible && (
           <button
             onClick={onToday}
             style={{
@@ -132,43 +189,39 @@ export function CalendarHeader({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {action}
 
-      {/* View mode toggle */}
-      <div style={{
-        display:         'flex',
-        backgroundColor: t.superficie.val,
-        borderRadius:    8,
-        padding:         3,
-        gap:             2,
-        border:          `1px solid ${t.bordeNeutral.val}`,
-      }}>
-        {VIEW_OPTIONS.map(({ id, label }) => {
-          const isActive   = viewMode === id
-          const isDisabled = id !== 'dia'
-
-          return (
-            <button
-              key={id}
-              onClick={() => !isDisabled && onViewModeChange(id)}
-              style={{
-                padding:         '5px 16px',
-                borderRadius:    6,
-                border:          'none',
-                cursor:          isDisabled ? 'not-allowed' : 'pointer',
-                fontSize:        13,
-                fontWeight:      isActive ? 600 : 400,
-                backgroundColor: isActive ? t.superficieContenido.val : 'transparent',
-                color:           isActive ? t.textoPrimario.val : t.textoInactivo.val,
-                opacity:         isDisabled ? 0.45 : 1,
-                boxShadow:       isActive ? '0 1px 3px oklch(0% 0 0 / 0.07)' : 'none',
-                transition:      'background-color 120ms ease-out',
-                userSelect:      'none',
-              }}
-            >
-              {label}
-            </button>
-          )
-        })}
-      </div>
+        <div style={{
+          display:         'flex',
+          backgroundColor: t.superficie.val,
+          borderRadius:    8,
+          padding:         3,
+          gap:             2,
+          border:          `1px solid ${t.bordeNeutral.val}`,
+        }}>
+          {VIEW_OPTIONS.map(({ id, label }) => {
+            const isActive = viewMode === id
+            return (
+              <button
+                key={id}
+                onClick={() => onViewModeChange(id)}
+                style={{
+                  padding:         '5px 16px',
+                  borderRadius:    6,
+                  border:          'none',
+                  cursor:          'pointer',
+                  fontSize:        13,
+                  fontWeight:      isActive ? 600 : 400,
+                  backgroundColor: isActive ? t.superficieContenido.val : 'transparent',
+                  color:           isActive ? t.textoPrimario.val : t.textoInactivo.val,
+                  boxShadow:       isActive ? '0 1px 3px oklch(0% 0 0 / 0.07)' : 'none',
+                  transition:      'background-color 120ms ease-out',
+                  userSelect:      'none',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
