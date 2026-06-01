@@ -391,7 +391,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [telefono,      setTelefono]      = useState('')
   const [monto,         setMonto]         = useState('')
   const [isMontoCustom, setIsMontoCustom] = useState(false)
-  const [estado,        setEstado]        = useState<'pendiente' | 'señado' | 'pagado'>('señado')
+  const [estado,        setEstado]        = useState<'pendiente' | 'señado' | 'pagado'>(type === 'recurrente' ? 'pendiente' : 'señado')
   const [paymentMethod,   setPaymentMethod]   = useState<'cash' | 'online'>('cash')
   const [sena,            setSena]            = useState('')
   const [isDepositCustom, setIsDepositCustom] = useState(false)
@@ -457,6 +457,12 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       setIsDepositCustom(false)
     }
   }, [estado])
+
+  // Reset estado to match the tab's expected default on tab switch
+  useEffect(() => {
+    if (type === 'recurrente') setEstado('pendiente')
+    else if (type === 'reserva') setEstado('señado')
+  }, [type])
 
   // Recurrente
   const [frecuencia,     setFrecuencia]     = useState<'semanal' | 'quincenal'>('semanal')
@@ -531,13 +537,14 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
             : {}),
         })
       } else if (type === 'recurrente') {
-        const diasIso = diasSemana.map((k) => DIAS_SEMANA_TO_ISO[k]!)
+        const diasIso  = diasSemana.map((k) => DIAS_SEMANA_TO_ISO[k]!)
+        const hasMonto = monto.trim() !== '' && Number(monto) > 0
         await createSeries({
           venueId,
           courtId:      courtId as Id<'courts'>,
           clientName:   cliente,
           clientPhone:  telefono,
-          totalAmount:  monto.trim() !== '' && Number(monto) > 0 ? Number(monto) : 0,
+          totalAmount:  hasMonto ? Number(monto) : 0,
           startDate:    fecha,
           endDate:      sinVencimiento ? undefined : fechaVenc || undefined,
           indefinite:   sinVencimiento,
@@ -546,6 +553,9 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           startTime:    timeToMinutes(horaInicio),
           endTime:      timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
           notes:        notas || undefined,
+          initialStatus: STATE_TO_STATUS[estado],
+          ...(estado !== 'pendiente' ? { paymentMethod } : {}),
+          ...(estado === 'señado' && hasMonto ? { customDepositAmount: sena.trim() === '' ? 0 : Number(sena) } : {}),
         })
       } else if (type === 'mantenimiento') {
         await createReservation({
@@ -840,28 +850,30 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 <Field label="Estado inicial" required>
                   <RadioGroup
                     value={estado}
-                    onChange={(v) => setEstado(v as 'señado' | 'pagado')}
-                    options={[{ value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
+                    onChange={(v) => setEstado(v as 'pendiente' | 'señado' | 'pagado')}
+                    options={[{ value: 'pendiente', label: 'A cobrar' }, { value: 'señado', label: 'Señado' }, { value: 'pagado', label: 'Pagado' }]}
                   />
                 </Field>
               </div>
 
-              <Field label="Método de pago" required>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <PaymentMethodButton
-                    label="Efectivo"
-                    icon={<Banknote size={14} strokeWidth={2} />}
-                    selected={paymentMethod === 'cash'}
-                    onClick={() => setPaymentMethod('cash')}
-                  />
-                  <PaymentMethodButton
-                    label="Mercado Pago"
-                    icon={<CreditCard size={14} strokeWidth={2} />}
-                    selected={paymentMethod === 'online'}
-                    onClick={() => setPaymentMethod('online')}
-                  />
-                </div>
-              </Field>
+              {estado !== 'pendiente' && (
+                <Field label="Método de pago" required>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <PaymentMethodButton
+                      label="Efectivo"
+                      icon={<Banknote size={14} strokeWidth={2} />}
+                      selected={paymentMethod === 'cash'}
+                      onClick={() => setPaymentMethod('cash')}
+                    />
+                    <PaymentMethodButton
+                      label="Mercado Pago"
+                      icon={<CreditCard size={14} strokeWidth={2} />}
+                      selected={paymentMethod === 'online'}
+                      onClick={() => setPaymentMethod('online')}
+                    />
+                  </div>
+                </Field>
+              )}
 
               {notasBlock}
             </>

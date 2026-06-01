@@ -27,7 +27,10 @@ export const createSeries = mutation({
     weekInterval: v.union(v.literal(1), v.literal(2)),
     startTime:    v.number(),            // minutes since midnight (0–1439)
     endTime:      v.number(),            // minutes since midnight (0–2879; > 1440 = overnight)
-    notes:        v.optional(v.string()),
+    notes:               v.optional(v.string()),
+    initialStatus:       v.optional(v.union(v.literal('pending'), v.literal('deposit_paid'), v.literal('paid'))),
+    paymentMethod:       v.optional(v.union(v.literal('cash'), v.literal('online'))),
+    customDepositAmount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await assertVenueAccess(ctx, args.venueId)
@@ -85,6 +88,21 @@ export const createSeries = mutation({
       }
     }
 
+    // ── Validate customDepositAmount ───────────────────────────────────────
+    if (args.customDepositAmount !== undefined && (args.customDepositAmount < 0 || args.customDepositAmount > args.totalAmount)) {
+      throw new ConvexError('invalid_deposit_amount')
+    }
+
+    // ── Compute depositAmount once (same for all instances) ────────────────
+    const initialStatus = args.initialStatus ?? 'pending'
+    let depositAmount: number | undefined
+    if (initialStatus === 'paid') {
+      depositAmount = args.totalAmount
+    } else if (initialStatus === 'deposit_paid') {
+      const pct = venue?.pricingConfig?.depositPercentage ?? 50
+      depositAmount = args.customDepositAmount ?? Math.round(args.totalAmount * pct / 100)
+    }
+
     // ── All-or-nothing insert ───────────────────────────────────────────────
     const sortedDias = [...args.diasSemana].sort((a, b) => a - b)
 
@@ -117,12 +135,24 @@ export const createSeries = mutation({
         clientName:      args.clientName,
         clientPhone:     args.clientPhone,
         totalAmount:     args.totalAmount,
+        depositAmount,
         status:          'recurring',
         notes:           args.notes,
         seriesId,
         createdByUserId: user._id,
       })
       reservationIds.push(reservationId)
+
+      if (initialStatus !== 'pending' && depositAmount !== undefined && args.paymentMethod !== undefined) {
+        await ctx.db.insert('payments', {
+          reservationId,
+          type:      initialStatus === 'paid' ? 'full' : 'deposit',
+          amount:    depositAmount,
+          method:    args.paymentMethod,
+          status:    'completed',
+          timestamp: Date.now(),
+        })
+      }
     }
 
     return { seriesId, reservationIds, count: reservationIds.length }
