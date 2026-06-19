@@ -1,14 +1,18 @@
 import { mutation } from '../../_generated/server'
+import { v } from 'convex/values'
 import { getCurrentUser } from '../../lib/auth'
 
 export const sync = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    emailFallback: v.optional(v.string()),
+    nameFallback:  v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const identity = await getCurrentUser(ctx)
 
     const clerkId = identity.subject
-    const name = identity.name ?? ''
-    const email = identity.email ?? ''
+    const name = identity.name || args.nameFallback || ''
+    const email = (identity.email || args.emailFallback || '').toLowerCase()
     // Clerk injects publicMetadata into the JWT at the root level when the
     // Convex JWT template is configured to do so. Cast to access custom claim.
     const role = (identity as unknown as { role?: string }).role ?? 'owner'
