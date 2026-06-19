@@ -56,12 +56,19 @@ export const createSeries = mutation({
     const holidays = venue?.holidays ?? []
 
     // ── Expand series into concrete dates ──────────────────────────────────
-    // RULE-CAP3: always pass maxOccurrences=52 as safety ceiling
+    // RULE-CAP3: indefinite series are capped at 1 year from startDate;
+    // explicit endDate series still get the 52-occurrence safety ceiling.
+    const indefiniteEndDate = (() => {
+      const d = new Date(`${args.startDate}T12:00:00Z`)
+      d.setUTCFullYear(d.getUTCFullYear() + 1)
+      return d.toISOString().slice(0, 10)
+    })()
+
     const dates = expandSeries(
       args.startDate,
       args.diasSemana,
       args.weekInterval,
-      args.indefinite ? undefined : args.endDate,
+      args.indefinite ? indefiniteEndDate : args.endDate,
       52,
     )
 
@@ -189,7 +196,16 @@ export const cancelSeries = mutation({
         .filter((q) => q.gte(q.field('date'), today))
         .collect()
 
-      await Promise.all(future.map((r) => ctx.db.patch(r._id, { status: 'absent' })))
+      await Promise.all(
+        future.map(async (r) => {
+          const payments = await ctx.db
+            .query('payments')
+            .withIndex('by_reservationId', (q) => q.eq('reservationId', r._id))
+            .collect()
+          await Promise.all(payments.map((p) => ctx.db.delete(p._id)))
+          await ctx.db.delete(r._id)
+        }),
+      )
       cancelledCount = future.length
     }
 
