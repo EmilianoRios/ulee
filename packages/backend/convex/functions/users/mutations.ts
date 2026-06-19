@@ -113,10 +113,12 @@ export const inviteEmployee = mutation({
     if (!venue) throw new ConvexError('venue_not_found')
     if (venue.ownerId !== caller._id) throw new ConvexError('forbidden')
 
+    const normalizedEmail = args.email.toLowerCase()
+
     // Find existing user by email
     const existingUser = await ctx.db
       .query('users')
-      .withIndex('by_email', (q) => q.eq('email', args.email))
+      .withIndex('by_email', (q) => q.eq('email', normalizedEmail))
       .unique()
 
     const decision = resolveInviteTarget(existingUser)
@@ -128,9 +130,9 @@ export const inviteEmployee = mutation({
     } else {
       // Create a pending stub — sync.ts will claim it on first login
       targetUserId = await ctx.db.insert('users', {
-        clerkId: `pending_${args.email}`,
-        name:    args.email.split('@')[0],
-        email:   args.email,
+        clerkId: `pending_${normalizedEmail}`,
+        name:    normalizedEmail.split('@')[0],
+        email:   normalizedEmail,
         role:    'employee',
         onboardingCompleted: false,
       })

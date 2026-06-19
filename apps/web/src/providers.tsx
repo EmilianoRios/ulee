@@ -24,7 +24,10 @@ function SyncUser() {
 
     const email = user.primaryEmailAddress?.emailAddress ?? ''
 
-    sync().then(async (result) => {
+    sync({
+      emailFallback: email,
+      nameFallback:  user.fullName ?? '',
+    }).then(async (result) => {
       // Try to claim a pending invite using the Clerk client-side email
       // (reliable regardless of JWT template configuration)
       if (email) {
