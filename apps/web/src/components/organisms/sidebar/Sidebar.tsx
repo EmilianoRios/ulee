@@ -17,12 +17,14 @@ import {
   MapPin,
   ChevronDown,
   Check,
+  Lock,
   type LucideIcon,
 } from 'lucide-react'
 import { useUser, UserButton } from '@clerk/nextjs'
 import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import { useActiveVenue } from '@/context/active-venue'
+import { usePlan } from '@/hooks/usePlan'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 function useC() {
@@ -59,10 +61,11 @@ const THRESHOLD = 160
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 interface NavItemDef {
-  label:   string
-  href:    string
-  icon:    LucideIcon
+  label:    string
+  href:     string
+  icon:     LucideIcon
   premium?: boolean
+  locked?:  boolean
 }
 
 interface NavSection {
@@ -82,14 +85,12 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'GESTIÓN',
     items: [
       { label: 'Canchas',  href: '/canchas',  icon: LayoutGrid },
-      { label: 'Clientes', href: '/clientes', icon: Users },
       { label: 'Finanzas', href: '/finanzas', icon: Wallet },
     ],
   },
   {
     label: 'SISTEMA',
     items: [
-      { label: 'Estadísticas', href: '/estadisticas', icon: BarChart3, premium: true },
       { label: 'Sedes',        href: '/sedes',        icon: Building2 },
       { label: 'Configuración',href: '/configuracion',icon: Settings },
     ],
@@ -336,15 +337,19 @@ function Tooltip({ label, visible, top, left }: { label: string; visible: boolea
 }
 
 // ─── Nav Item ─────────────────────────────────────────────────────────────────
-function NavItem({ href, label, icon: Icon, isActive, collapsed, premium }: {
+function NavItem({ href, label, icon: Icon, isActive, collapsed, premium, locked, plan }: {
   href: string; label: string; icon: LucideIcon
   isActive: boolean; collapsed: boolean; premium?: boolean
+  locked?: boolean; plan?: 'free' | 'pro'
 }) {
   const C = useC()
   const [hovered,     setHovered]     = useState(false)
   const [tooltipTop,  setTooltipTop]  = useState(0)
   const [tooltipLeft, setTooltipLeft] = useState(0)
   const itemRef = useRef<HTMLAnchorElement>(null)
+
+  const isLocked = locked && plan === 'free'
+  const resolvedHref = isLocked ? '/upgrade' : href
 
   const handleMouseEnter = useCallback(() => {
     setHovered(true)
@@ -358,7 +363,7 @@ function NavItem({ href, label, icon: Icon, isActive, collapsed, premium }: {
   return (
     <div style={{ position: 'relative' }}>
       <Link
-        href={href}
+        href={resolvedHref}
         ref={itemRef}
         style={{ textDecoration: 'none', display: 'block', borderRadius: 7, outline: 'none' }}
         onMouseEnter={handleMouseEnter}
@@ -381,9 +386,9 @@ function NavItem({ href, label, icon: Icon, isActive, collapsed, premium }: {
           <Icon
             size={isActive ? 18 : 17}
             // @ts-expect-error — OKLCH strings are valid CSS colors
-            color={isActive ? C.greenDeep : C.textInactive}
+            color={isLocked ? C.textInactive : isActive ? C.greenDeep : C.textInactive}
             strokeWidth={isActive ? 2.2 : 1.7}
-            style={{ flexShrink: 0 }}
+            style={{ flexShrink: 0, opacity: isLocked ? 0.5 : 1 }}
           />
 
           {!collapsed && (
@@ -391,15 +396,19 @@ function NavItem({ href, label, icon: Icon, isActive, collapsed, premium }: {
               <Text
                 fontSize={13}
                 style={{
-                  color:      isActive ? C.activeText : C.textMuted,
-                  fontWeight: isActive ? '600' : '400',
+                  color:         isActive ? C.activeText : C.textMuted,
+                  fontWeight:    isActive ? '600' : '400',
                   letterSpacing: isActive ? '-0.1px' : '0px',
-                  lineHeight: '1',
+                  lineHeight:    '1',
+                  opacity:       isLocked ? 0.5 : 1,
                 }}
               >
                 {label}
               </Text>
-              {premium && (
+              {isLocked && (
+                <Lock size={12} strokeWidth={2} color={C.textInactive} style={{ flexShrink: 0, opacity: 0.5 }} />
+              )}
+              {!isLocked && premium && (
                 <span style={{
                   fontSize:        9,
                   fontWeight:      700,
@@ -421,7 +430,7 @@ function NavItem({ href, label, icon: Icon, isActive, collapsed, premium }: {
       </Link>
 
       {collapsed && (
-        <Tooltip label={label} visible={hovered} top={tooltipTop} left={tooltipLeft} />
+        <Tooltip label={isLocked ? `${label} (PRO)` : label} visible={hovered} top={tooltipTop} left={tooltipLeft} />
       )}
     </div>
   )
@@ -496,10 +505,57 @@ function UserZone({ collapsed }: { collapsed: boolean }) {
   )
 }
 
+// ─── Module key → hrefs map (for employee access filtering) ──────────────────
+const MODULE_HREFS: Record<string, string[]> = {
+  reservations: ['/reservas', '/calendario'],
+  finances:     ['/finanzas'],
+  courts:       ['/canchas'],
+  customers:    ['/clientes'],
+}
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 export function Sidebar() {
   const C = useC()
   const pathname = usePathname()
+  const plan     = usePlan()
+
+  const { isAuthenticated } = useConvexAuth()
+  const userStatus  = useQuery(api.functions.users.queries.getCurrentUserStatus, isAuthenticated ? {} : 'skip')
+  const venueAccess = useQuery(api.functions.users.queries.getMyVenueAccess,     isAuthenticated ? {} : 'skip')
+
+  const isEmployee = userStatus?.role === 'employee'
+
+  const allowedHrefs: Set<string> | null = (() => {
+    if (!isEmployee) return null
+
+    const activeAccess = venueAccess?.find((a) => a.role === 'employee' && a.status === 'active')
+    if (!activeAccess) return null
+
+    const modules = (activeAccess as { allowedModules?: string[] }).allowedModules
+
+    if (!modules) return null
+
+    const hrefs = new Set<string>()
+    for (const mod of modules) {
+      for (const href of (MODULE_HREFS[mod] ?? [])) {
+        hrefs.add(href)
+      }
+    }
+    return hrefs
+  })()
+
+  const visibleSections: NavSection[] = NAV_SECTIONS.flatMap((section) => {
+    if (isEmployee && section.label === 'SISTEMA') return []
+
+    const items = section.items.filter((item) => {
+      if (!isEmployee) return true
+      if (allowedHrefs === null) return true
+      return allowedHrefs.has(item.href)
+    })
+
+    if (items.length === 0) return []
+    return [{ ...section, items }]
+  })
 
   const [width,       setWidth]       = useLocalStorage('canchero:sidebarWidth', EXPANDED)
   const [isDragging,  setIsDragging]  = useState(false)
@@ -628,7 +684,7 @@ export function Sidebar() {
         gap={0}
         style={{ overflowY: 'auto', overflowX: 'hidden' }}
       >
-        {NAV_SECTIONS.map((section, idx) => (
+        {visibleSections.map((section, idx) => (
           <div key={section.label}>
             {idx > 0 && (
               <div style={{ paddingTop: 6, paddingBottom: 6 }}>
@@ -665,6 +721,8 @@ export function Sidebar() {
                   isActive={pathname === item.href}
                   collapsed={collapsed}
                   premium={item.premium}
+                  locked={item.locked}
+                  plan={plan}
                 />
               ))}
             </YStack>

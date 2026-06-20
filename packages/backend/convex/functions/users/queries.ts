@@ -1,5 +1,23 @@
 import { query } from '../../_generated/server'
 import type { Id } from '../../_generated/dataModel'
+import { getPlan } from '../../lib/plan'
+
+export const getMyPlan = query({
+  args: {},
+  handler: async (ctx): Promise<'free' | 'pro'> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return 'free'
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerkId', (q) => q.eq('clerkId', identity.subject))
+      .unique()
+
+    if (!user) return 'free'
+
+    return getPlan(user)
+  },
+})
 
 export const getCurrentUserStatus = query({
   args: {},
@@ -32,13 +50,14 @@ export const getCurrentUserStatus = query({
 })
 
 export interface VenueEmployee {
-  venueAccessId: Id<'venueAccess'>
-  venueId:       Id<'venues'>
-  venueName:     string
-  inviteeEmail:  string
-  inviteeName:   string
-  status:        'pending' | 'active'
-  createdAt:     number
+  venueAccessId:  Id<'venueAccess'>
+  venueId:        Id<'venues'>
+  venueName:      string
+  inviteeEmail:   string
+  inviteeName:    string
+  status:         'pending' | 'active'
+  createdAt:      number
+  allowedModules: string[] | undefined
 }
 
 export const getVenueEmployeesByOwner = query({
@@ -86,13 +105,14 @@ export const getVenueEmployeesByOwner = query({
     )
 
     return employeeRows.map((r, i) => ({
-      venueAccessId: r._id,
-      venueId:       r.venueId,
-      venueName:     r.venueName,
-      inviteeEmail:  users[i]?.email ?? '',
-      inviteeName:   users[i]?.name ?? '',
-      status:        (r.status ?? 'active') as 'pending' | 'active',
-      createdAt:     r._creationTime,
+      venueAccessId:  r._id,
+      venueId:        r.venueId,
+      venueName:      r.venueName,
+      inviteeEmail:   users[i]?.email ?? '',
+      inviteeName:    users[i]?.name ?? '',
+      status:         (r.status ?? 'active') as 'pending' | 'active',
+      createdAt:      r._creationTime,
+      allowedModules: r.allowedModules,
     }))
   },
 })

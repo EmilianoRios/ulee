@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { Plus, Pencil, MapPin, Phone, Mail } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useConvexAuth } from 'convex/react'
-import { api } from '@canchero/backend'
+import { api, FREE_LIMITS } from '@canchero/backend'
 import type { Doc, Id } from '@canchero/backend'
 import { VenueSlideOver } from '@/components/organisms/venue-slide-over/VenueSlideOver'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { useActiveVenue } from '@/context/active-venue'
+import { usePlan } from '@/hooks/usePlan'
+import { PlanLimitButton } from '@/components/molecules/plan-limit-button/PlanLimitButton'
 
 
 // ─── Venue row ────────────────────────────────────────────────────────────────
@@ -179,6 +181,8 @@ export default function SedesPage() {
 
   const { isAuthenticated } = useConvexAuth()
   const venues = useQuery(api.functions.venues.queries.listByOwner, isAuthenticated ? {} : 'skip')
+  const plan = usePlan()
+  const atVenueLimit = plan === 'free' && (venues?.length ?? 0) >= FREE_LIMITS.venues
 
   const [editingVenue, setEditingVenue] = useState<Doc<'venues'> | null>(null)
   const [creating,     setCreating]     = useState(false)
@@ -214,9 +218,11 @@ export default function SedesPage() {
           Sedes
         </span>
 
-        <button
+        <PlanLimitButton
+          atLimit={atVenueLimit}
+          limitLabel={`Límite del plan gratuito: ${FREE_LIMITS.venues} sede. Actualizá tu plan para agregar más.`}
           onClick={openCreate}
-          style={{
+          buttonStyle={{
             display:         'flex',
             alignItems:      'center',
             gap:             6,
@@ -236,7 +242,7 @@ export default function SedesPage() {
         >
           <Plus size={13} strokeWidth={2.5} />
           Nueva sede
-        </button>
+        </PlanLimitButton>
       </div>
 
       <div style={{

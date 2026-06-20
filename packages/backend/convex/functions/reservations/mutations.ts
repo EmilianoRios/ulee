@@ -206,6 +206,15 @@ export const updateStatus = mutation({
     const cash   = args.cashAmount   ?? 0
     const online = args.onlineAmount ?? 0
 
+    // Transitioning to 'paid' on a non-zero reservation requires payment info.
+    // Without it the status becomes 'paid' but no payment row is created, making
+    // the finance total appear as $0.
+    if (args.status === 'paid' && effectiveTotalAmount > 0) {
+      if (cash === 0 && online === 0 && args.paymentMethod === undefined) {
+        throw new ConvexError('payment_info_required')
+      }
+    }
+
     if (cash > 0 || online > 0) {
       if (cash < 0 || online < 0) throw new ConvexError('negative_payment_amount')
 
@@ -453,7 +462,7 @@ export const deleteReservation = mutation({
 
     await assertVenueAccess(ctx, reservation.venueId)
 
-    if (reservation.status !== 'absent') {
+    if (reservation.status !== 'absent' && reservation.status !== 'maintenance') {
       throw new ConvexError('No se puede eliminar una reserva con pago registrado. Primero revertí el estado.')
     }
 

@@ -98,7 +98,7 @@ type FinanceRowShape = {
   total:        number
   depositTotal: number
   paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
-  status:       'paid' | 'deposit_paid' | 'pending' | 'played' | 'maintenance' | 'cancelled'
+  status:       'paid' | 'deposit_paid' | 'pending' | 'played' | 'on_court' | 'absent' | 'recurring' | 'event' | 'maintenance'
   totalAmount:  number
 }
 
@@ -174,7 +174,7 @@ export default function FinanzasPage() {
   const totalSenias   = filtered.reduce((s, r) => s + r.depositTotal, 0)
   const totalGeneral  = filtered.reduce((s, r) => s + r.total,  0)
   const totalACobrar  = filtered
-    .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid')
+    .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid' || r.status === 'on_court')
     .reduce((s, r) => s + (r.totalAmount - r.total), 0)
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))

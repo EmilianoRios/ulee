@@ -165,8 +165,13 @@ export function VenueSlideOver({ venue, isOpen, onClose, onCreated }: VenueSlide
         })
       }
       onClose()
-    } catch {
-      setError('No se pudo guardar. Intentá de nuevo.')
+    } catch (err: unknown) {
+      const convexMessage = (err as { data?: string })?.data
+      if (convexMessage === 'plan_limit_venues') {
+        setError('Alcanzaste el límite de sedes en el plan gratuito.')
+      } else {
+        setError('No se pudo guardar. Intentá de nuevo.')
+      }
     } finally {
       setSaving(false)
     }

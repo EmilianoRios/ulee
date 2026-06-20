@@ -5,6 +5,7 @@ import { addDays, normalizeDaySchedule } from '../../lib/schedule'
 import type { ScheduleVersion } from '../../lib/schedule'
 import type { MutationCtx } from '../../_generated/server'
 import type { Id } from '../../_generated/dataModel'
+import { getPlan, FREE_LIMITS } from '../../lib/plan'
 
 // ---------------------------------------------------------------------------
 // Internal access helper
@@ -87,6 +88,16 @@ export const create = mutation({
       .unique()
 
     if (!user) throw new ConvexError('unauthenticated')
+
+    if (getPlan(user) === 'free') {
+      const ownedVenues = await ctx.db
+        .query('venues')
+        .withIndex('by_ownerId', (q) => q.eq('ownerId', user._id))
+        .collect()
+      if (ownedVenues.length >= FREE_LIMITS.venues) {
+        throw new ConvexError('plan_limit_venues')
+      }
+    }
 
     const normalizedSchedule = (args.initialSchedule ?? args.schedule).map(normalizeDaySchedule)
     const today = new Date().toISOString().slice(0, 10)

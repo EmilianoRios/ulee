@@ -113,9 +113,13 @@ export function OnboardingCanchasOrganism() {
       setCovered(false)
       setPriceOverride('')
       setNightRateOverride('')
-    } catch (err) {
-      setError('Error al agregar la cancha. Intentá de nuevo.')
-      console.error(err)
+    } catch (err: unknown) {
+      const convexMessage = (err as { data?: string })?.data
+      if (convexMessage === 'plan_limit_courts') {
+        setError('Alcanzaste el límite de canchas en el plan gratuito.')
+      } else {
+        setError('Error al agregar la cancha. Intentá de nuevo.')
+      }
     } finally {
       setAdding(false)
     }

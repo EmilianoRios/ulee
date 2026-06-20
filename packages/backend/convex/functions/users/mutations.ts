@@ -3,6 +3,7 @@ import { v, ConvexError } from 'convex/values'
 import type { Id } from '../../_generated/dataModel'
 import { getCurrentUser } from '../../lib/auth'
 import { resolveInviteTarget } from '../../lib/users'
+import { getPlan, FREE_LIMITS } from '../../lib/plan'
 
 // ---------------------------------------------------------------------------
 // completeOnboarding
@@ -148,6 +149,18 @@ export const inviteEmployee = mutation({
 
     if (duplicate) throw new ConvexError('already_invited')
 
+    // Plan quota check — count all employee venueAccess rows (pending + active)
+    if (getPlan(caller) === 'free') {
+      const employeeRows = await ctx.db
+        .query('venueAccess')
+        .withIndex('by_venueId', (q) => q.eq('venueId', args.venueId))
+        .collect()
+      const employeeCount = employeeRows.filter((r) => r.role === 'employee').length
+      if (employeeCount >= FREE_LIMITS.employees) {
+        throw new ConvexError('plan_limit_employees')
+      }
+    }
+
     // Insert venueAccess with appropriate status
     await ctx.db.insert('venueAccess', {
       userId:  targetUserId,
@@ -160,5 +173,36 @@ export const inviteEmployee = mutation({
       status:  decision === 'grant_access' ? 'access_granted' : 'pending_created',
       userId:  targetUserId,
     }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// updateEmployeeAccess
+// Allows a venue owner to set which modules an employee can access.
+// undefined resets to full default access.
+// ---------------------------------------------------------------------------
+
+export const updateEmployeeAccess = mutation({
+  args: {
+    venueAccessId:  v.id('venueAccess'),
+    allowedModules: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const identity = await getCurrentUser(ctx)
+
+    const caller = await ctx.db
+      .query('users')
+      .withIndex('by_clerkId', (q) => q.eq('clerkId', identity.subject))
+      .unique()
+
+    if (!caller) throw new ConvexError('user_not_found')
+
+    const access = await ctx.db.get(args.venueAccessId)
+    if (!access) throw new ConvexError('not_found')
+
+    const venue = await ctx.db.get(access.venueId)
+    if (!venue || venue.ownerId !== caller._id) throw new ConvexError('forbidden')
+
+    await ctx.db.patch(args.venueAccessId, { allowedModules: args.allowedModules })
   },
 })
