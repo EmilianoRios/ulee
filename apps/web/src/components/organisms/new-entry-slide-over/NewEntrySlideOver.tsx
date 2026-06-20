@@ -401,10 +401,11 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [descripcion, setDescripcion] = useState('')
 
   // Evento
-  const [nombreEvento, setNombreEvento] = useState('')
-  const [montoEvento,  setMontoEvento]  = useState('')
-  const [courtCount,   setCourtCount]   = useState(1)
-  const [eventResult,  setEventResult]  = useState<{
+  const [nombreEvento,    setNombreEvento]    = useState('')
+  const [montoEvento,     setMontoEvento]     = useState('')
+  const [selectedCourtIds, setSelectedCourtIds] = useState<string[]>([])
+  const [pricingMode,     setPricingMode]     = useState<'per_court' | 'total'>('per_court')
+  const [eventResult,     setEventResult]     = useState<{
     bookedCourtNames:  string[]
     skippedCourtNames: string[]
   } | null>(null)
@@ -496,7 +497,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       if (!horaFin)            errs.horaFin     = 'Requerido'
     }
     if (type === 'evento') {
-      if (!nombreEvento.trim()) errs.nombreEvento = 'El nombre del evento es obligatorio'
+      if (!nombreEvento.trim())          errs.nombreEvento    = 'El nombre del evento es obligatorio'
+      if (selectedCourtIds.length === 0) errs.selectedCourtIds = 'Seleccioná al menos una cancha'
       if (!horaInicio)          errs.horaInicio   = 'Requerido'
       if (!horaFin)             errs.horaFin      = 'Requerido'
     }
@@ -576,6 +578,10 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           notes:       notas || undefined,
         })
       } else if (type === 'evento') {
+        const resolvedAmount = pricingMode === 'total' && selectedCourtIds.length > 0
+          ? Math.round(Number(montoEvento) / selectedCourtIds.length)
+          : montoEvento ? Number(montoEvento) : 0
+
         const result = await createEvent({
           venueId,
           date:        fecha,
@@ -583,15 +589,15 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           endTime:     timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
           clientName:  nombreEvento,
           clientPhone: '',
-          totalAmount: montoEvento ? Number(montoEvento) : 0,
-          courtCount,
+          totalAmount: resolvedAmount,
+          courtIds:    selectedCourtIds as Id<'courts'>[],
           notes:       notas || undefined,
         })
         setEventResult({
           bookedCourtNames:  result.bookedCourtNames,
           skippedCourtNames: result.skippedCourtNames,
         })
-        if (result.skippedCourtNames.length === 0) {
+        if (result.bookedReservationIds.length > 0 && result.skippedCourtNames.length === 0) {
           onClose()
         }
         return
@@ -613,13 +619,15 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           message = `Ya existe una reserva el ${dateLabel} en ese horario.`
         }
       } catch {
-        // ConvexError with string payload — check known string codes
-        if (message === 'no_occurrences_in_range') {
+        // ConvexError with string payload — use includes() since err.message wraps the code in a longer string
+        if (message.includes('no_occurrences_in_range')) {
           message = 'No hay fechas válidas en el rango seleccionado.'
-        } else if (message === 'invalid_deposit_amount') {
+        } else if (message.includes('invalid_deposit_amount')) {
           message = 'El monto de seña ingresado no es válido.'
-        } else if (message === 'NO_COURTS_AVAILABLE') {
+        } else if (message.includes('NO_COURTS_AVAILABLE')) {
           message = 'No hay canchas disponibles en el horario seleccionado.'
+        } else if (message.includes('INVALID_COURT_IDS')) {
+          message = 'Una o más canchas seleccionadas no pertenecen a este establecimiento.'
         }
       }
       setSubmitError(message)
@@ -747,42 +755,33 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 <TxtInput value={nombreEvento} onChange={setNombreEvento} placeholder="Clínica pádel, Prof. Herrera" error={errors.nombreEvento} />
               </Field>
 
-              {/* Evento where/when block — replaces court selector with court count stepper */}
+              {/* Evento where/when block — court toggles + date + time */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 10 }}>
-                  <Field label="Cantidad de canchas" required>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => setCourtCount((c) => Math.max(1, c - 1))}
-                        disabled={courtCount <= 1}
-                        style={{
-                          width: 32, height: 32, borderRadius: 7, border: `1.5px solid ${t.bordeNeutral.val}`,
-                          backgroundColor: courtCount <= 1 ? t.fondoHover.val : t.superficieContenido.val,
-                          color: courtCount <= 1 ? t.textoMuted.val : t.textoPrimario.val,
-                          fontSize: 18, fontWeight: 500, cursor: courtCount <= 1 ? 'not-allowed' : 'pointer',
-                          fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
-                        −
-                      </button>
-                      <span style={{ fontSize: 20, fontWeight: 600, color: t.textoPrimario.val, minWidth: 24, textAlign: 'center' }}>
-                        {courtCount}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setCourtCount((c) => Math.min(courts.length, c + 1))}
-                        disabled={courtCount >= courts.length}
-                        style={{
-                          width: 32, height: 32, borderRadius: 7, border: `1.5px solid ${t.bordeNeutral.val}`,
-                          backgroundColor: courtCount >= courts.length ? t.fondoHover.val : t.superficieContenido.val,
-                          color: courtCount >= courts.length ? t.textoMuted.val : t.textoPrimario.val,
-                          fontSize: 18, fontWeight: 500, cursor: courtCount >= courts.length ? 'not-allowed' : 'pointer',
-                          fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
-                        +
-                      </button>
+                  <Field label="Canchas" required error={errors.selectedCourtIds}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {courts.map((court) => {
+                        const selected = selectedCourtIds.includes(court.id)
+                        return (
+                          <button
+                            key={court.id}
+                            type="button"
+                            onClick={() => setSelectedCourtIds((prev) =>
+                              prev.includes(court.id) ? prev.filter((id) => id !== court.id) : [...prev, court.id]
+                            )}
+                            style={{
+                              padding: '7px 14px', borderRadius: 7, fontFamily: 'inherit',
+                              border: `1.5px solid ${selected ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
+                              backgroundColor: selected ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
+                              color: selected ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
+                              fontSize: 13, fontWeight: selected ? 700 : 400,
+                              cursor: 'pointer', transition: 'all 120ms ease-out',
+                            }}
+                          >
+                            {court.name}
+                          </button>
+                        )
+                      })}
                     </div>
                   </Field>
                   <Field label="Fecha" required>
@@ -797,8 +796,24 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 />
               </div>
 
-              <Field label="Monto por cancha ($)">
+              <Field label="Modo de precio" required>
+                <RadioGroup
+                  value={pricingMode}
+                  onChange={(v) => { setPricingMode(v as typeof pricingMode); setMontoEvento('') }}
+                  options={[
+                    { value: 'per_court', label: 'Por cancha' },
+                    { value: 'total',     label: 'Total del evento' },
+                  ]}
+                />
+              </Field>
+
+              <Field label={pricingMode === 'per_court' ? 'Monto por cancha ($)' : 'Total del evento ($)'}>
                 <NumInput value={montoEvento} onChange={setMontoEvento} placeholder="7200" />
+                {pricingMode === 'total' && selectedCourtIds.length > 0 && montoEvento && Number(montoEvento) > 0 && (
+                  <div style={{ fontSize: 11, color: t.textoMuted.val, marginTop: 4 }}>
+                    ≈ {Math.round(Number(montoEvento) / selectedCourtIds.length)} por cancha
+                  </div>
+                )}
               </Field>
 
               {notasBlock}
@@ -830,7 +845,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                     {eventResult.skippedCourtNames.length > 0 && (
                       <button
                         type="button"
-                        onClick={() => { setEventResult(null); setCourtCount(1) }}
+                        onClick={() => { setEventResult(null); setSelectedCourtIds([]) }}
                         style={{
                           padding: '7px 14px', borderRadius: 6,
                           border: `1px solid ${t.bordeNeutral.val}`,
@@ -1004,16 +1019,16 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || (type === 'evento' && selectedCourtIds.length === 0)}
             style={{
               flex: 1, padding: '13px 20px', borderRadius: 7, border: 'none',
-              backgroundColor: submitting ? t.verdeCanchaActivo.val : t.verdeCancha.val,
-              color: submitting ? t.verdeCanchaProfundo.val : 'oklch(98% 0.004 155)',
-              fontSize: 15, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
+              backgroundColor: (submitting || (type === 'evento' && selectedCourtIds.length === 0)) ? t.verdeCanchaActivo.val : t.verdeCancha.val,
+              color: (submitting || (type === 'evento' && selectedCourtIds.length === 0)) ? t.verdeCanchaProfundo.val : 'oklch(98% 0.004 155)',
+              fontSize: 15, fontWeight: 600, cursor: (submitting || (type === 'evento' && selectedCourtIds.length === 0)) ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit', transition: 'background-color 120ms ease-out',
             }}
-            onMouseEnter={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
-            onMouseLeave={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
+            onMouseEnter={(e) => { if (!submitting && !(type === 'evento' && selectedCourtIds.length === 0)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
+            onMouseLeave={(e) => { if (!submitting && !(type === 'evento' && selectedCourtIds.length === 0)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
           >
             {submitting ? 'Guardando...' : SUBMIT_LABEL[type]}
           </button>

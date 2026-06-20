@@ -189,6 +189,7 @@ export default function CalendarioPage() {
   const deleteReservation = useMutation(api.functions.reservations.mutations.deleteReservation)
   const cancelSeries      = useMutation(api.functions.reservations.series.cancelSeries)
   const modifySeries      = useMutation(api.functions.reservations.series.modifySeries)
+  const chargeEvent       = useMutation(api.functions.reservations.events.chargeEvent)
 
   const [currentDate,              setCurrentDate]              = useState(() => new Date())
   const [viewMode,                 setViewMode]                 = useState<CalendarViewMode>('dia')
@@ -285,6 +286,7 @@ export default function CalendarioPage() {
     date:          r.date,
     notes:         r.notes,
     seriesId:      r.seriesId,
+    eventId:       r.eventId,
   }), [])
 
   const dayReservations: CalendarReservation[] = rawReservations.map(mapReservation)
@@ -313,6 +315,7 @@ export default function CalendarioPage() {
         date:          r.date,
         notes:         r.notes,
         seriesId:      r.seriesId,
+        eventId:       r.eventId,
       }))
     }
     return result
@@ -334,6 +337,7 @@ export default function CalendarioPage() {
       date:          r.date,
       notes:         r.notes,
       seriesId:      r.seriesId,
+      eventId:       r.eventId,
     }))
   }, [rangeRaw])
 
@@ -366,6 +370,10 @@ export default function CalendarioPage() {
   const handleModifySeries = useCallback(async (seriesId: string, fields: SeriesUpdateFields) => {
     await modifySeries({ seriesId: seriesId as Id<'recurrenceSeries'>, ...fields })
   }, [modifySeries])
+
+  const handleChargeEvent = useCallback(async (eventId: string, paymentMethod: 'cash' | 'online') => {
+    await chargeEvent({ eventId, paymentMethod })
+  }, [chargeEvent])
 
   // ── Week start for CalendarWeekView ────────────────────────────────────────
   const weekStart = useMemo(() => getMondayOfWeek(currentDate), [currentDate])
@@ -710,6 +718,7 @@ export default function CalendarioPage() {
                     }}
                     onCancelSeries={handleCancelSeries}
                     onModifySeries={handleModifySeries}
+                    onChargeEvent={handleChargeEvent}
                   />
                 </div>
               ) : viewMode === 'semana' ? (

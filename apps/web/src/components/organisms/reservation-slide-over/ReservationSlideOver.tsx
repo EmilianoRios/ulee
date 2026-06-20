@@ -51,6 +51,7 @@ interface ReservationSlideOverProps {
   onDelete?:           (reservationId: string) => void
   onCancelSeries?:     (seriesId: string) => void
   onModifySeries?:     (seriesId: string, fields: SeriesUpdateFields) => void
+  onChargeEvent?:      (eventId: string, paymentMethod: 'cash' | 'online') => Promise<void>
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -593,7 +594,7 @@ function PaymentInput({ pendingBalance, cashAmount, onlineAmount, paymentReady, 
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, venuePricePerHour, venueNightRatePrice, venueNightRateStart, onClose, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries }: ReservationSlideOverProps) {
+export function ReservationSlideOver({ reservation, courts, reservations = [], now: nowProp, venuePricePerHour, venueNightRatePrice, venueNightRateStart, onClose, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, onChargeEvent }: ReservationSlideOverProps) {
   const t = useTheme()
 
   const [extendMins,           setExtendMins]           = useState<0 | 30 | 60>(0)
@@ -610,6 +611,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
   const [overrideConfirmPending, setOverrideConfirmPending] = useState(false)
   const [isConfirmingPayment,   setIsConfirmingPayment]   = useState(false)
   const [paymentError,          setPaymentError]          = useState<string | null>(null)
+  const [isCharging,            setIsCharging]            = useState(false)
+  const [chargeError,           setChargeError]           = useState<string | null>(null)
 
   useEffect(() => {
     if (!reservation) return
@@ -641,6 +644,8 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setOverrideConfirmPending(false)
     setIsConfirmingPayment(false)
     setPaymentError(null)
+    setIsCharging(false)
+    setChargeError(null)
   }, [reservation?.id])
 
   const isOpen = reservation !== null
@@ -1589,24 +1594,57 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
                 {/* Evento */}
                 {reservation.state === 'evento' && (
-                  <ActionButton
-                    label={isConfirmingPayment ? 'Procesando...' : 'Cancelar evento'}
-                    onClick={async () => {
-                      if (!onUpdateStatus) return
-                      setIsConfirmingPayment(true)
-                      setPaymentError(null)
-                      try {
-                        await onUpdateStatus(reservation.id, 'absent')
-                        onClose()
-                      } catch (err) {
-                        setPaymentError(getPaymentErrorMessage(err))
-                      } finally {
-                        setIsConfirmingPayment(false)
-                      }
-                    }}
-                    variant="danger"
-                    disabled={isConfirmingPayment}
-                  />
+                  <>
+                    {reservation.eventId && onChargeEvent && (
+                      <>
+                        <ActionButton
+                          label={isCharging ? 'Procesando...' : 'Cobrar evento'}
+                          onClick={async () => {
+                            if (!reservation.eventId || !onChargeEvent) return
+                            setIsCharging(true)
+                            setChargeError(null)
+                            try {
+                              await onChargeEvent(reservation.eventId, 'cash')
+                              onClose()
+                            } catch (err) {
+                              setChargeError(
+                                err instanceof Error && err.message === 'EVENT_NOT_FOUND'
+                                  ? 'No se encontró el evento. Actualizá la vista.'
+                                  : 'No se pudo cobrar el evento. Intentá de nuevo.'
+                              )
+                            } finally {
+                              setIsCharging(false)
+                            }
+                          }}
+                          variant="primary"
+                          disabled={isCharging}
+                        />
+                        {chargeError && (
+                          <div style={{ fontSize: 12, color: 'oklch(50% 0.18 25)', lineHeight: 1.4, padding: '0 4px' }}>
+                            {chargeError}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <ActionButton
+                      label={isConfirmingPayment ? 'Procesando...' : 'Cancelar evento'}
+                      onClick={async () => {
+                        if (!onUpdateStatus) return
+                        setIsConfirmingPayment(true)
+                        setPaymentError(null)
+                        try {
+                          await onUpdateStatus(reservation.id, 'absent')
+                          onClose()
+                        } catch (err) {
+                          setPaymentError(getPaymentErrorMessage(err))
+                        } finally {
+                          setIsConfirmingPayment(false)
+                        }
+                      }}
+                      variant="danger"
+                      disabled={isConfirmingPayment}
+                    />
+                  </>
                 )}
 
                 {/* Jugado */}
