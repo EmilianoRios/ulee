@@ -167,6 +167,7 @@ export default defineSchema({
     depositAmount: v.optional(v.number()), // ARS float, frozen at creation — NOT cents
     notes: v.optional(v.string()),
     seriesId: v.optional(v.id('recurrenceSeries')),
+    eventId: v.optional(v.string()),
     createdByUserId: v.optional(v.id('users')),
     clientUserId: v.optional(v.id('users')),
   })
@@ -175,7 +176,8 @@ export default defineSchema({
     .index('by_date', ['date'])
     .index('by_venueId_date', ['venueId', 'date'])
     .index('by_seriesId', ['seriesId'])
-    .index('by_clientUserId', ['clientUserId']),
+    .index('by_clientUserId', ['clientUserId'])
+    .index('by_eventId', ['eventId']),
 
   // -------------------------------------------------------------------------
   // payments
