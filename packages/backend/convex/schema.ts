@@ -57,6 +57,7 @@ export default defineSchema({
     ),
     avatarUrl: v.optional(v.string()),
     onboardingCompleted: v.optional(v.boolean()),
+    plan: v.optional(v.union(v.literal('free'), v.literal('pro'))),
   })
     .index('by_clerkId', ['clerkId'])
     .index('by_email', ['email']),
@@ -73,6 +74,7 @@ export default defineSchema({
       v.literal('manager'),
     ),
     status: v.optional(v.union(v.literal('pending'), v.literal('active'))),
+    allowedModules: v.optional(v.array(v.string())),
   })
     .index('by_userId', ['userId'])
     .index('by_venueId', ['venueId'])

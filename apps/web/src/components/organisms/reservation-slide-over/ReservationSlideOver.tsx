@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'tamagui'
-import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText, CalendarDays, Moon } from 'lucide-react'
+import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText, CalendarDays, Moon, Activity } from 'lucide-react'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { TimeSelect } from '@/components/atoms/time-select'
 
@@ -1084,6 +1084,25 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                       </div>
                     )}
                     <ActionButton
+                      label={isConfirmingPayment ? 'Procesando...' : 'Marcar en cancha'}
+                      onClick={async () => {
+                        if (!onUpdateStatus) return
+                        setIsConfirmingPayment(true)
+                        setPaymentError(null)
+                        try {
+                          await onUpdateStatus(reservation.id, 'on_court')
+                          onClose()
+                        } catch (err) {
+                          setPaymentError(getPaymentErrorMessage(err))
+                        } finally {
+                          setIsConfirmingPayment(false)
+                        }
+                      }}
+                      variant="secondary"
+                      icon={<Activity size={16} />}
+                      disabled={isConfirmingPayment}
+                    />
+                    <ActionButton
                       label={isConfirmingPayment ? 'Procesando...' : 'Marcar ausente'}
                       onClick={async () => {
                         if (!onUpdateStatus) return
@@ -1442,22 +1461,12 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                 {/* Mantenimiento */}
                 {reservation.state === 'mantenimiento' && (
                   <ActionButton
-                    label={isConfirmingPayment ? 'Procesando...' : 'Liberar cancha'}
-                    onClick={async () => {
-                      if (!onUpdateStatus) return
-                      setIsConfirmingPayment(true)
-                      setPaymentError(null)
-                      try {
-                        await onUpdateStatus(reservation.id, 'absent')
-                        onClose()
-                      } catch (err) {
-                        setPaymentError(getPaymentErrorMessage(err))
-                      } finally {
-                        setIsConfirmingPayment(false)
-                      }
+                    label="Liberar cancha"
+                    onClick={() => {
+                      onDelete?.(reservation.id)
+                      onClose()
                     }}
                     variant="primary"
-                    disabled={isConfirmingPayment}
                   />
                 )}
 

@@ -6,3 +6,5 @@ export { resolveScheduleForDate, addDays, normalizeDaySchedule } from '../convex
 export type { ScheduleVersion } from '../convex/lib/schedule'
 export { timeToMinutes, minutesToTime, addMinutes } from '../convex/lib/time'
 export type { CalReservation, CalListResult, CalDateRangeResult } from '../convex/functions/reservations/queries'
+export { FREE_LIMITS } from '../convex/lib/plan'
+export type { Plan } from '../convex/lib/plan'

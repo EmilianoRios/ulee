@@ -1,0 +1,1 @@
+export { UpgradeWall } from './UpgradeWall'

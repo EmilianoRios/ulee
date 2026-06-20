@@ -202,8 +202,14 @@ export const cancelSeries = mutation({
             .query('payments')
             .withIndex('by_reservationId', (q) => q.eq('reservationId', r._id))
             .collect()
-          await Promise.all(payments.map((p) => ctx.db.delete(p._id)))
-          await ctx.db.delete(r._id)
+          // Only remove pending payments — completed payments stay as finance history.
+          // Refund processing for deposits is a separate business step.
+          await Promise.all(
+            payments
+              .filter((p) => p.status === 'pending')
+              .map((p) => ctx.db.delete(p._id)),
+          )
+          await ctx.db.patch(r._id, { status: 'absent' })
         }),
       )
       cancelledCount = future.length

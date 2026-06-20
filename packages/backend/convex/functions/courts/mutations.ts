@@ -4,6 +4,7 @@ import { getCurrentUser } from '../../lib/auth'
 import { normalizeDaySchedule } from '../../lib/schedule'
 import type { MutationCtx } from '../../_generated/server'
 import type { Id } from '../../_generated/dataModel'
+import { getPlan, FREE_LIMITS } from '../../lib/plan'
 
 // ---------------------------------------------------------------------------
 // Validators reused from schema shapes (cannot import schema validators directly)
@@ -84,6 +85,21 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const identity = await getCurrentUser(ctx)
     await assertVenueAccess(ctx, args.venueId, identity.subject)
+
+    const venue = await ctx.db.get(args.venueId)
+    if (!venue) throw new ConvexError('venue_not_found')
+
+    const owner = await ctx.db.get(venue.ownerId)
+    if (!owner) throw new ConvexError('owner_not_found')
+    if (getPlan(owner) === 'free') {
+      const existingCourts = await ctx.db
+        .query('courts')
+        .withIndex('by_venueId', (q) => q.eq('venueId', args.venueId))
+        .collect()
+      if (existingCourts.length >= FREE_LIMITS.courts) {
+        throw new ConvexError('plan_limit_courts')
+      }
+    }
 
     return await ctx.db.insert('courts', {
       venueId:                args.venueId,

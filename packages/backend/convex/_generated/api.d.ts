@@ -15,6 +15,7 @@ import type * as functions_finances_queries from "../functions/finances/queries.
 import type * as functions_reservations_events from "../functions/reservations/events.js";
 import type * as functions_reservations_mutations from "../functions/reservations/mutations.js";
 import type * as functions_reservations_queries from "../functions/reservations/queries.js";
+import type * as functions_reservations_queriesClients from "../functions/reservations/queriesClients.js";
 import type * as functions_reservations_series from "../functions/reservations/series.js";
 import type * as functions_users_mutations from "../functions/users/mutations.js";
 import type * as functions_users_queries from "../functions/users/queries.js";
@@ -25,6 +26,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as lib_conflicts from "../lib/conflicts.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as lib_payments from "../lib/payments.js";
+import type * as lib_plan from "../lib/plan.js";
 import type * as lib_recurrence from "../lib/recurrence.js";
 import type * as lib_schedule from "../lib/schedule.js";
 import type * as lib_time from "../lib/time.js";
@@ -45,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   "functions/reservations/events": typeof functions_reservations_events;
   "functions/reservations/mutations": typeof functions_reservations_mutations;
   "functions/reservations/queries": typeof functions_reservations_queries;
+  "functions/reservations/queriesClients": typeof functions_reservations_queriesClients;
   "functions/reservations/series": typeof functions_reservations_series;
   "functions/users/mutations": typeof functions_users_mutations;
   "functions/users/queries": typeof functions_users_queries;
@@ -55,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   "lib/conflicts": typeof lib_conflicts;
   "lib/dates": typeof lib_dates;
   "lib/payments": typeof lib_payments;
+  "lib/plan": typeof lib_plan;
   "lib/recurrence": typeof lib_recurrence;
   "lib/schedule": typeof lib_schedule;
   "lib/time": typeof lib_time;

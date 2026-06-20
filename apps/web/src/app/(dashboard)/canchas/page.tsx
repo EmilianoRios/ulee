@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation, useConvexAuth } from 'convex/react'
-import { api } from '@canchero/backend'
+import { api, FREE_LIMITS } from '@canchero/backend'
 import { CourtsTable, type Court } from '@/components/organisms/courts-list'
 import { CourtSlideOver } from '@/components/organisms/court-slide-over'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { useActiveVenue } from '@/context/active-venue'
+import { usePlan } from '@/hooks/usePlan'
+import { PlanLimitButton } from '@/components/molecules/plan-limit-button/PlanLimitButton'
 import type { Id } from '@canchero/backend'
 
 // ─── Stats derivation ─────────────────────────────────────────────────────────
@@ -34,13 +36,16 @@ export default function CanchasPage() {
 
   const [editing,  setEditing]  = useState<Court | null>(null)
   const [creating, setCreating] = useState(false)
+  const [pageError, setPageError] = useState<string | null>(null)
 
   // ─── Convex data ────────────────────────────────────────────────────────────
 
+  const plan = usePlan()
   const rawCourts  = useQuery(
     api.functions.courts.queries.listByVenue,
     isAuthenticated && activeVenueId ? { venueId: activeVenueId } : 'skip',
   )
+  const atCourtLimit = plan === 'free' && (rawCourts?.length ?? 0) >= FREE_LIMITS.courts
   const createCourt = useMutation(api.functions.courts.mutations.create)
   const updateCourt = useMutation(api.functions.courts.mutations.update)
 
@@ -62,33 +67,41 @@ export default function CanchasPage() {
 
   async function handleSave(data: Omit<Court, 'id' | 'todayTurnos' | 'todayRevenue'>) {
     if (!activeVenueId) return
+    setPageError(null)
 
-    if (editing) {
-      await updateCourt({
-        courtId:                editing.id as Id<'courts'>,
-        name:                   data.name,
-        sport:                  data.sport,
-        surface:                data.surface,
-        covered:                data.covered,
-        status:                 data.status,
-        priceOverride:          data.pricePerHour,
-        nightRatePriceOverride: data.nightRatePrice,
-      })
-    } else {
-      await createCourt({
-        venueId:                activeVenueId,
-        name:                   data.name,
-        sport:                  data.sport,
-        surface:                data.surface,
-        covered:                data.covered,
-        priceOverride:          data.pricePerHour,
-        nightRatePriceOverride: data.nightRatePrice,
-      })
+    try {
+      if (editing) {
+        await updateCourt({
+          courtId:                editing.id as Id<'courts'>,
+          name:                   data.name,
+          sport:                  data.sport,
+          surface:                data.surface,
+          covered:                data.covered,
+          status:                 data.status,
+          priceOverride:          data.pricePerHour,
+          nightRatePriceOverride: data.nightRatePrice,
+        })
+      } else {
+        await createCourt({
+          venueId:                activeVenueId,
+          name:                   data.name,
+          sport:                  data.sport,
+          surface:                data.surface,
+          covered:                data.covered,
+          priceOverride:          data.pricePerHour,
+          nightRatePriceOverride: data.nightRatePrice,
+        })
+      }
+    } catch (err: unknown) {
+      const convexMessage = (err as { data?: string })?.data
+      if (convexMessage === 'plan_limit_courts') {
+        setPageError('Alcanzaste el límite de canchas en el plan gratuito.')
+      }
     }
   }
 
-  function handleClose() { setEditing(null); setCreating(false) }
-  function openCreate()  { setEditing(null); setCreating(true)  }
+  function handleClose() { setEditing(null); setCreating(false); setPageError(null) }
+  function openCreate()  { setEditing(null); setCreating(true); setPageError(null) }
 
   // ─── Strip ────────────────────────────────────────────────────────────────
 
@@ -114,9 +127,11 @@ export default function CanchasPage() {
           Canchas
         </span>
 
-        <button
+        <PlanLimitButton
+          atLimit={atCourtLimit}
+          limitLabel={`Límite del plan gratuito: ${FREE_LIMITS.courts} canchas. Actualizá tu plan para agregar más.`}
           onClick={openCreate}
-          style={{
+          buttonStyle={{
             display:         'flex',
             alignItems:      'center',
             gap:             6,
@@ -136,7 +151,7 @@ export default function CanchasPage() {
         >
           <Plus size={13} strokeWidth={2.5} />
           Nueva cancha
-        </button>
+        </PlanLimitButton>
       </div>
 
       {/* Stats strip */}
@@ -210,6 +225,27 @@ export default function CanchasPage() {
           />
         </div>
       </ModuleLayout>
+
+      {pageError && (
+        <div style={{
+          position:        'fixed',
+          bottom:          24,
+          left:            '50%',
+          transform:       'translateX(-50%)',
+          backgroundColor: 'oklch(20% 0.02 25)',
+          color:           'oklch(90% 0.10 25)',
+          padding:         '10px 20px',
+          borderRadius:    8,
+          fontSize:        13,
+          fontWeight:      500,
+          zIndex:          500,
+          boxShadow:       '0 4px 16px oklch(0% 0 0 / 0.2)',
+          border:          '1px solid oklch(35% 0.12 25)',
+          whiteSpace:      'nowrap',
+        }}>
+          {pageError}
+        </div>
+      )}
 
       <CourtSlideOver
         court={slideOver}

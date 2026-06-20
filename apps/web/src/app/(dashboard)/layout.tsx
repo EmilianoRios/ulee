@@ -1,8 +1,11 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@canchero/backend'
 import { AppLayout } from '../../components/templates/app-layout'
+
+const EMPLOYEE_BLOCKED_PATHS = ['/clientes', '/estadisticas']
 
 export default async function DashboardLayout({
   children,
@@ -29,6 +32,13 @@ export default async function DashboardLayout({
 
     if (userStatus?.role === 'employee' && !userStatus.onboardingCompleted) {
       redirect('/onboarding/acceso')
+    }
+
+    if (userStatus?.role === 'employee') {
+      const headersList = await headers()
+      const pathname = headersList.get('x-pathname') ?? headersList.get('x-invoke-path') ?? ''
+      const blocked = EMPLOYEE_BLOCKED_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+      if (blocked) redirect('/')
     }
   } catch {
     // Convex unreachable — do not block dashboard access
