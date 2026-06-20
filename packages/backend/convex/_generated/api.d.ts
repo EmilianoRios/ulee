@@ -12,6 +12,7 @@ import type * as functions_courts_mutations from "../functions/courts/mutations.
 import type * as functions_courts_queries from "../functions/courts/queries.js";
 import type * as functions_finances_index from "../functions/finances/index.js";
 import type * as functions_finances_queries from "../functions/finances/queries.js";
+import type * as functions_reservations_events from "../functions/reservations/events.js";
 import type * as functions_reservations_mutations from "../functions/reservations/mutations.js";
 import type * as functions_reservations_queries from "../functions/reservations/queries.js";
 import type * as functions_reservations_series from "../functions/reservations/series.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   "functions/courts/queries": typeof functions_courts_queries;
   "functions/finances/index": typeof functions_finances_index;
   "functions/finances/queries": typeof functions_finances_queries;
+  "functions/reservations/events": typeof functions_reservations_events;
   "functions/reservations/mutations": typeof functions_reservations_mutations;
   "functions/reservations/queries": typeof functions_reservations_queries;
   "functions/reservations/series": typeof functions_reservations_series;

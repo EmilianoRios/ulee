@@ -25,6 +25,7 @@ export interface CalendarReservation {
   date?: string       // "YYYY-MM-DD" — may be absent for spillovers
   notes?: string
   seriesId?: string
+  eventId?: string
 }
 
 const STATE_LABEL: Record<CalendarReservationState, string> = {

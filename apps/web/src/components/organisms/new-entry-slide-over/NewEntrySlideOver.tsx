@@ -45,7 +45,7 @@ function shiftTimeString(time: string, mins: number): string {
 const SUBMIT_LABEL: Record<EntryType, string> = {
   reserva:       'Guardar reserva',
   mantenimiento: 'Guardar',
-  evento:        'Agregar evento',
+  evento:        'Reservar canchas',
   recurrente:    'Crear turno fijo',
 }
 
@@ -370,6 +370,7 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
 
   const createReservation = useMutation(api.functions.reservations.mutations.create)
   const createSeries      = useMutation(api.functions.reservations.series.createSeries)
+  const createEvent       = useMutation(api.functions.reservations.events.createEvent)
 
   const defaultCourtId  = initialCourtId ?? courts[0]?.id ?? ''
   const defaultInicio   = initialTime ?? '09:00'
@@ -400,8 +401,14 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
   const [descripcion, setDescripcion] = useState('')
 
   // Evento
-  const [nombreEvento, setNombreEvento] = useState('')
-  const [montoEvento,  setMontoEvento]  = useState('')
+  const [nombreEvento,    setNombreEvento]    = useState('')
+  const [montoEvento,     setMontoEvento]     = useState('')
+  const [selectedCourtIds, setSelectedCourtIds] = useState<string[]>([])
+  const [pricingMode,     setPricingMode]     = useState<'per_court' | 'total'>('per_court')
+  const [eventResult,     setEventResult]     = useState<{
+    bookedCourtNames:  string[]
+    skippedCourtNames: string[]
+  } | null>(null)
 
   const [rateMode, setRateMode] = useState<'day' | 'mixed' | 'night'>('day')
 
@@ -490,8 +497,8 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
       if (!horaFin)            errs.horaFin     = 'Requerido'
     }
     if (type === 'evento') {
-      if (!nombreEvento.trim()) errs.nombreEvento = 'El nombre del evento es obligatorio'
-      if (!courtId)             errs.courtId      = 'Seleccioná una cancha'
+      if (!nombreEvento.trim())          errs.nombreEvento    = 'El nombre del evento es obligatorio'
+      if (selectedCourtIds.length === 0) errs.selectedCourtIds = 'Seleccioná al menos una cancha'
       if (!horaInicio)          errs.horaInicio   = 'Requerido'
       if (!horaFin)             errs.horaFin      = 'Requerido'
     }
@@ -571,18 +578,29 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           notes:       notas || undefined,
         })
       } else if (type === 'evento') {
-        await createReservation({
+        const resolvedAmount = pricingMode === 'total' && selectedCourtIds.length > 0
+          ? Math.round(Number(montoEvento) / selectedCourtIds.length)
+          : montoEvento ? Number(montoEvento) : 0
+
+        const result = await createEvent({
           venueId,
-          courtId:     courtId as Id<'courts'>,
           date:        fecha,
           startTime:   timeToMinutes(horaInicio),
           endTime:     timeToMinutes(horaFin) + (isOvernight ? 1440 : 0),
           clientName:  nombreEvento,
           clientPhone: '',
-          totalAmount: montoEvento ? Number(montoEvento) : 0,
-          status:      'event',
+          totalAmount: resolvedAmount,
+          courtIds:    selectedCourtIds as Id<'courts'>[],
           notes:       notas || undefined,
         })
+        setEventResult({
+          bookedCourtNames:  result.bookedCourtNames,
+          skippedCourtNames: result.skippedCourtNames,
+        })
+        if (result.bookedReservationIds.length > 0 && result.skippedCourtNames.length === 0) {
+          onClose()
+        }
+        return
       }
       onClose()
     } catch (err) {
@@ -601,11 +619,15 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
           message = `Ya existe una reserva el ${dateLabel} en ese horario.`
         }
       } catch {
-        // ConvexError with string payload — check known string codes
-        if (message === 'no_occurrences_in_range') {
+        // ConvexError with string payload — use includes() since err.message wraps the code in a longer string
+        if (message.includes('no_occurrences_in_range')) {
           message = 'No hay fechas válidas en el rango seleccionado.'
-        } else if (message === 'invalid_deposit_amount') {
+        } else if (message.includes('invalid_deposit_amount')) {
           message = 'El monto de seña ingresado no es válido.'
+        } else if (message.includes('NO_COURTS_AVAILABLE')) {
+          message = 'No hay canchas disponibles en el horario seleccionado.'
+        } else if (message.includes('INVALID_COURT_IDS')) {
+          message = 'Una o más canchas seleccionadas no pertenecen a este establecimiento.'
         }
       }
       setSubmitError(message)
@@ -733,13 +755,110 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
                 <TxtInput value={nombreEvento} onChange={setNombreEvento} placeholder="Clínica pádel, Prof. Herrera" error={errors.nombreEvento} />
               </Field>
 
-              {whereWhenBlock}
+              {/* Evento where/when block — court toggles + date + time */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 10 }}>
+                  <Field label="Canchas" required error={errors.selectedCourtIds}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {courts.map((court) => {
+                        const selected = selectedCourtIds.includes(court.id)
+                        return (
+                          <button
+                            key={court.id}
+                            type="button"
+                            onClick={() => setSelectedCourtIds((prev) =>
+                              prev.includes(court.id) ? prev.filter((id) => id !== court.id) : [...prev, court.id]
+                            )}
+                            style={{
+                              padding: '7px 14px', borderRadius: 7, fontFamily: 'inherit',
+                              border: `1.5px solid ${selected ? 'oklch(50% 0.18 155)' : t.bordeNeutral.val}`,
+                              backgroundColor: selected ? 'oklch(85% 0.058 155)' : t.superficieContenido.val,
+                              color: selected ? 'oklch(32% 0.17 155)' : t.textoPrimario.val,
+                              fontSize: 13, fontWeight: selected ? 700 : 400,
+                              cursor: 'pointer', transition: 'all 120ms ease-out',
+                            }}
+                          >
+                            {court.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Field>
+                  <Field label="Fecha" required>
+                    <DateInput value={fecha} onChange={setFecha} />
+                  </Field>
+                </div>
+                <TimeRangeField
+                  inicio={horaInicio} onInicio={setHoraInicio}
+                  fin={horaFin}       onFin={setHoraFin}
+                  errorInicio={errors.horaInicio} errorFin={errors.horaFin}
+                  finNextDay={isOvernight}
+                />
+              </div>
 
-              <Field label="Monto ($)">
+              <Field label="Modo de precio" required>
+                <RadioGroup
+                  value={pricingMode}
+                  onChange={(v) => { setPricingMode(v as typeof pricingMode); setMontoEvento('') }}
+                  options={[
+                    { value: 'per_court', label: 'Por cancha' },
+                    { value: 'total',     label: 'Total del evento' },
+                  ]}
+                />
+              </Field>
+
+              <Field label={pricingMode === 'per_court' ? 'Monto por cancha ($)' : 'Total del evento ($)'}>
                 <NumInput value={montoEvento} onChange={setMontoEvento} placeholder="7200" />
+                {pricingMode === 'total' && selectedCourtIds.length > 0 && montoEvento && Number(montoEvento) > 0 && (
+                  <div style={{ fontSize: 11, color: t.textoMuted.val, marginTop: 4 }}>
+                    ≈ {Math.round(Number(montoEvento) / selectedCourtIds.length)} por cancha
+                  </div>
+                )}
               </Field>
 
               {notasBlock}
+
+              {eventResult !== null && (
+                <div style={{
+                  padding: '12px 14px', borderRadius: 8,
+                  backgroundColor: 'oklch(97% 0.025 42)',
+                  border: '1.5px solid oklch(84% 0.07 42)',
+                }}>
+                  <div style={{ fontSize: 13, color: 'oklch(44% 0.11 42)', marginBottom: 8, lineHeight: 1.5 }}>
+                    {eventResult.skippedCourtNames.length > 0
+                      ? `⚠️ ${eventResult.skippedCourtNames.join(', ')} ${eventResult.skippedCourtNames.length > 1 ? 'no estaban disponibles y fueron omitidas' : 'no estaba disponible y fue omitida'}. Se reservaron ${eventResult.bookedCourtNames.join(', ')} exitosamente.`
+                      : `✓ Se reservaron ${eventResult.bookedCourtNames.join(', ')} exitosamente.`
+                    }
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      style={{
+                        padding: '7px 14px', borderRadius: 6, border: 'none',
+                        backgroundColor: 'oklch(50% 0.18 155)', color: 'white',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      Descartar
+                    </button>
+                    {eventResult.skippedCourtNames.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setEventResult(null); setSelectedCourtIds([]) }}
+                        style={{
+                          padding: '7px 14px', borderRadius: 6,
+                          border: `1px solid ${t.bordeNeutral.val}`,
+                          backgroundColor: 'transparent', color: t.textoPrimario.val,
+                          fontSize: 13, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        Reintentar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -900,16 +1019,16 @@ function FormContent({ type, courts, initialDate, initialTime, initialCourtId, v
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || (type === 'evento' && selectedCourtIds.length === 0)}
             style={{
               flex: 1, padding: '13px 20px', borderRadius: 7, border: 'none',
-              backgroundColor: submitting ? t.verdeCanchaActivo.val : t.verdeCancha.val,
-              color: submitting ? t.verdeCanchaProfundo.val : 'oklch(98% 0.004 155)',
-              fontSize: 15, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
+              backgroundColor: (submitting || (type === 'evento' && selectedCourtIds.length === 0)) ? t.verdeCanchaActivo.val : t.verdeCancha.val,
+              color: (submitting || (type === 'evento' && selectedCourtIds.length === 0)) ? t.verdeCanchaProfundo.val : 'oklch(98% 0.004 155)',
+              fontSize: 15, fontWeight: 600, cursor: (submitting || (type === 'evento' && selectedCourtIds.length === 0)) ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit', transition: 'background-color 120ms ease-out',
             }}
-            onMouseEnter={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
-            onMouseLeave={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
+            onMouseEnter={(e) => { if (!submitting && !(type === 'evento' && selectedCourtIds.length === 0)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
+            onMouseLeave={(e) => { if (!submitting && !(type === 'evento' && selectedCourtIds.length === 0)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
           >
             {submitting ? 'Guardando...' : SUBMIT_LABEL[type]}
           </button>

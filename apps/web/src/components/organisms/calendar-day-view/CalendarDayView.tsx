@@ -75,12 +75,13 @@ interface CalendarDayViewProps {
   onDelete?:                 (reservationId: string) => void
   onCancelSeries?:           (seriesId: string) => void
   onModifySeries?:           (seriesId: string, fields: SeriesUpdateFields) => void
+  onChargeEvent?:            (eventId: string, paymentMethod: 'cash' | 'online') => Promise<void>
   mockNow?:                  Date
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, holidays = [], selectedDate, venuePricePerHour, venueNightRatePrice, venueNightRateStart, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, mockNow }: CalendarDayViewProps) {
+export function CalendarDayView({ courts, reservations, spillovers = [], schedule, scheduleHistory, holidays = [], selectedDate, venuePricePerHour, venueNightRatePrice, venueNightRateStart, onSlotClick, onUpdateStatus, onExtend, onUpdate, onDelete, onCancelSeries, onModifySeries, onChargeEvent, mockNow }: CalendarDayViewProps) {
   const t = useTheme()
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -492,6 +493,7 @@ export function CalendarDayView({ courts, reservations, spillovers = [], schedul
         onDelete={onDelete}
         onCancelSeries={onCancelSeries}
         onModifySeries={onModifySeries}
+        onChargeEvent={onChargeEvent}
       />
     </div>
   )

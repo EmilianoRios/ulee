@@ -34,6 +34,7 @@ export interface CalReservation {
   depositAmount?: number
   notes?:       string
   seriesId?:    Id<'recurrenceSeries'>
+  eventId?:     string
 }
 
 export interface CalListResult {
@@ -146,6 +147,7 @@ export const listAllByVenueAndDate = query({
       depositAmount: r.depositAmount,
       notes:        r.notes,
       seriesId:     r.seriesId,
+      eventId:      r.eventId,
     })
 
     const reservations = ownDay.map(toCalReservation)
@@ -277,6 +279,7 @@ export const listByVenueAndDateRange = query({
       depositAmount: r.depositAmount,
       notes:         r.notes,
       seriesId:      r.seriesId,
+      eventId:       r.eventId,
     })
 
     // Group range rows by date
