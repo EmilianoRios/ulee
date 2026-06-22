@@ -31,7 +31,7 @@ export interface UnifiedReservationTableProps {
 // ─── Column definitions ───────────────────────────────────────────────────────
 
 const COLS: { label: string; width?: number; align?: 'left' | 'right' }[] = [
-  { label: 'Cliente'                                              },
+  { label: 'Cliente',        width: 160                          },
   { label: 'Cancha',        width: 140                           },
   { label: 'Día y horario', width: 178                           },
   { label: 'Estado',        width: 130                           },
@@ -158,7 +158,7 @@ export function UnifiedReservationTable({
       ) : (
         <>
           <div style={{ flex: 1, overflow: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 830, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', minWidth: 1060, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 {COLS.map((col) => (
                   <col key={col.label} style={{ width: col.width ?? undefined }} />
