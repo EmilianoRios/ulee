@@ -59,7 +59,7 @@ export const getCurrentUserStatus = query({
 
 export const getMyVenueAccessForVenue = query({
   args: { venueId: v.id('venues') },
-  handler: async (ctx, args): Promise<{ allowedModules: ModuleSlug[]; role: string } | null> => {
+  handler: async (ctx, args): Promise<{ allowedModules: ModuleSlug[] | null; role: string } | null> => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return null
 
@@ -79,8 +79,10 @@ export const getMyVenueAccessForVenue = query({
 
     if (!access || access.status !== 'active') return null
 
-    // Cast stored strings to ModuleSlug — legacy unrecognised values are tolerated on read
-    const allowedModules = (access.allowedModules ?? []) as ModuleSlug[]
+    // null = no restriction set (full access); [] = explicitly no modules allowed
+    const allowedModules = access.allowedModules !== undefined
+      ? (access.allowedModules as ModuleSlug[])
+      : null
 
     return { allowedModules, role: access.role }
   },

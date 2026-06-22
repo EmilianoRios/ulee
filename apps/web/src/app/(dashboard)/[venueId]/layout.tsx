@@ -56,36 +56,39 @@ export default async function VenueDashboardLayout({
       redirect('/')
     }
 
-    // Fail-closed: no active access row → redirect to root
+    // Fail-closed: no active access row → redirect to waiting screen
     if (!venueAccess) {
-      redirect('/')
+      redirect('/onboarding/acceso')
     }
 
-    // Derive allowed flat hrefs from the employee's granted slugs
-    const allowedHrefs = new Set(
-      getHrefsForModules(venueAccess.allowedModules as ModuleSlug[])
-    )
+    // null = no restriction (full access granted) — skip module enforcement
+    if (venueAccess.allowedModules !== null) {
+      // Derive allowed flat hrefs from the employee's granted slugs
+      const allowedHrefs = new Set(
+        getHrefsForModules(venueAccess.allowedModules as ModuleSlug[])
+      )
 
-    // Normalize pathname: strip /${venueId} prefix before matching registry hrefs
-    const headersList = await headers()
-    const rawPathname = headersList.get('x-pathname') ?? headersList.get('x-invoke-path') ?? ''
-    const prefix = `/${venueId}`
-    const pathname = rawPathname.startsWith(prefix)
-      ? rawPathname.slice(prefix.length) || '/'
-      : rawPathname
+      // Normalize pathname: strip /${venueId} prefix before matching registry hrefs
+      const headersList = await headers()
+      const rawPathname = headersList.get('x-pathname') ?? headersList.get('x-invoke-path') ?? ''
+      const prefix = `/${venueId}`
+      const pathname = rawPathname.startsWith(prefix)
+        ? rawPathname.slice(prefix.length) || '/'
+        : rawPathname
 
-    // Check if current path is within an allowed href
-    const isAllowed = Array.from(allowedHrefs).some(
-      (href) => pathname === href || pathname.startsWith(href + '/')
-    )
+      // Check if current path is within an allowed href
+      const isAllowed = Array.from(allowedHrefs).some(
+        (href) => pathname === href || pathname.startsWith(href + '/')
+      )
 
-    if (!isAllowed) {
-      // Redirect to first allowed module or fallback to root
-      const firstHref = Array.from(allowedHrefs)[0]
-      if (firstHref) {
-        redirect(`/${venueId}${firstHref}`)
-      } else {
-        redirect('/')
+      if (!isAllowed) {
+        const firstHref = Array.from(allowedHrefs)[0]
+        if (firstHref) {
+          redirect(`/${venueId}${firstHref}`)
+        } else {
+          // No modules allowed — send to waiting screen instead of looping
+          redirect('/onboarding/acceso')
+        }
       }
     }
   }

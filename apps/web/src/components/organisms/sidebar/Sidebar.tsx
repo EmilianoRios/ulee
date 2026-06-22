@@ -577,16 +577,23 @@ export function Sidebar() {
     isAuthenticated && venueId ? { venueId: venueId as Id<'venues'> } : 'skip',
   )
 
-  const isEmployee = userStatus?.role === 'employee'
+  // Use venue-scoped role as source of truth for nav — not the global users.role
+  const venueRole = venueAccess?.role
+  const isRestrictedRole = venueRole === 'employee' || venueRole === 'manager'
 
   // Build visible sections
   const visibleSections: NavSection[] = (() => {
-    if (!isEmployee) return OWNER_NAV_SECTIONS
+    // While venueAccess is loading, check global role as fallback
+    if (venueAccess === undefined) {
+      return userStatus?.role === 'owner' ? OWNER_NAV_SECTIONS : []
+    }
 
-    // Employee — filter by allowedModules from the active venue access row
-    const modules = venueAccess?.allowedModules as ModuleSlug[] | undefined
-    if (!modules) return [] // loading or no access — show nothing
-    return buildEmployeeSections(modules)
+    if (!isRestrictedRole) return OWNER_NAV_SECTIONS
+
+    const modules = venueAccess?.allowedModules as ModuleSlug[] | null | undefined
+    // null = no restriction set → full employee access across all module slugs
+    if (modules === null) return buildEmployeeSections(Object.keys(MODULE_REGISTRY) as ModuleSlug[])
+    return buildEmployeeSections(modules ?? [])
   })()
 
   // For isActive matching: strip /${venueId} prefix to get the flat path
