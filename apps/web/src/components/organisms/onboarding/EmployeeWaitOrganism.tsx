@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation } from 'convex/react'
 import { useUser } from '@clerk/nextjs'
 import { api } from '@canchero/backend'
+import { ACTIVE_VENUE_STORAGE_KEY } from '@/context/active-venue'
 import { Clock } from 'lucide-react'
 
 export function EmployeeWaitOrganism() {
@@ -29,11 +30,15 @@ export function EmployeeWaitOrganism() {
   useEffect(() => {
     if (!venueAccess || venueAccess.length === 0) return
 
+    // Pre-select the first accessible venue so the dashboard loads with it active
+    const firstVenueId = venueAccess[0].venueId
+    localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, firstVenueId)
+
     // Access granted — complete onboarding and redirect
     completeOnboarding()
       .catch(console.error)
       .finally(() => {
-        router.replace('/')
+        router.replace('/reservas')
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [venueAccess])
