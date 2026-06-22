@@ -165,9 +165,13 @@ export default function ReservasPage() {
     (r) => cancha === 'todas' || r.courtName === cancha
   )
 
-  const filtered = canchaFiltered.filter(
-    (r) => activeTab === 'todas' || TAB_FILTER[activeTab].includes(r.status)
-  )
+  const filtered = canchaFiltered.filter((r) => {
+    if (activeTab === 'todas') return true
+    if (activeTab === 'jugadas') {
+      return applyEffectiveStatus(r.status, r.date, r.startTime, r.endTime, now) === 'played'
+    }
+    return TAB_FILTER[activeTab].includes(r.status)
+  })
 
   const canchaOptionsSet = new Set((allRows ?? []).map((r) => r.courtName).filter(Boolean))
   if (cancha !== 'todas') canchaOptionsSet.add(cancha)
@@ -182,7 +186,7 @@ export default function ReservasPage() {
   })) ?? []
 
   // ── Stats strip ───────────────────────────────────────────────────────────
-  const statsStrip: { value: string; label: string; delta?: string; positive?: boolean }[] = [
+  const statsStrip: { value: string; label: string; delta?: string; positive?: boolean; color?: string }[] = [
     {
       value: stats !== undefined ? String(stats.count) : '...',
       label: 'reservas',
@@ -192,16 +196,16 @@ export default function ReservasPage() {
         ? `$${stats.totalRevenue.toLocaleString('es-AR')}`
         : '...',
       label: 'facturado',
-    },
-    {
-      value: stats !== undefined ? String(stats.pendingCount) : '...',
-      label: 'pagos pendientes',
+      color: stats !== undefined ? t.verdeCanchaProfundo.val : undefined,
     },
     {
       value: stats !== undefined
         ? `$${stats.pendingAmount.toLocaleString('es-AR')}`
         : '...',
-      label: 'por cobrar',
+      label: stats !== undefined && stats.pendingCount > 0
+        ? `por cobrar · ${stats.pendingCount} pendiente${stats.pendingCount !== 1 ? 's' : ''}`
+        : 'por cobrar',
+      color: stats !== undefined && stats.pendingAmount > 0 ? t.acentoTerraza.val : undefined,
     },
     {
       value: stats !== undefined
@@ -435,7 +439,7 @@ export default function ReservasPage() {
               <span style={{
                 fontSize:           20,
                 fontWeight:         700,
-                color:              t.textoPrimario.val,
+                color:              stat.color ?? t.textoPrimario.val,
                 lineHeight:         1,
                 fontVariantNumeric: 'tabular-nums',
                 letterSpacing:      '-0.01em',

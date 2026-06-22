@@ -191,12 +191,12 @@ export default function FinanzasPage() {
     setTimeout(() => setShowExportTip(false), 2000)
   }, [])
 
-  const KPIS = [
+  const KPIS: { value: string; label: string; bold?: boolean; color?: string }[] = [
     { value: fmt(totalOnline),   label: 'Mercado Pago' },
-    { value: fmt(totalCash),     label: 'Efectivo'     },
-    { value: fmt(totalSenias),   label: 'Señas'        },
-    { value: fmt(totalACobrar),  label: 'A Cobrar'     },
-    { value: fmt(totalGeneral),  label: 'Total', bold: true },
+    { value: fmt(totalCash),     label: 'efectivo'     },
+    { value: fmt(totalSenias),   label: 'señas'        },
+    { value: fmt(totalACobrar),  label: 'a cobrar',    color: totalACobrar > 0 ? t.acentoTerraza.val : undefined },
+    { value: fmt(totalGeneral),  label: 'total',       bold: true },
   ]
 
   const strip = (
@@ -425,7 +425,7 @@ export default function FinanzasPage() {
               <span style={{
                 fontSize:           20,
                 fontWeight:         kpi.bold ? 700 : 600,
-                color:              kpi.bold ? t.verdeCanchaProfundo.val : t.textoPrimario.val,
+                color:              kpi.color ?? (kpi.bold ? t.verdeCanchaProfundo.val : t.textoPrimario.val),
                 lineHeight:         1,
                 fontVariantNumeric: 'tabular-nums',
                 letterSpacing:      '-0.01em',
