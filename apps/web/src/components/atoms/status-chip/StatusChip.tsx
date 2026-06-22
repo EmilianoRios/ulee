@@ -23,7 +23,7 @@ export function StatusChip({ status }: StatusChipProps) {
     : status === 'on_court'
       ? { bg: 'oklch(93% 0.04 240)',    color: 'oklch(38% 0.12 240)',      border: 'oklch(82% 0.07 240)'  }
     : status === 'played'
-      ? { bg: 'oklch(94% 0.04 185)',    color: 'oklch(36% 0.10 185)',      border: 'oklch(82% 0.07 185)'  }
+      ? { bg: 'oklch(95% 0.05 55)',     color: 'oklch(45% 0.14 55)',       border: 'oklch(80% 0.10 55)'   }
     : status === 'absent'
       ? { bg: 'oklch(97% 0.03 15)',     color: 'oklch(44% 0.12 20)',       border: 'oklch(88% 0.06 15)'   }
     : status === 'maintenance'

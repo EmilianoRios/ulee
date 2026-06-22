@@ -633,7 +633,7 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
     setExtendMins(0)
     setCashAmount(newBalance)
     setOnlineAmount(0)
-    setCustomAmountStr(String(reservation?.amount ?? 0))
+    setCustomAmountStr(String(newBalance))
     setIsEditing(false)
     setEditFields({})
     setDeleteConfirm(false)
@@ -1484,17 +1484,14 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
                 {/* Recurrente */}
                 {reservation.state === 'recurrente' && !cancelSeriesConfirm && !isEditingSeries && (() => {
-                  const paidSoFar = reservation.depositAmount != null
-                    ? reservation.depositAmount
-                    : reservation.wasFullyPaid ? reservation.amount : 0
-                  const localBalance = Math.max(0, customAmount - paidSoFar)
+                  const localBalance = Math.max(0, customAmount)
                   const localPaymentReady = localBalance > 0 && (cashAmount + onlineAmount) === localBalance
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <SectionLabel>Cobrar turno</SectionLabel>
                       <div>
                         <label style={{ fontSize: 11, fontWeight: 500, color: t.textoMuted.val, marginBottom: 4, display: 'block' }}>
-                          Monto a cobrar ($)
+                          Saldo a cobrar ($)
                         </label>
                         <input
                           type="number"
@@ -1523,7 +1520,10 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                           setIsConfirmingPayment(true)
                           setPaymentError(null)
                           try {
-                            await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount, customAmount)
+                            // Only pass totalAmountOverride when there is no deposit; with a deposit the backend
+                            // derives pendingBalance from the existing totalAmount and would corrupt it otherwise.
+                            const hasDeposit = (reservation.depositAmount ?? 0) > 0
+                            await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount, hasDeposit ? undefined : customAmount)
                             onClose()
                           } catch (err) {
                             setPaymentError(getPaymentErrorMessage(err))
@@ -1658,17 +1658,14 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
 
                 {/* Jugado */}
                 {reservation.state === 'jugado' && (() => {
-                  const paidSoFar = reservation.depositAmount != null
-                    ? reservation.depositAmount
-                    : reservation.wasFullyPaid ? reservation.amount : 0
-                  const localBalance = Math.max(0, customAmount - paidSoFar)
+                  const localBalance = Math.max(0, customAmount)
                   const localPaymentReady = localBalance > 0 && (cashAmount + onlineAmount) === localBalance
                   return (
                     <>
                       <SectionLabel>Cobro</SectionLabel>
                       <div>
                         <label style={{ fontSize: 11, fontWeight: 500, color: t.textoMuted.val, marginBottom: 4, display: 'block' }}>
-                          Monto a cobrar ($)
+                          Saldo a cobrar ($)
                         </label>
                         <input
                           type="number"
@@ -1697,7 +1694,10 @@ export function ReservationSlideOver({ reservation, courts, reservations = [], n
                           setIsConfirmingPayment(true)
                           setPaymentError(null)
                           try {
-                            await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount, customAmount)
+                            // Only pass totalAmountOverride when there is no deposit; with a deposit the backend
+                            // derives pendingBalance from the existing totalAmount and would corrupt it otherwise.
+                            const hasDeposit = (reservation.depositAmount ?? 0) > 0
+                            await onUpdateStatus(reservation.id, 'paid', cashAmount, onlineAmount, hasDeposit ? undefined : customAmount)
                             onClose()
                           } catch (err) {
                             setPaymentError(getPaymentErrorMessage(err))

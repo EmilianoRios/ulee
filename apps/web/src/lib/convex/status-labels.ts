@@ -3,7 +3,7 @@ import type { Doc } from '@canchero/backend'
 export const RESERVATION_STATUS_LABELS: Record<Doc<'reservations'>['status'], string> = {
   pending:      'Pendiente',
   deposit_paid: 'Señado',
-  on_court:     'Paga en cancha',
+  on_court:     'En cancha',
   absent:       'Ausente',
   paid:         'Pagado',
   maintenance:  'Mantenimiento',

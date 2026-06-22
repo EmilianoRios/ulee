@@ -13,75 +13,29 @@ export interface UnifiedRow {
   cancha:      string
   diayhorario: string
   estado:      ReservationStatus
-  cash:        number
-  online:      number
-  paymentType: 'deposit' | 'balance' | 'full' | 'mixed' | 'none'
   total:       number
 }
 
 export interface UnifiedReservationTableProps {
-  rows:         UnifiedRow[]
-  page:         number
-  totalPages:   number
-  totalRows:    number
-  onPageChange: (page: number) => void
-  onRowClick?:  (id: string) => void
+  rows:              UnifiedRow[]
+  page:              number
+  totalPages:        number
+  totalRows:         number
+  onPageChange:      (page: number) => void
+  onRowClick?:       (id: string) => void
+  totalColumnLabel?: string   // default 'Total'
+  noun?:             string   // default 'movimiento'
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
 const COLS: { label: string; width?: number; align?: 'left' | 'right' }[] = [
-  { label: 'Cliente',        width: 160                          },
-  { label: 'Cancha',        width: 140                           },
-  { label: 'Día y horario', width: 178                           },
-  { label: 'Estado',        width: 130                           },
-  { label: 'Efectivo',      width: 100, align: 'right'           },
-  { label: 'Mercado Pago',  width: 122, align: 'right'           },
-  { label: 'Tipo',          width: 130                           },
-  { label: 'Total',         width: 100, align: 'right'           },
+  { label: 'Cliente',        width: 160                },
+  { label: 'Cancha',         width: 140                },
+  { label: 'Día y horario',  width: 178                },
+  { label: 'Estado',         width: 130                },
+  { label: 'Total',          width: 100, align: 'right' },
 ]
-
-// ─── PaymentTypeBadge ─────────────────────────────────────────────────────────
-
-type PaymentType = UnifiedRow['paymentType']
-
-const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
-  deposit: 'Seña',
-  balance: 'Saldo',
-  full:    'Pago completo',
-  mixed:   'Seña + Saldo',
-  none:    'Pendiente',
-}
-
-const PAYMENT_TYPE_COLORS: Record<PaymentType, { bg: string; text: string }> = {
-  deposit: { bg: 'oklch(92% 0.04 230)',  text: 'oklch(35% 0.10 230)'  },
-  balance: { bg: 'oklch(92% 0.05 160)',  text: 'oklch(35% 0.12 160)'  },
-  full:    { bg: 'oklch(91% 0.06 145)',  text: 'oklch(32% 0.14 145)'  },
-  mixed:   { bg: 'oklch(93% 0.04 290)',  text: 'oklch(38% 0.10 290)'  },
-  none:    { bg: 'oklch(91% 0.00 0)',    text: 'oklch(50% 0.00 0)'    },
-}
-
-function PaymentTypeBadge({ type }: { type: PaymentType }) {
-  const { bg, text } = PAYMENT_TYPE_COLORS[type]
-  return (
-    <span style={{
-      display:         'inline-flex',
-      alignItems:      'center',
-      padding:         '3px 9px',
-      borderRadius:    9999,
-      fontSize:        11,
-      fontWeight:      500,
-      letterSpacing:   '0.02em',
-      lineHeight:      1.4,
-      backgroundColor: bg,
-      color:           text,
-      border:          `1px solid ${text}33`,
-      whiteSpace:      'nowrap',
-    }}>
-      {PAYMENT_TYPE_LABELS[type]}
-    </span>
-  )
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,8 +52,14 @@ export function UnifiedReservationTable({
   totalRows,
   onPageChange,
   onRowClick,
+  totalColumnLabel,
+  noun,
 }: UnifiedReservationTableProps) {
   const t = useTheme()
+
+  const resolvedCols = COLS.map((col, i) =>
+    i === COLS.length - 1 && totalColumnLabel ? { ...col, label: totalColumnLabel } : col
+  )
 
   const th: React.CSSProperties = {
     padding:         '8px 16px',
@@ -158,7 +118,7 @@ export function UnifiedReservationTable({
       ) : (
         <>
           <div style={{ flex: 1, overflow: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 1060, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', minWidth: 710, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 {COLS.map((col) => (
                   <col key={col.label} style={{ width: col.width ?? undefined }} />
@@ -166,7 +126,7 @@ export function UnifiedReservationTable({
               </colgroup>
               <thead>
                 <tr>
-                  {COLS.map((col) => (
+                  {resolvedCols.map((col) => (
                     <th key={col.label} style={{ ...th, textAlign: col.align ?? 'left' }}>
                       {col.label}
                     </th>
@@ -191,21 +151,6 @@ export function UnifiedReservationTable({
                     <td style={td}>
                       <StatusChip status={row.estado} />
                     </td>
-                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.cash > 0
-                        ? fmt(row.cash)
-                        : <span style={{ color: t.textoInactivo.val }}>—</span>
-                      }
-                    </td>
-                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.online > 0
-                        ? fmt(row.online)
-                        : <span style={{ color: t.textoInactivo.val }}>—</span>
-                      }
-                    </td>
-                    <td style={td}>
-                      <PaymentTypeBadge type={row.paymentType} />
-                    </td>
                     <td style={{ ...td, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {fmt(row.total)}
                     </td>
@@ -224,7 +169,7 @@ export function UnifiedReservationTable({
             flexShrink:     0,
           }}>
             <span style={{ fontSize: 12, color: t.textoMuted.val }}>
-              {totalRows} movimiento{totalRows !== 1 ? 's' : ''}
+              {totalRows} {noun ?? 'movimiento'}{totalRows !== 1 ? 's' : ''}
             </span>
             <Pagination page={page} totalPages={totalPages} onPageChange={onPageChange} />
           </div>

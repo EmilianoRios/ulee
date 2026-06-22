@@ -8,6 +8,7 @@ import { api } from '@canchero/backend'
 import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
 import { useActiveVenue } from '@/context/active-venue'
+import { applyEffectiveStatus } from '@/lib/convex/status-map'
 import type { Id } from '@canchero/backend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -102,17 +103,14 @@ type FinanceRowShape = {
   totalAmount:  number
 }
 
-function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
-  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short' })
+function toUnifiedRow(row: FinanceRowShape, now: Date): UnifiedRow {
+  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', timeZone: 'UTC' })
   return {
     id:          row._id,
     cliente:     row.clientName,
     cancha:      row.courtName,
     diayhorario: `${dayLabel} ${row.startTime} – ${row.endTime}`,
-    estado:      row.status,
-    online:      row.online,
-    cash:        row.cash,
-    paymentType: row.paymentType,
+    estado:      applyEffectiveStatus(row.status, row.date, row.startTime, row.endTime, now),
     total:       row.total,
   }
 }
@@ -177,8 +175,9 @@ export default function FinanzasPage() {
     .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid' || r.status === 'on_court')
     .reduce((s, r) => s + (r.totalAmount - r.total), 0)
 
+  const now        = new Date()
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toUnifiedRow)
+  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => toUnifiedRow(r, now))
 
   const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setPage(1); setCancha('todas') }, [])
   const handleCancha = useCallback((c: string)  => { setCancha(c);  setPage(1) }, [])
@@ -471,6 +470,7 @@ export default function FinanzasPage() {
               totalPages={totalPages}
               totalRows={filtered.length}
               onPageChange={setPage}
+              totalColumnLabel="Cobrado"
             />
           )}
         </div>
