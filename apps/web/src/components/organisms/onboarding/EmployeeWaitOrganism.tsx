@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation } from 'convex/react'
 import { useUser } from '@clerk/nextjs'
 import { api } from '@canchero/backend'
-import { ACTIVE_VENUE_STORAGE_KEY } from '@/context/active-venue'
+import type { Id } from '@canchero/backend'
 import { Clock } from 'lucide-react'
 
 export function EmployeeWaitOrganism() {
@@ -18,27 +18,27 @@ export function EmployeeWaitOrganism() {
   const venueAccess = useQuery(api.functions.users.queries.getMyVenueAccess)
 
   // Auto-claim: use Clerk client-side email (always reliable, no JWT dependency)
+  const activeVenueAccess = venueAccess?.filter((a) => a.status === 'active') ?? []
+
   useEffect(() => {
     const email = user?.primaryEmailAddress?.emailAddress
     if (!email || venueAccess === undefined) return
-    if (venueAccess.length > 0) return // already has access, no need to claim
+    if (activeVenueAccess.length > 0) return // already has active access, no need to claim
 
     claimInvite({ email }).catch(console.error)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, venueAccess])
 
   useEffect(() => {
-    if (!venueAccess || venueAccess.length === 0) return
+    if (activeVenueAccess.length === 0) return
 
-    // Pre-select the first accessible venue so the dashboard loads with it active
-    const firstVenueId = venueAccess[0].venueId
-    localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, firstVenueId)
+    // Active access granted — complete onboarding and redirect to the venue dashboard
+    const firstVenueId = activeVenueAccess[0].venueId as Id<'venues'>
 
-    // Access granted — complete onboarding and redirect
     completeOnboarding()
       .catch(console.error)
       .finally(() => {
-        router.replace('/reservas')
+        router.replace(`/${firstVenueId}/reservas`)
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [venueAccess])

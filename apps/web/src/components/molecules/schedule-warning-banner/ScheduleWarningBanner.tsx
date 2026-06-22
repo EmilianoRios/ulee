@@ -2,12 +2,16 @@
 
 import { X, Clock } from 'lucide-react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 
 interface ScheduleWarningBannerProps {
   onDismiss: () => void
 }
 
 export function ScheduleWarningBanner({ onDismiss }: ScheduleWarningBannerProps) {
+  const params  = useParams()
+  const venueId = params?.venueId as string | undefined
+  const configHref = venueId ? `/${venueId}/configuracion` : '/configuracion'
   return (
     <div style={{
       display:         'flex',
@@ -34,7 +38,7 @@ export function ScheduleWarningBanner({ onDismiss }: ScheduleWarningBannerProps)
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <Link
-          href="/configuracion"
+          href={configHref}
           style={{
             fontSize:        12,
             fontWeight:      500,

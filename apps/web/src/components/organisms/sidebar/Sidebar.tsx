@@ -4,14 +4,13 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import { YStack, XStack, Text, useTheme } from 'tamagui'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useParams } from 'next/navigation'
 import {
   CalendarCheck,
   CalendarDays,
   LayoutGrid,
   Users,
   Wallet,
-  BarChart3,
   Building2,
   Settings,
   MapPin,
@@ -23,6 +22,9 @@ import {
 import { useUser, UserButton } from '@clerk/nextjs'
 import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
+import { MODULE_REGISTRY } from '@canchero/backend'
+import type { ModuleSlug } from '@canchero/backend'
+import type { Id } from '@canchero/backend'
 import { useActiveVenue } from '@/context/active-venue'
 import { usePlan } from '@/hooks/usePlan'
 
@@ -61,11 +63,12 @@ const THRESHOLD = 160
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 interface NavItemDef {
-  label:    string
-  href:     string
-  icon:     LucideIcon
-  premium?: boolean
-  locked?:  boolean
+  label:        string
+  href:         string        // prefixed with /${venueId} at render time
+  activePrefix?: string       // if set, isActive matches this prefix instead of href
+  icon:         LucideIcon
+  premium?:     boolean
+  locked?:      boolean
 }
 
 interface NavSection {
@@ -73,7 +76,17 @@ interface NavSection {
   items: NavItemDef[]
 }
 
-const NAV_SECTIONS: NavSection[] = [
+// Icon mapping for registry entries
+const SLUG_ICONS: Partial<Record<ModuleSlug | 'sedes' | 'configuracion', LucideIcon>> = {
+  reservations:     CalendarCheck,
+  finances:         Wallet,
+  courts:           LayoutGrid,
+  customers:        Users,
+  // config:* slugs are collapsed under a single "Configuración" sidebar entry
+}
+
+// Static sections for owner/admin (all modules visible, hrefs are flat — prefixed at render time)
+const OWNER_NAV_SECTIONS: NavSection[] = [
   {
     label: 'OPERACIONES',
     items: [
@@ -86,17 +99,17 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Canchas',  href: '/canchas',  icon: LayoutGrid },
       { label: 'Finanzas', href: '/finanzas', icon: Wallet },
+      { label: 'Clientes', href: '/clientes', icon: Users },
     ],
   },
   {
     label: 'SISTEMA',
     items: [
-      { label: 'Sedes',        href: '/sedes',        icon: Building2 },
-      { label: 'Configuración',href: '/configuracion',icon: Settings },
+      { label: 'Sedes',         href: '/sedes',                    icon: Building2 },
+      { label: 'Configuración', href: '/configuracion/general', activePrefix: '/configuracion', icon: Settings },
     ],
   },
 ]
-
 
 // ─── Brand bolt icon ─────────────────────────────────────────────────────────
 function BoltIcon({ size = 20, color }: { size?: number; color: string }) {
@@ -125,11 +138,6 @@ function VenueSwitcher({ collapsed }: { collapsed: boolean }) {
 
   const activeVenue = venues?.find((v) => v._id === activeVenueId)
   const hasMultiple = (venues?.length ?? 0) > 1
-
-  useEffect(() => {
-    if (!venues || venues.length === 0) return
-    if (activeVenueId === null) setActiveVenueId(venues[0]._id)
-  }, [venues, activeVenueId, setActiveVenueId])
 
   if (!venues || venues.length === 0) return null
 
@@ -343,13 +351,21 @@ function NavItem({ href, label, icon: Icon, isActive, collapsed, premium, locked
   locked?: boolean; plan?: 'free' | 'pro'
 }) {
   const C = useC()
+  const params  = useParams()
+  const venueId = params?.venueId as string | undefined
   const [hovered,     setHovered]     = useState(false)
   const [tooltipTop,  setTooltipTop]  = useState(0)
   const [tooltipLeft, setTooltipLeft] = useState(0)
   const itemRef = useRef<HTMLAnchorElement>(null)
 
   const isLocked = locked && plan === 'free'
-  const resolvedHref = isLocked ? '/upgrade' : href
+  // Prefix flat href with /${venueId} if not already absolute and venueId is available
+  const resolvedHref = (() => {
+    if (isLocked) return venueId ? `/${venueId}/upgrade` : '/upgrade'
+    if (!venueId) return href
+    if (href.startsWith(`/${venueId}`)) return href
+    return `/${venueId}${href}`
+  })()
 
   const handleMouseEnter = useCallback(() => {
     setHovered(true)
@@ -505,57 +521,78 @@ function UserZone({ collapsed }: { collapsed: boolean }) {
   )
 }
 
-// ─── Module key → hrefs map (for employee access filtering) ──────────────────
-const MODULE_HREFS: Record<string, string[]> = {
-  reservations: ['/reservas', '/calendario'],
-  finances:     ['/finanzas'],
-  courts:       ['/canchas'],
-  customers:    ['/clientes'],
+// ─── Build employee nav sections from MODULE_REGISTRY ────────────────────────
+
+function buildEmployeeSections(allowedModules: ModuleSlug[]): NavSection[] {
+  const moduleSet = new Set(allowedModules)
+
+  const operaciones: NavItemDef[] = []
+  const gestion: NavItemDef[] = []
+
+  if (moduleSet.has('reservations')) {
+    operaciones.push({ label: MODULE_REGISTRY.reservations.label, href: '/reservas',   icon: CalendarCheck })
+    operaciones.push({ label: 'Calendario',                        href: '/calendario', icon: CalendarDays  })
+  }
+  if (moduleSet.has('courts'))    gestion.push({ label: MODULE_REGISTRY.courts.label,    href: '/canchas',  icon: LayoutGrid })
+  if (moduleSet.has('finances'))  gestion.push({ label: MODULE_REGISTRY.finances.label,  href: '/finanzas', icon: Wallet     })
+  if (moduleSet.has('customers')) gestion.push({ label: MODULE_REGISTRY.customers.label, href: '/clientes', icon: Users      })
+
+  // Find first allowed config:* slug (in display order) to deep-link directly
+  const configSlugOrder: ModuleSlug[] = ['config:general', 'config:horarios', 'config:precios', 'config:feriados']
+  const configSlugToPath: Record<string, string> = {
+    'config:general':  '/configuracion/general',
+    'config:horarios': '/configuracion/horarios',
+    'config:precios':  '/configuracion/precios',
+    'config:feriados': '/configuracion/feriados',
+  }
+  const firstConfigSlug = configSlugOrder.find(slug => moduleSet.has(slug))
+  const configHref = firstConfigSlug ? configSlugToPath[firstConfigSlug] : null
+
+  const sections: NavSection[] = []
+  if (operaciones.length > 0) sections.push({ label: 'OPERACIONES', items: operaciones })
+  if (gestion.length > 0)     sections.push({ label: 'GESTIÓN',     items: gestion     })
+  if (configHref) {
+    sections.push({
+      label: 'SISTEMA',
+      items: [{ label: 'Configuración', href: configHref, activePrefix: '/configuracion', icon: Settings }],
+    })
+  }
+
+  return sections
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 export function Sidebar() {
-  const C = useC()
+  const C        = useC()
   const pathname = usePathname()
+  const params   = useParams()
   const plan     = usePlan()
 
+  const venueId = params?.venueId as string | undefined
+
   const { isAuthenticated } = useConvexAuth()
-  const userStatus  = useQuery(api.functions.users.queries.getCurrentUserStatus, isAuthenticated ? {} : 'skip')
-  const venueAccess = useQuery(api.functions.users.queries.getMyVenueAccess,     isAuthenticated ? {} : 'skip')
+  const userStatus     = useQuery(api.functions.users.queries.getCurrentUserStatus, isAuthenticated ? {} : 'skip')
+  const venueAccess    = useQuery(
+    api.functions.users.queries.getMyVenueAccessForVenue,
+    isAuthenticated && venueId ? { venueId: venueId as Id<'venues'> } : 'skip',
+  )
 
   const isEmployee = userStatus?.role === 'employee'
 
-  const allowedHrefs: Set<string> | null = (() => {
-    if (!isEmployee) return null
+  // Build visible sections
+  const visibleSections: NavSection[] = (() => {
+    if (!isEmployee) return OWNER_NAV_SECTIONS
 
-    const activeAccess = venueAccess?.find((a) => a.role === 'employee' && a.status === 'active')
-    if (!activeAccess) return null
-
-    const modules = (activeAccess as { allowedModules?: string[] }).allowedModules
-
-    if (!modules) return null
-
-    const hrefs = new Set<string>()
-    for (const mod of modules) {
-      for (const href of (MODULE_HREFS[mod] ?? [])) {
-        hrefs.add(href)
-      }
-    }
-    return hrefs
+    // Employee — filter by allowedModules from the active venue access row
+    const modules = venueAccess?.allowedModules as ModuleSlug[] | undefined
+    if (!modules) return [] // loading or no access — show nothing
+    return buildEmployeeSections(modules)
   })()
 
-  const visibleSections: NavSection[] = NAV_SECTIONS.flatMap((section) => {
-    if (isEmployee && section.label === 'SISTEMA') return []
-
-    const items = section.items.filter((item) => {
-      if (!isEmployee) return true
-      if (allowedHrefs === null) return true
-      return allowedHrefs.has(item.href)
-    })
-
-    if (items.length === 0) return []
-    return [{ ...section, items }]
-  })
+  // For isActive matching: strip /${venueId} prefix to get the flat path
+  const flatPathname = venueId && pathname.startsWith(`/${venueId}`)
+    ? pathname.slice(`/${venueId}`.length) || '/'
+    : pathname
 
   const [width,       setWidth]       = useLocalStorage('canchero:sidebarWidth', EXPANDED)
   const [isDragging,  setIsDragging]  = useState(false)
@@ -718,7 +755,10 @@ export function Sidebar() {
                   href={item.href}
                   label={item.label}
                   icon={item.icon}
-                  isActive={pathname === item.href}
+                  isActive={(() => {
+                    const matchHref = item.activePrefix ?? item.href
+                    return flatPathname === matchHref || (matchHref !== '/' && flatPathname.startsWith(matchHref + '/'))
+                  })()}
                   collapsed={collapsed}
                   premium={item.premium}
                   locked={item.locked}

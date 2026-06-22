@@ -4,6 +4,7 @@ import type { Id } from '../../_generated/dataModel'
 import { getCurrentUser } from '../../lib/auth'
 import { resolveInviteTarget } from '../../lib/users'
 import { getPlan, FREE_LIMITS } from '../../lib/plan'
+import { moduleSlugValidator } from '../../lib/moduleRegistry'
 
 // ---------------------------------------------------------------------------
 // completeOnboarding
@@ -185,7 +186,7 @@ export const inviteEmployee = mutation({
 export const updateEmployeeAccess = mutation({
   args: {
     venueAccessId:  v.id('venueAccess'),
-    allowedModules: v.optional(v.array(v.string())),
+    allowedModules: v.optional(v.array(moduleSlugValidator)),
   },
   handler: async (ctx, args) => {
     const identity = await getCurrentUser(ctx)

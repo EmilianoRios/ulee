@@ -1,6 +1,8 @@
 import { query } from '../../_generated/server'
+import { v } from 'convex/values'
 import type { Id } from '../../_generated/dataModel'
 import { getPlan } from '../../lib/plan'
+import type { ModuleSlug } from '../../lib/moduleRegistry'
 
 export const getMyPlan = query({
   args: {},
@@ -48,6 +50,43 @@ export const getCurrentUserStatus = query({
     }
   },
 })
+
+// ---------------------------------------------------------------------------
+// getMyVenueAccessForVenue
+// Returns the caller's allowedModules and role for a specific venue.
+// Fail-closed: no active row for (user, venue) → null.
+// ---------------------------------------------------------------------------
+
+export const getMyVenueAccessForVenue = query({
+  args: { venueId: v.id('venues') },
+  handler: async (ctx, args): Promise<{ allowedModules: ModuleSlug[]; role: string } | null> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerkId', (q) => q.eq('clerkId', identity.subject))
+      .unique()
+
+    if (!user) return null
+
+    const access = await ctx.db
+      .query('venueAccess')
+      .withIndex('by_userId_venueId', (q) =>
+        q.eq('userId', user._id).eq('venueId', args.venueId)
+      )
+      .unique()
+
+    if (!access || access.status !== 'active') return null
+
+    // Cast stored strings to ModuleSlug — legacy unrecognised values are tolerated on read
+    const allowedModules = (access.allowedModules ?? []) as ModuleSlug[]
+
+    return { allowedModules, role: access.role }
+  },
+})
+
+// ---------------------------------------------------------------------------
 
 export interface VenueEmployee {
   venueAccessId:  Id<'venueAccess'>
