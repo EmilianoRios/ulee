@@ -15,7 +15,7 @@ const ActiveVenueContext = createContext<ActiveVenueContextValue>({
   setActiveVenueId: () => {},
 })
 
-const STORAGE_KEY = 'canchero:activeVenueId'
+export const ACTIVE_VENUE_STORAGE_KEY = 'canchero:activeVenueId'
 
 export function ActiveVenueProvider({ children }: { children: React.ReactNode }) {
   const [activeVenueId, setActiveVenueIdState] = useState<Id<'venues'> | null>(null)
@@ -24,7 +24,7 @@ export function ActiveVenueProvider({ children }: { children: React.ReactNode })
   const venueAccess = useQuery(api.functions.users.queries.getMyVenueAccess)
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(ACTIVE_VENUE_STORAGE_KEY)
     if (stored) {
       setActiveVenueIdState(stored as Id<'venues'>)
       return
@@ -33,13 +33,13 @@ export function ActiveVenueProvider({ children }: { children: React.ReactNode })
     if (venueAccess && venueAccess.length > 0) {
       const firstId = venueAccess[0].venueId as Id<'venues'>
       setActiveVenueIdState(firstId)
-      localStorage.setItem(STORAGE_KEY, firstId)
+      localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, firstId)
     }
   }, [venueAccess])
 
   function setActiveVenueId(id: Id<'venues'>) {
     setActiveVenueIdState(id)
-    localStorage.setItem(STORAGE_KEY, id)
+    localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, id)
   }
 
   return (

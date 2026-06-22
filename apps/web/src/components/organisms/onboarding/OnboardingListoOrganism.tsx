@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
-import { useActiveVenue } from '@/context/active-venue'
+import { ACTIVE_VENUE_STORAGE_KEY } from '@/context/active-venue'
 import { StepIndicator } from '@/components/molecules/step-indicator'
 import { CheckCircle } from 'lucide-react'
 
@@ -15,7 +15,6 @@ export function OnboardingListoOrganism() {
   const router             = useRouter()
   const searchParams       = useSearchParams()
   const venueId            = searchParams.get('venueId') as Id<'venues'> | null
-  const { setActiveVenueId } = useActiveVenue()
   const completeOnboarding = useMutation(api.functions.users.mutations.completeOnboarding)
   const [done, setDone]    = useState(false)
 
@@ -25,7 +24,7 @@ export function OnboardingListoOrganism() {
     completeOnboarding()
       .then(() => {
         if (!cancelled) {
-          if (venueId) setActiveVenueId(venueId)
+          if (venueId) localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, venueId)
           setDone(true)
           router.replace('/reservas')
         }
@@ -33,7 +32,7 @@ export function OnboardingListoOrganism() {
       .catch((err) => {
         console.error('completeOnboarding failed:', err)
         if (!cancelled) {
-          if (venueId) setActiveVenueId(venueId)
+          if (venueId) localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, venueId)
           setDone(true)
         }
       })
