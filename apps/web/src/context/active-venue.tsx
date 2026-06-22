@@ -1,8 +1,7 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@canchero/backend'
+import { createContext, useContext } from 'react'
+import { useParams, useRouter, usePathname } from 'next/navigation'
 import type { Id } from '@canchero/backend'
 
 interface ActiveVenueContextValue {
@@ -15,35 +14,30 @@ const ActiveVenueContext = createContext<ActiveVenueContextValue>({
   setActiveVenueId: () => {},
 })
 
+// Kept for backward-compatibility with any file that still imports it.
+// No longer used as the primary venue storage mechanism.
 export const ACTIVE_VENUE_STORAGE_KEY = 'canchero:activeVenueId'
 
 export function ActiveVenueProvider({ children }: { children: React.ReactNode }) {
-  const [activeVenueId, setActiveVenueIdState] = useState<Id<'venues'> | null>(null)
+  const params   = useParams()
+  const router   = useRouter()
+  const pathname = usePathname()
 
-  // Used only as fallback when localStorage is empty
-  const venueAccess = useQuery(api.functions.users.queries.getMyVenueAccess)
-
-  useEffect(() => {
-    const stored = localStorage.getItem(ACTIVE_VENUE_STORAGE_KEY)
-    if (stored) {
-      setActiveVenueIdState(stored as Id<'venues'>)
-      return
-    }
-    // No stored venue — auto-select the first accessible one
-    if (venueAccess && venueAccess.length > 0) {
-      const firstId = venueAccess[0].venueId as Id<'venues'>
-      setActiveVenueIdState(firstId)
-      localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, firstId)
-    }
-  }, [venueAccess])
+  // venueId lives in the URL — read it from params
+  const venueId = (params?.venueId as Id<'venues'> | undefined) ?? null
 
   function setActiveVenueId(id: Id<'venues'>) {
-    setActiveVenueIdState(id)
-    localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, id)
+    // Derive the current module path (everything after /${currentVenueId})
+    const currentPrefix = venueId ? `/${venueId}` : ''
+    const modulePath = currentPrefix && pathname.startsWith(currentPrefix)
+      ? pathname.slice(currentPrefix.length) || '/reservas'
+      : '/reservas'
+
+    router.push(`/${id}${modulePath}`)
   }
 
   return (
-    <ActiveVenueContext.Provider value={{ activeVenueId, setActiveVenueId }}>
+    <ActiveVenueContext.Provider value={{ activeVenueId: venueId, setActiveVenueId }}>
       {children}
     </ActiveVenueContext.Provider>
   )

@@ -4,19 +4,18 @@ import { useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { useTheme } from 'tamagui'
 import { api } from '@canchero/backend'
+import { MODULE_REGISTRY } from '@canchero/backend'
+import type { ModuleSlug } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
 import { UserPlus, Users } from 'lucide-react'
 
-type ModuleKey = 'reservations' | 'finances' | 'courts' | 'customers'
+// All non-config slugs + all config:* slugs — ordered for display
+const OPERACIONES_SLUGS: ModuleSlug[] = ['reservations', 'finances', 'courts', 'customers']
+const CONFIG_SLUGS: ModuleSlug[] = ['config:general', 'config:horarios', 'config:precios', 'config:feriados']
 
-const MODULE_LABELS: Record<ModuleKey, string> = {
-  reservations: 'Reservas',
-  finances:     'Finanzas',
-  courts:       'Canchas',
-  customers:    'Clientes',
+function getDefaultModules(): Set<ModuleSlug> {
+  return new Set([...OPERACIONES_SLUGS, ...CONFIG_SLUGS])
 }
-
-const ALL_MODULES: ModuleKey[] = ['reservations', 'finances', 'courts', 'customers']
 
 export function EmployeeInvitePanelOrganism() {
   const t              = useTheme()
@@ -30,23 +29,23 @@ export function EmployeeInvitePanelOrganism() {
   const [status,  setStatus]  = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState<string | null>(null)
 
-  // Per-employee module selection state: venueAccessId → Set<ModuleKey>
-  const [moduleSelections, setModuleSelections] = useState<Record<string, Set<ModuleKey>>>({})
+  // Per-employee module selection state: venueAccessId → Set<ModuleSlug>
+  const [moduleSelections, setModuleSelections] = useState<Record<string, Set<ModuleSlug>>>({})
   const [accessSaving, setAccessSaving] = useState<Record<string, boolean>>({})
   const [accessMessage, setAccessMessage] = useState<Record<string, string | null>>({})
 
   const venueOptions = venues ?? []
 
-  function getModulesForEmployee(venueAccessId: string): Set<ModuleKey> {
+  function getModulesForEmployee(venueAccessId: string): Set<ModuleSlug> {
     if (moduleSelections[venueAccessId] !== undefined) return moduleSelections[venueAccessId]
     const emp = employees?.find((e) => e.venueAccessId === venueAccessId)
-    if (emp?.allowedModules !== undefined) return new Set(emp.allowedModules as ModuleKey[])
-    return new Set(ALL_MODULES)
+    if (emp?.allowedModules !== undefined) return new Set(emp.allowedModules as ModuleSlug[])
+    return getDefaultModules()
   }
 
-  function toggleModule(venueAccessId: string, module: ModuleKey) {
+  function toggleModule(venueAccessId: string, module: ModuleSlug) {
     setModuleSelections((prev) => {
-      const current = new Set(prev[venueAccessId] ?? ALL_MODULES)
+      const current = new Set(prev[venueAccessId] ?? getModulesForEmployee(venueAccessId))
       if (current.has(module)) {
         current.delete(module)
       } else {
@@ -61,9 +60,8 @@ export function EmployeeInvitePanelOrganism() {
     setAccessMessage((prev) => ({ ...prev, [venueAccessId]: null }))
 
     const selected = getModulesForEmployee(venueAccessId)
-    const allowedModules = selected.size === ALL_MODULES.length
-      ? undefined
-      : Array.from(selected)
+    // Always save explicit array — never save undefined as "all modules"
+    const allowedModules = Array.from(selected) as ModuleSlug[]
 
     try {
       await updateAccess({ venueAccessId, allowedModules })
@@ -142,6 +140,14 @@ export function EmployeeInvitePanelOrganism() {
     fontWeight:    500,
     color:         t.textoMuted.val,
     letterSpacing: '0.02em',
+  }
+
+  const sectionLabelStyle: React.CSSProperties = {
+    fontSize:      11,
+    fontWeight:    600,
+    color:         t.textoMuted.val,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
   }
 
   return (
@@ -258,32 +264,51 @@ export function EmployeeInvitePanelOrganism() {
                     </span>
                   </div>
 
+                  {/* Operaciones group */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <span style={{ ...labelStyle, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Módulos habilitados
-                    </span>
+                    <span style={sectionLabelStyle}>Operaciones</span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {ALL_MODULES.map((mod) => {
-                        const checked = selected.has(mod)
+                      {OPERACIONES_SLUGS.map((slug) => {
+                        const checked = selected.has(slug)
                         return (
                           <label
-                            key={mod}
-                            style={{
-                              display:      'flex',
-                              alignItems:   'center',
-                              gap:          6,
-                              cursor:       'pointer',
-                              userSelect:   'none',
-                            }}
+                            key={slug}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}
                           >
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={() => toggleModule(emp.venueAccessId, mod)}
+                              onChange={() => toggleModule(emp.venueAccessId, slug)}
                               style={{ cursor: 'pointer' }}
                             />
                             <span style={{ fontSize: 12, color: t.textoPrimario.val }}>
-                              {MODULE_LABELS[mod]}
+                              {MODULE_REGISTRY[slug].label}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Configuración group */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <span style={sectionLabelStyle}>Configuración</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {CONFIG_SLUGS.map((slug) => {
+                        const checked = selected.has(slug)
+                        return (
+                          <label
+                            key={slug}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleModule(emp.venueAccessId, slug)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: 12, color: t.textoPrimario.val }}>
+                              {MODULE_REGISTRY[slug].label}
                             </span>
                           </label>
                         )

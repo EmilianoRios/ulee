@@ -3,12 +3,17 @@
 import { Lock } from 'lucide-react'
 import { YStack, Text } from 'tamagui'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 
 interface UpgradeWallProps {
   module?: string
 }
 
 export function UpgradeWall({ module }: UpgradeWallProps) {
+  const params  = useParams()
+  const venueId = params?.venueId as string | undefined
+  const upgradeHref = venueId ? `/${venueId}/upgrade` : '/upgrade'
+
   return (
     <YStack flex={1} items="center" justify="center" gap="$4" height="100%">
       <YStack
@@ -34,7 +39,7 @@ export function UpgradeWall({ module }: UpgradeWallProps) {
       </YStack>
 
       <Link
-        href="/upgrade"
+        href={upgradeHref}
         style={{
           display:         'inline-flex',
           alignItems:      'center',

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
-import { ACTIVE_VENUE_STORAGE_KEY } from '@/context/active-venue'
 import { StepIndicator } from '@/components/molecules/step-indicator'
 import { CheckCircle } from 'lucide-react'
 
@@ -24,15 +23,15 @@ export function OnboardingListoOrganism() {
     completeOnboarding()
       .then(() => {
         if (!cancelled) {
-          if (venueId) localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, venueId)
           setDone(true)
-          router.replace('/reservas')
+          if (venueId) {
+            router.replace(`/${venueId}/reservas`)
+          }
         }
       })
       .catch((err) => {
         console.error('completeOnboarding failed:', err)
         if (!cancelled) {
-          if (venueId) localStorage.setItem(ACTIVE_VENUE_STORAGE_KEY, venueId)
           setDone(true)
         }
       })
@@ -57,7 +56,9 @@ export function OnboardingListoOrganism() {
       </p>
 
       <button
-        onClick={() => router.replace('/reservas')}
+        onClick={() => {
+          if (venueId) router.replace(`/${venueId}/reservas`)
+        }}
         style={{
           padding:         '12px 32px',
           backgroundColor: done ? 'oklch(52% 0.16 155)' : 'oklch(35% 0.10 155)',

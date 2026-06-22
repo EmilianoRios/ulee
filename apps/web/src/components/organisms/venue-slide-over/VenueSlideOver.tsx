@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'tamagui'
 import { X, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { useMutation } from 'convex/react'
 import { api } from '@canchero/backend'
 import type { Doc, Id } from '@canchero/backend'
@@ -85,6 +86,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function VenueSlideOver({ venue, isOpen, onClose, onCreated }: VenueSlideOverProps) {
   const t = useTheme()
+  const params  = useParams()
+  const venueId = params?.venueId as string | undefined
+  const configHref = venueId ? `/${venueId}/configuracion` : '/configuracion'
 
   const createVenue  = useMutation(api.functions.venues.mutations.create)
   const updateVenue  = useMutation(api.functions.venues.mutations.update)
@@ -422,7 +426,7 @@ export function VenueSlideOver({ venue, isOpen, onClose, onCreated }: VenueSlide
               <div style={{ height: 1, backgroundColor: t.divisor.val }} />
 
               <Link
-                href="/configuracion"
+                href={configHref}
                 onClick={onClose}
                 style={{
                   display:         'flex',

@@ -25,6 +25,7 @@ import type * as functions_venues_queries from "../functions/venues/queries.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_conflicts from "../lib/conflicts.js";
 import type * as lib_dates from "../lib/dates.js";
+import type * as lib_moduleRegistry from "../lib/moduleRegistry.js";
 import type * as lib_payments from "../lib/payments.js";
 import type * as lib_plan from "../lib/plan.js";
 import type * as lib_recurrence from "../lib/recurrence.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/conflicts": typeof lib_conflicts;
   "lib/dates": typeof lib_dates;
+  "lib/moduleRegistry": typeof lib_moduleRegistry;
   "lib/payments": typeof lib_payments;
   "lib/plan": typeof lib_plan;
   "lib/recurrence": typeof lib_recurrence;
