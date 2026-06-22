@@ -99,7 +99,6 @@ const OWNER_NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Canchas',  href: '/canchas',  icon: LayoutGrid },
       { label: 'Finanzas', href: '/finanzas', icon: Wallet },
-      { label: 'Clientes', href: '/clientes', icon: Users },
     ],
   },
   {
@@ -535,7 +534,7 @@ function buildEmployeeSections(allowedModules: ModuleSlug[]): NavSection[] {
   }
   if (moduleSet.has('courts'))    gestion.push({ label: MODULE_REGISTRY.courts.label,    href: '/canchas',  icon: LayoutGrid })
   if (moduleSet.has('finances'))  gestion.push({ label: MODULE_REGISTRY.finances.label,  href: '/finanzas', icon: Wallet     })
-  if (moduleSet.has('customers')) gestion.push({ label: MODULE_REGISTRY.customers.label, href: '/clientes', icon: Users      })
+  // customers module hidden until implemented
 
   // Find first allowed config:* slug (in display order) to deep-link directly
   const configSlugOrder: ModuleSlug[] = ['config:general', 'config:horarios', 'config:precios', 'config:feriados']
