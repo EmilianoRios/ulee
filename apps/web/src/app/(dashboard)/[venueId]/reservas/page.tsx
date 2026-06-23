@@ -19,10 +19,6 @@ import { resolveDateFilter, type DateFilter } from '@/lib/dates'
 import type { ReservationRow } from '@canchero/backend'
 import type { Doc } from '@canchero/backend'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const PAGE_SIZE = 8
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type StatusTab = 'todas' | 'pendientes' | 'señadas' | 'jugadas' | 'pagadas'
@@ -111,7 +107,6 @@ export default function ReservasPage() {
   const canQuery = isAuthenticated && activeVenueId !== null
 
   const [cancha,        setCancha]        = useState('todas')
-  const [page,          setPage]          = useState(1)
   const [activeTab,     setActiveTab]     = useState<StatusTab>('todas')
   const [selectedRow,   setSelectedRow]   = useState<ReservationRow | null>(null)
   const [paymentError,  setPaymentError]  = useState<string | null>(null)
@@ -177,8 +172,7 @@ export default function ReservasPage() {
   if (cancha !== 'todas') canchaOptionsSet.add(cancha)
   const canchaOptions = [...canchaOptionsSet].sort()
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => toUnifiedRow(r, now))
+  const allMappedRows = filtered.map((r) => toUnifiedRow(r, now))
 
   const courts: Court[] = courtsRaw?.map((c) => ({
     id:   c._id as string,
@@ -281,7 +275,6 @@ export default function ReservasPage() {
 
   const handleTabChange = useCallback((tab: StatusTab) => {
     setActiveTab(tab)
-    setPage(1)
   }, [])
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -318,7 +311,7 @@ export default function ReservasPage() {
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <select
                 value={cancha}
-                onChange={(e) => { setCancha(e.target.value); setPage(1) }}
+                onChange={(e) => { setCancha(e.target.value) }}
                 style={{
                   appearance:       'none',
                   WebkitAppearance: 'none',
@@ -371,7 +364,7 @@ export default function ReservasPage() {
                 return (
                   <button
                     key={df}
-                    onClick={() => { setDateFilter(df); setPage(1) }}
+                    onClick={() => { setDateFilter(df) }}
                     style={{
                       padding:         '5px 12px',
                       borderRadius:    5,
@@ -421,33 +414,34 @@ export default function ReservasPage() {
         </div>
       </div>
 
-      {/* Info strip: stat row on light background */}
+      {/* KPI strip */}
       <div className="strip-scroll" style={{
-        height:       52,
-        display:      'flex',
-        alignItems:   'center',
-        padding:      '0 32px',
-        borderBottom: `1px solid ${t.divisor.val}`,
-        overflowX:    'auto',
+        display:         'flex',
+        alignItems:      'center',
+        padding:         '28px 40px',
+        borderBottom:    `1px solid ${t.divisor.val}`,
+        backgroundColor: t.superficieContenido.val,
+        overflowX:       'auto',
+        gap:             0,
       }}>
         {statsStrip.map((stat, i) => (
           <div key={stat.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             {i > 0 && (
-              <div style={{ width: 1, height: 32, backgroundColor: t.divisor.val, margin: '0 28px', flexShrink: 0 }} />
+              <div style={{ width: 1, height: 56, backgroundColor: t.divisor.val, margin: '0 44px', flexShrink: 0 }} />
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, userSelect: 'none' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, userSelect: 'none' }}>
               <span style={{
-                fontSize:           20,
+                fontSize:           38,
                 fontWeight:         700,
                 color:              stat.color ?? t.textoPrimario.val,
                 lineHeight:         1,
                 fontVariantNumeric: 'tabular-nums',
-                letterSpacing:      '-0.01em',
+                letterSpacing:      '-0.025em',
               }}>
                 {stat.value}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 11, color: t.textoMuted.val, lineHeight: 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: t.textoMuted.val, lineHeight: 1 }}>
                   {stat.label}
                 </span>
                 {stat.delta && (
@@ -473,11 +467,11 @@ export default function ReservasPage() {
       <ModuleLayout strip={strip}>
         <div style={{
           height:        '100%',
-          padding:       '12px 32px',
+          padding:       '14px 32px',
           boxSizing:     'border-box',
           display:       'flex',
           flexDirection: 'column',
-          gap:           12,
+          gap:           14,
         }}>
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
@@ -533,14 +527,11 @@ export default function ReservasPage() {
             </div>
           ) : (
             <UnifiedReservationTable
-              rows={pageRows}
-              page={page}
-              totalPages={totalPages}
-              totalRows={filtered.length}
-              onPageChange={setPage}
+              rows={allMappedRows}
               onRowClick={handleRowClick}
               totalColumnLabel="Importe"
               noun="reserva"
+              showStatusFilter={false}
             />
           )}
         </div>

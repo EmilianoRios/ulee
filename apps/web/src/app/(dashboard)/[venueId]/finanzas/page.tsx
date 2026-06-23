@@ -23,8 +23,6 @@ const PERIOD_OPTIONS: { id: Period; label: string }[] = [
   { id: 'mes',    label: 'Mes'    },
 ]
 
-const PAGE_SIZE = 8
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number): string {
@@ -137,7 +135,6 @@ export default function FinanzasPage() {
   const [period,        setPeriod]        = useState<Period>('mes')
   const [offset,        setOffset]        = useState(0)
   const [cancha,        setCancha]        = useState('todas')
-  const [page,          setPage]          = useState(1)
   const [showExportTip, setShowExportTip] = useState(false)
   const [tipPos,        setTipPos]        = useState({ top: 0, left: 0 })
   const exportRef = useRef<HTMLButtonElement>(null)
@@ -175,12 +172,11 @@ export default function FinanzasPage() {
     .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid' || r.status === 'on_court')
     .reduce((s, r) => s + (r.totalAmount - r.total), 0)
 
-  const now        = new Date()
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => toUnifiedRow(r, now))
+  const now           = new Date()
+  const allMappedRows = filtered.map((r) => toUnifiedRow(r, now))
 
-  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setPage(1); setCancha('todas') }, [])
-  const handleCancha = useCallback((c: string)  => { setCancha(c);  setPage(1) }, [])
+  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setCancha('todas') }, [])
+  const handleCancha = useCallback((c: string)  => { setCancha(c) }, [])
 
   const handleExportClick = useCallback(() => {
     if (exportRef.current) {
@@ -227,7 +223,7 @@ export default function FinanzasPage() {
             Finanzas
           </span>
           <button
-            onClick={() => { setOffset(o => o - 1); setPage(1) }}
+            onClick={() => { setOffset(o => o - 1) }}
             aria-label="Período anterior"
             style={{
               width:           32,
@@ -260,7 +256,7 @@ export default function FinanzasPage() {
           </span>
 
           <button
-            onClick={() => { setOffset(o => o + 1); setPage(1) }}
+            onClick={() => { setOffset(o => o + 1) }}
             aria-label="Período siguiente"
             style={{
               width:           32,
@@ -281,7 +277,7 @@ export default function FinanzasPage() {
 
           {offset !== 0 && (
             <button
-              onClick={() => { setOffset(0); setPage(1) }}
+              onClick={() => { setOffset(0) }}
               style={{
                 padding:         '6px 14px',
                 borderRadius:    6,
@@ -409,35 +405,44 @@ export default function FinanzasPage() {
 
       {/* KPI strip */}
       <div className="strip-scroll" style={{
-        height:       52,
-        display:      'flex',
-        alignItems:   'center',
-        padding:      '0 32px',
-        borderBottom: `1px solid ${t.divisor.val}`,
-        overflowX:    'auto',
+        display:         'flex',
+        alignItems:      'center',
+        padding:         '28px 40px',
+        borderBottom:    `1px solid ${t.divisor.val}`,
+        backgroundColor: t.superficieContenido.val,
+        overflowX:       'auto',
+        gap:             0,
       }}>
-        {KPIS.map((kpi, i) => (
-          <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            {i > 0 && (
-              <div style={{ width: 1, height: 32, backgroundColor: t.divisor.val, margin: '0 28px', flexShrink: 0 }} />
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, userSelect: 'none' }}>
-              <span style={{
-                fontSize:           20,
-                fontWeight:         kpi.bold ? 700 : 600,
-                color:              kpi.color ?? (kpi.bold ? t.verdeCanchaProfundo.val : t.textoPrimario.val),
-                lineHeight:         1,
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing:      '-0.01em',
-              }}>
-                {kpi.value}
-              </span>
-              <span style={{ fontSize: 11, color: t.textoMuted.val, lineHeight: 1 }}>
-                {kpi.label}
-              </span>
+        {KPIS.map((kpi, i) => {
+          const isLast = i === KPIS.length - 1
+          return (
+            <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              {i > 0 && (
+                <div style={{ width: 1, height: 56, backgroundColor: t.divisor.val, margin: `0 ${isLast ? 48 : 44}px`, flexShrink: 0 }} />
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, userSelect: 'none' }}>
+                <span style={{
+                  fontSize:           isLast ? 44 : 38,
+                  fontWeight:         700,
+                  color:              kpi.color ?? (isLast ? t.verdeCanchaProfundo.val : t.textoPrimario.val),
+                  lineHeight:         1,
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing:      '-0.025em',
+                }}>
+                  {kpi.value}
+                </span>
+                <span style={{
+                  fontSize:   12,
+                  fontWeight: isLast ? 600 : 500,
+                  color:      isLast ? t.verdeCanchaProfundo.val : t.textoMuted.val,
+                  lineHeight: 1,
+                }}>
+                  {kpi.label}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </>
   )
@@ -447,10 +452,11 @@ export default function FinanzasPage() {
       <ModuleLayout strip={strip}>
         <div style={{
           height:        '100%',
-          padding:       '12px 32px',
+          padding:       '14px 32px',
           boxSizing:     'border-box',
           display:       'flex',
           flexDirection: 'column',
+          gap:           14,
         }}>
           {isLoading ? (
             <div style={{
@@ -465,11 +471,7 @@ export default function FinanzasPage() {
             </div>
           ) : (
             <UnifiedReservationTable
-              rows={pageRows}
-              page={page}
-              totalPages={totalPages}
-              totalRows={filtered.length}
-              onPageChange={setPage}
+              rows={allMappedRows}
               totalColumnLabel="Cobrado"
             />
           )}
