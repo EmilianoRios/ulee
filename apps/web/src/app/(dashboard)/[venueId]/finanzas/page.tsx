@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { Lock, Download, ChevronDown, ChevronLeft, ChevronRight, CreditCard, Banknote, Wallet, Clock, TrendingUp } from 'lucide-react'
+import { Lock, Download, ChevronLeft, ChevronRight, CreditCard, Banknote, Wallet, Clock, TrendingUp } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
+import { Select } from '@/components/atoms/select/Select'
 import { useActiveVenue } from '@/context/active-venue'
 import { applyEffectiveStatus } from '@/lib/convex/status-map'
 import type { Id } from '@canchero/backend'
@@ -368,44 +369,26 @@ export default function FinanzasPage() {
           </div>
 
           {/* Cancha select */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <select
-              value={cancha}
-              onChange={(e) => handleCancha(e.target.value)}
-              style={{
-                appearance:       'none',
-                WebkitAppearance: 'none',
-                backgroundColor:  'transparent',
-                border:           `1px solid ${D.border}`,
-                borderRadius:     6,
-                color:            D.text,
-                fontSize:         12,
-                fontWeight:       500,
-                padding:          '5px 28px 5px 10px',
-                cursor:           'pointer',
-                outline:          'none',
-                fontFamily:       'inherit',
-                lineHeight:       1,
-              }}
-            >
-              <option style={{ background: 'oklch(22% 0.024 228)' }} value="todas">Todas las canchas</option>
-              {canchaOptions.map((c) => (
-                <option key={c} style={{ background: 'oklch(22% 0.024 228)' }} value={c}>{c}</option>
-              ))}
-            </select>
-            <ChevronDown
-              size={12}
-              strokeWidth={2.5}
-              style={{
-                position:      'absolute',
-                right:         8,
-                top:           '50%',
-                transform:     'translateY(-50%)',
-                color:         D.textMuted,
-                pointerEvents: 'none',
-              }}
-            />
-          </div>
+          <Select
+            value={cancha}
+            onChange={handleCancha}
+            options={[
+              { value: 'todas', label: 'Todas las canchas' },
+              ...canchaOptions.map((c) => ({ value: c, label: c })),
+            ]}
+            borderColor={D.border}
+            focusColor="oklch(56% 0.15 155)"
+            chevronColor={D.textMuted}
+            style={{
+              width:           'auto',
+              backgroundColor: 'transparent',
+              borderRadius:    6,
+              color:           D.text,
+              fontSize:        12,
+              fontWeight:      500,
+              padding:         '5px 28px 5px 10px',
+            }}
+          />
 
           {/* Export button — premium locked */}
           <button

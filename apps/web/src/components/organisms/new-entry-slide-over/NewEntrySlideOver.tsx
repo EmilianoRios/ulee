@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useTheme } from 'tamagui'
-import { X, ChevronDown, Banknote, CreditCard } from 'lucide-react'
+import { X, Banknote, CreditCard } from 'lucide-react'
 import { useMutation } from 'convex/react'
 import { api, timeToMinutes } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
 import type { Court } from '@/components/atoms/reservation-card'
 import { TimeSelect } from '@/components/atoms/time-select'
+import { Select } from '@/components/atoms/select/Select'
+import { DatePicker } from '@/components/atoms/date-picker/DatePicker'
 
 export type EntryType = 'reserva' | 'mantenimiento' | 'evento' | 'recurrente'
 
@@ -172,24 +174,7 @@ function NumInput({ value, onChange, placeholder, error }: {
 function DateInput({ value, onChange, error }: {
   value: string; onChange: (v: string) => void; error?: string
 }) {
-  const t = useTheme()
-  const [focused, setFocused] = useState(false)
-  return (
-    <input
-      type="date"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={{
-        width: '100%', padding: '9px 12px', borderRadius: 7,
-        border: `1.5px solid ${borderColor(t, focused, error)}`,
-        backgroundColor: t.superficieContenido.val, fontSize: 14,
-        color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
-        fontFamily: 'inherit', transition: 'border-color 120ms ease-out',
-      }}
-    />
-  )
+  return <DatePicker value={value} onChange={onChange} error={error} />
 }
 
 function TimeInput({ value, onChange, error, nextDay }: {
@@ -202,34 +187,7 @@ function SelectInput({ value, onChange, options, error }: {
   value: string; onChange: (v: string) => void
   options: { value: string; label: string }[]; error?: string
 }) {
-  const t = useTheme()
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={{ position: 'relative' }}>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          width: '100%', padding: '9px 32px 9px 12px', borderRadius: 7,
-          border: `1.5px solid ${borderColor(t, focused, error)}`,
-          backgroundColor: t.superficieContenido.val, fontSize: 14,
-          color: t.textoPrimario.val, outline: 'none', boxSizing: 'border-box',
-          fontFamily: 'inherit', appearance: 'none', cursor: 'pointer',
-          transition: 'border-color 120ms ease-out',
-        }}
-      >
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      <div style={{
-        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-        pointerEvents: 'none', color: t.textoMuted.val, display: 'flex', alignItems: 'center',
-      }}>
-        <ChevronDown size={14} strokeWidth={2} />
-      </div>
-    </div>
-  )
+  return <Select value={value} onChange={onChange} options={options} error={error} style={{ fontSize: 14 }} />
 }
 
 function PaymentMethodButton({ label, icon, selected, onClick }: {

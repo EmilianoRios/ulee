@@ -5,6 +5,7 @@ import { useTheme } from 'tamagui'
 import { X, Phone, Clock, Banknote, CreditCard, MapPin, ArrowLeftRight, CheckCircle2, FileText, CalendarDays, Moon, Activity } from 'lucide-react'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
 import { TimeSelect } from '@/components/atoms/time-select'
+import { DatePicker } from '@/components/atoms/date-picker/DatePicker'
 
 export type ReservationBackendStatus =
   | 'pending'
@@ -471,7 +472,7 @@ function SeriesEditForm({ reservation, onConfirm, onCancel }: {
 
       <div>
         <label style={labelStyle}>Extender hasta (opcional)</label>
-        <input type="date" style={inputStyle} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <DatePicker value={endDate} onChange={setEndDate} style={inputStyle} />
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>

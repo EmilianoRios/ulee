@@ -8,6 +8,7 @@ import { MODULE_REGISTRY } from '@canchero/backend'
 import type { ModuleSlug } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
 import { UserPlus, Users } from 'lucide-react'
+import { Select } from '@/components/atoms/select/Select'
 
 // All non-config slugs + all config:* slugs — ordered for display
 const OPERACIONES_SLUGS: ModuleSlug[] = ['reservations', 'finances', 'courts', 'customers']
@@ -179,16 +180,12 @@ export function EmployeeInvitePanelOrganism() {
           {venueOptions.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={labelStyle}>Sede</label>
-              <select
+              <Select
                 value={venueId}
-                onChange={(e) => setVenueId(e.target.value)}
-                style={{ ...inputStyle, cursor: 'pointer' }}
-              >
-                <option value="">Seleccioná una sede</option>
-                {venueOptions.map((v) => (
-                  <option key={v._id} value={v._id}>{v.name}</option>
-                ))}
-              </select>
+                onChange={setVenueId}
+                placeholder="Seleccioná una sede"
+                options={venueOptions.map((v) => ({ value: v._id, label: v.name }))}
+              />
             </div>
           )}
 

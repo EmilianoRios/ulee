@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Plus, ChevronDown, CalendarDays, TrendingUp, Banknote, LayoutGrid } from 'lucide-react'
+import { Plus, CalendarDays, TrendingUp, Banknote, LayoutGrid } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
@@ -9,6 +9,7 @@ import type { Id } from '@canchero/backend'
 import { minutesToTime } from '@canchero/backend'
 import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
+import { Select } from '@/components/atoms/select/Select'
 import { ReservationSlideOver } from '@/components/organisms/reservation-slide-over'
 import type { ReservationBackendStatus, ReservationUpdateFields, SeriesUpdateFields } from '@/components/organisms/reservation-slide-over'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
@@ -310,44 +311,26 @@ export default function ReservasPage() {
               Reservas
             </span>
 
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <select
-                value={cancha}
-                onChange={(e) => { setCancha(e.target.value) }}
-                style={{
-                  appearance:       'none',
-                  WebkitAppearance: 'none',
-                  backgroundColor:  'transparent',
-                  border:           `1px solid ${D.border}`,
-                  borderRadius:     6,
-                  color:            D.text,
-                  fontSize:         12,
-                  fontWeight:       500,
-                  padding:          '5px 28px 5px 10px',
-                  cursor:           'pointer',
-                  outline:          'none',
-                  fontFamily:       'inherit',
-                  lineHeight:       1,
-                }}
-              >
-                <option style={{ background: 'oklch(22% 0.024 228)' }} value="todas">Todas las canchas</option>
-                {canchaOptions.map((c) => (
-                  <option key={c} style={{ background: 'oklch(22% 0.024 228)' }} value={c}>{c}</option>
-                ))}
-              </select>
-              <ChevronDown
-                size={12}
-                strokeWidth={2.5}
-                style={{
-                  position:      'absolute',
-                  right:         8,
-                  top:           '50%',
-                  transform:     'translateY(-50%)',
-                  color:         D.textMuted,
-                  pointerEvents: 'none',
-                }}
-              />
-            </div>
+            <Select
+              value={cancha}
+              onChange={setCancha}
+              options={[
+                { value: 'todas', label: 'Todas las canchas' },
+                ...canchaOptions.map((c) => ({ value: c, label: c })),
+              ]}
+              borderColor={D.border}
+              focusColor="oklch(56% 0.15 155)"
+              chevronColor={D.textMuted}
+              style={{
+                width:           'auto',
+                backgroundColor: 'transparent',
+                borderRadius:    6,
+                color:           D.text,
+                fontSize:        12,
+                fontWeight:      500,
+                padding:         '5px 28px 5px 10px',
+              }}
+            />
           </div>
 
           {/* Right: date filter buttons + Nueva reserva button */}

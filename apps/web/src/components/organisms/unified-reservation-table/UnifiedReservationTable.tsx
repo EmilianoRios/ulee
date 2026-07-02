@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from 'tamagui'
-import { Search, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, X } from 'lucide-react'
+import { Search, ArrowUp, ArrowDown, ArrowUpDown, X } from 'lucide-react'
 import { Pagination } from '../../molecules/pagination'
 import { StatusChip } from '../../atoms/status-chip'
 import type { ReservationStatus } from '../../atoms/status-chip'
+import { Select } from '../../atoms/select/Select'
 import { RESERVATION_STATUS_LABELS } from '@/lib/convex/status-labels'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -173,18 +174,13 @@ export function UnifiedReservationTable({
   }
 
   const selectStyle: React.CSSProperties = {
-    appearance:       'none',
-    WebkitAppearance: 'none',
-    padding:          '6px 28px 6px 10px',
-    borderRadius:     6,
-    border:           `1px solid ${t.bordeNeutral.val}`,
-    backgroundColor:  t.superficie.val,
-    color:            t.textoPrimario.val,
-    fontSize:         12,
-    fontFamily:       'inherit',
-    cursor:           'pointer',
-    outline:          'none',
-    lineHeight:       1,
+    width:        'auto',
+    padding:      '6px 28px 6px 10px',
+    borderRadius: 6,
+    border:       `1px solid ${t.bordeNeutral.val}`,
+    backgroundColor: t.superficie.val,
+    color:        t.textoPrimario.val,
+    fontSize:     12,
   }
 
   return (
@@ -266,36 +262,20 @@ export function UnifiedReservationTable({
 
         {/* Status filter */}
         {showStatusFilter && (
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <select
-              value={statusFilter}
-              onChange={e => { setStatusFilter(e.target.value as ReservationStatus | 'todas'); setPage(1) }}
-              style={{
-                ...selectStyle,
-                border:          statusFilter !== 'todas'
-                  ? `1px solid ${t.verdeCancha.val}`
-                  : `1px solid ${t.bordeNeutral.val}`,
-                backgroundColor: statusFilter !== 'todas' ? t.verdeCanchaActivo.val : t.superficie.val,
-                color:           statusFilter !== 'todas' ? t.verdeCanchaProfundo.val : t.textoPrimario.val,
-              }}
-            >
-              {STATUS_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <ChevronDown
-              size={11}
-              strokeWidth={2.5}
-              style={{
-                position:      'absolute',
-                right:         8,
-                top:           '50%',
-                transform:     'translateY(-50%)',
-                pointerEvents: 'none',
-                color:         statusFilter !== 'todas' ? t.verdeCanchaProfundo.val : t.textoMuted.val,
-              }}
-            />
-          </div>
+          <Select
+            value={statusFilter}
+            onChange={v => { setStatusFilter(v as ReservationStatus | 'todas'); setPage(1) }}
+            options={STATUS_OPTIONS}
+            chevronColor={statusFilter !== 'todas' ? t.verdeCanchaProfundo.val : undefined}
+            style={{
+              ...selectStyle,
+              border:          statusFilter !== 'todas'
+                ? `1.5px solid ${t.verdeCancha.val}`
+                : `1.5px solid ${t.bordeNeutral.val}`,
+              backgroundColor: statusFilter !== 'todas' ? t.verdeCanchaActivo.val : t.superficie.val,
+              color:           statusFilter !== 'todas' ? t.verdeCanchaProfundo.val : t.textoPrimario.val,
+            }}
+          />
         )}
 
       </div>
@@ -420,29 +400,12 @@ export function UnifiedReservationTable({
                     {noun ?? 'movimiento'}{totalResults !== 1 ? 's' : ''}
                     {hasActiveFilters && ' · filtrados'}
                   </span>
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <select
-                      value={pageSize}
-                      onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
-                      style={selectStyle}
-                    >
-                      {PAGE_SIZES.map(s => (
-                        <option key={s} value={s}>{s} por página</option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={11}
-                      strokeWidth={2.5}
-                      style={{
-                        position:      'absolute',
-                        right:         8,
-                        top:           '50%',
-                        transform:     'translateY(-50%)',
-                        pointerEvents: 'none',
-                        color:         t.textoMuted.val,
-                      }}
-                    />
-                  </div>
+                  <Select
+                    value={String(pageSize)}
+                    onChange={v => { setPageSize(Number(v)); setPage(1) }}
+                    options={PAGE_SIZES.map(s => ({ value: String(s), label: `${s} por página` }))}
+                    style={selectStyle}
+                  />
                 </div>
                 <Pagination page={safePage} totalPages={totalPages} onPageChange={setPage} />
               </div>
