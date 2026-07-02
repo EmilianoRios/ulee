@@ -1,4 +1,4 @@
-import { mutation } from '../../_generated/server'
+import { mutation, internalMutation } from '../../_generated/server'
 import { v, ConvexError } from 'convex/values'
 import { assertVenueAccess } from '../../lib/venueAccess'
 import { hasConflict, isWithinScheduleOrOvernight, buildConflictWindow } from '../../lib/conflicts'
@@ -476,3 +476,55 @@ export const deleteReservation = mutation({
     await ctx.db.delete(args.reservationId)
   },
 })
+
+// ---------------------------------------------------------------------------
+// transitionExpiredReservations (internal — called by cron)
+// ---------------------------------------------------------------------------
+
+export const transitionExpiredReservations = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now      = new Date()
+    const todayStr = now.toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' })
+    const arStr    = now.toLocaleString('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      hour12:   false,
+      hour:     '2-digit',
+      minute:   '2-digit',
+    })
+    const [arH, arM] = arStr.split(':').map(Number)
+    const nowMins    = (arH ?? 0) * 60 + (arM ?? 0)
+
+    // Scan up to 30 days back so the first cron run catches any historical stale rows.
+    // Subsequent runs only find rows from the past ~5 minutes (the cron interval).
+    // WARNING: by_date scans ALL venues; chunk if reservation volume exceeds ~10k rows.
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' })
+
+    const rows = await ctx.db
+      .query('reservations')
+      .withIndex('by_date', (q) => q.gte('date', thirtyDaysAgo).lte('date', todayStr))
+      .collect()
+
+    const expired = rows.filter((r) => {
+      // Only deposit_paid and on_court auto-transition to played.
+      // pending: operator must reconcile (client may not have shown up → absent, not played).
+      if (r.status !== 'deposit_paid' && r.status !== 'on_court') return false
+
+      // Overnight slots (endTime > 1440 min) end on the next calendar day.
+      if (r.endTime > 1440) {
+        const nextDay = addDays(r.date, 1)
+        if (nextDay < todayStr) return true
+        return nextDay === todayStr && nowMins > (r.endTime - 1440)
+      }
+
+      if (r.date < todayStr) return true
+      return r.date === todayStr && nowMins > r.endTime
+    })
+
+    await Promise.all(expired.map((r) => ctx.db.patch(r._id, { status: 'played' })))
+
+    return { transitioned: expired.length }
+  },
+})
+

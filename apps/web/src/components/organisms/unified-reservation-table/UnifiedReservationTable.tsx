@@ -1,9 +1,13 @@
 'use client'
 
+import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from 'tamagui'
+import { Search, ArrowUp, ArrowDown, ArrowUpDown, X } from 'lucide-react'
 import { Pagination } from '../../molecules/pagination'
 import { StatusChip } from '../../atoms/status-chip'
 import type { ReservationStatus } from '../../atoms/status-chip'
+import { Select } from '../../atoms/select/Select'
+import { RESERVATION_STATUS_LABELS } from '@/lib/convex/status-labels'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,75 +17,45 @@ export interface UnifiedRow {
   cancha:      string
   diayhorario: string
   estado:      ReservationStatus
-  cash:        number
-  online:      number
-  paymentType: 'deposit' | 'balance' | 'full' | 'mixed' | 'none'
   total:       number
 }
 
 export interface UnifiedReservationTableProps {
-  rows:         UnifiedRow[]
-  page:         number
-  totalPages:   number
-  totalRows:    number
-  onPageChange: (page: number) => void
-  onRowClick?:  (id: string) => void
+  rows:               UnifiedRow[]
+  onRowClick?:        (id: string) => void
+  totalColumnLabel?:  string
+  noun?:              string
+  defaultPageSize?:   number
+  showStatusFilter?:  boolean
 }
 
-// ─── Column definitions ───────────────────────────────────────────────────────
+type SortKey = 'cliente' | 'cancha' | 'diayhorario' | 'estado' | 'total'
+type SortDir = 'asc' | 'desc'
 
-const COLS: { label: string; width?: number; align?: 'left' | 'right' }[] = [
-  { label: 'Cliente',        width: 160                          },
-  { label: 'Cancha',        width: 140                           },
-  { label: 'Día y horario', width: 178                           },
-  { label: 'Estado',        width: 130                           },
-  { label: 'Efectivo',      width: 100, align: 'right'           },
-  { label: 'Mercado Pago',  width: 122, align: 'right'           },
-  { label: 'Tipo',          width: 130                           },
-  { label: 'Total',         width: 100, align: 'right'           },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PAGE_SIZES = [10, 15, 25, 50]
+
+const STATUS_OPTIONS: { value: ReservationStatus | 'todas'; label: string }[] = [
+  { value: 'todas',        label: 'Todos los estados'                   },
+  { value: 'pending',      label: RESERVATION_STATUS_LABELS.pending      },
+  { value: 'deposit_paid', label: RESERVATION_STATUS_LABELS.deposit_paid },
+  { value: 'on_court',     label: RESERVATION_STATUS_LABELS.on_court     },
+  { value: 'played',       label: RESERVATION_STATUS_LABELS.played       },
+  { value: 'paid',         label: RESERVATION_STATUS_LABELS.paid         },
+  { value: 'absent',       label: RESERVATION_STATUS_LABELS.absent       },
+  { value: 'recurring',    label: RESERVATION_STATUS_LABELS.recurring    },
+  { value: 'maintenance',  label: RESERVATION_STATUS_LABELS.maintenance  },
+  { value: 'event',        label: RESERVATION_STATUS_LABELS.event        },
 ]
 
-// ─── PaymentTypeBadge ─────────────────────────────────────────────────────────
-
-type PaymentType = UnifiedRow['paymentType']
-
-const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
-  deposit: 'Seña',
-  balance: 'Saldo',
-  full:    'Pago completo',
-  mixed:   'Seña + Saldo',
-  none:    'Pendiente',
-}
-
-const PAYMENT_TYPE_COLORS: Record<PaymentType, { bg: string; text: string }> = {
-  deposit: { bg: 'oklch(92% 0.04 230)',  text: 'oklch(35% 0.10 230)'  },
-  balance: { bg: 'oklch(92% 0.05 160)',  text: 'oklch(35% 0.12 160)'  },
-  full:    { bg: 'oklch(91% 0.06 145)',  text: 'oklch(32% 0.14 145)'  },
-  mixed:   { bg: 'oklch(93% 0.04 290)',  text: 'oklch(38% 0.10 290)'  },
-  none:    { bg: 'oklch(91% 0.00 0)',    text: 'oklch(50% 0.00 0)'    },
-}
-
-function PaymentTypeBadge({ type }: { type: PaymentType }) {
-  const { bg, text } = PAYMENT_TYPE_COLORS[type]
-  return (
-    <span style={{
-      display:         'inline-flex',
-      alignItems:      'center',
-      padding:         '3px 9px',
-      borderRadius:    9999,
-      fontSize:        11,
-      fontWeight:      500,
-      letterSpacing:   '0.02em',
-      lineHeight:      1.4,
-      backgroundColor: bg,
-      color:           text,
-      border:          `1px solid ${text}33`,
-      whiteSpace:      'nowrap',
-    }}>
-      {PAYMENT_TYPE_LABELS[type]}
-    </span>
-  )
-}
+const COLS: { key: SortKey; label: string; align?: 'right'; width: number }[] = [
+  { key: 'cliente',     label: 'Cliente',        width: 160 },
+  { key: 'cancha',      label: 'Cancha',         width: 130 },
+  { key: 'diayhorario', label: 'Día y horario',  width: 168 },
+  { key: 'estado',      label: 'Estado',         width: 130 },
+  { key: 'total',       label: 'Total',          width: 100, align: 'right' },
+]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -89,17 +63,88 @@ function fmt(n: number): string {
   return '$' + n.toLocaleString('es-AR')
 }
 
+function sortRows(rows: UnifiedRow[], key: SortKey, dir: SortDir): UnifiedRow[] {
+  return [...rows].sort((a, b) => {
+    let cmp = 0
+    if (key === 'total') {
+      cmp = a.total - b.total
+    } else {
+      cmp = String(a[key]).localeCompare(String(b[key]), 'es-AR', { sensitivity: 'base' })
+    }
+    return dir === 'asc' ? cmp : -cmp
+  })
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function UnifiedReservationTable({
   rows,
-  page,
-  totalPages,
-  totalRows,
-  onPageChange,
   onRowClick,
+  totalColumnLabel,
+  noun,
+  defaultPageSize = 10,
+  showStatusFilter = true,
 }: UnifiedReservationTableProps) {
   const t = useTheme()
+
+  const [search,       setSearch]       = useState('')
+  const [statusFilter, setStatusFilter] = useState<ReservationStatus | 'todas'>('todas')
+  const [sortKey,      setSortKey]      = useState<SortKey | null>(null)
+  const [sortDir,      setSortDir]      = useState<SortDir>('asc')
+  const [page,         setPage]         = useState(1)
+  const [pageSize,     setPageSize]     = useState(defaultPageSize)
+
+  // Reset to page 1 when the parent passes new rows (tab/cancha/date filter changed)
+  useEffect(() => { setPage(1) }, [rows])
+
+  const statusFiltered = useMemo(
+    () => statusFilter === 'todas' ? rows : rows.filter(r => r.estado === statusFilter),
+    [rows, statusFilter]
+  )
+
+  const searched = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return statusFiltered
+    return statusFiltered.filter(r =>
+      r.cliente.toLowerCase().includes(q) ||
+      r.cancha.toLowerCase().includes(q) ||
+      r.diayhorario.toLowerCase().includes(q) ||
+      RESERVATION_STATUS_LABELS[r.estado].toLowerCase().includes(q)
+    )
+  }, [statusFiltered, search])
+
+  const sorted = useMemo(
+    () => sortKey ? sortRows(searched, sortKey, sortDir) : searched,
+    [searched, sortKey, sortDir]
+  )
+
+  const totalResults = sorted.length
+  const totalPages   = Math.max(1, Math.ceil(totalResults / pageSize))
+  const safePage     = Math.min(page, totalPages)
+  const pageRows     = sorted.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'todas'
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      if (sortDir === 'asc') { setSortDir('desc') }
+      else                   { setSortKey(null)   }
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+    setPage(1)
+  }
+
+  function clearFilters() {
+    setSearch('')
+    setStatusFilter('todas')
+    setPage(1)
+  }
+
+  const resolvedCols = COLS.map((col) =>
+    col.key === 'total' && totalColumnLabel ? { ...col, label: totalColumnLabel } : col
+  )
 
   const th: React.CSSProperties = {
     padding:         '8px 16px',
@@ -115,6 +160,8 @@ export function UnifiedReservationTable({
     top:             0,
     backgroundColor: t.superficieContenido.val,
     zIndex:          1,
+    cursor:          'pointer',
+    userSelect:      'none',
   }
 
   const td: React.CSSProperties = {
@@ -124,6 +171,16 @@ export function UnifiedReservationTable({
     fontWeight:   400,
     lineHeight:   1.4,
     borderBottom: `1px solid ${t.divisor.val}`,
+  }
+
+  const selectStyle: React.CSSProperties = {
+    width:        'auto',
+    padding:      '6px 28px 6px 10px',
+    borderRadius: 6,
+    border:       `1px solid ${t.bordeNeutral.val}`,
+    backgroundColor: t.superficie.val,
+    color:        t.textoPrimario.val,
+    fontSize:     12,
   }
 
   return (
@@ -137,99 +194,223 @@ export function UnifiedReservationTable({
       display:         'flex',
       flexDirection:   'column',
     }}>
-      {rows.length === 0 ? (
-        <div style={{
-          flex:           1,
-          display:        'flex',
-          flexDirection:  'column',
-          alignItems:     'center',
-          justifyContent: 'center',
-          gap:            6,
-          textAlign:      'center',
-          padding:        '56px 24px',
-        }}>
-          <span style={{ fontSize: 14, color: t.textoMuted.val, fontWeight: 400 }}>
-            Sin movimientos para este período.
-          </span>
-          <span style={{ fontSize: 12, color: t.textoInactivo.val }}>
-            Probá cambiando el período o la cancha.
-          </span>
+      {/* Toolbar */}
+      <div style={{
+        display:         'flex',
+        alignItems:      'center',
+        gap:             8,
+        padding:         '9px 12px',
+        borderBottom:    `1px solid ${t.bordeNeutral.val}`,
+        flexShrink:      0,
+        flexWrap:        'wrap',
+        backgroundColor: 'transparent',
+      }}>
+        {/* Search */}
+        <div style={{ position: 'relative', width: 200, flexShrink: 0 }}>
+          <Search
+            size={13}
+            strokeWidth={2}
+            style={{
+              position:      'absolute',
+              left:          9,
+              top:           '50%',
+              transform:     'translateY(-50%)',
+              color:         t.textoMuted.val,
+              pointerEvents: 'none',
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Buscar..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            style={{
+              width:           '100%',
+              boxSizing:       'border-box',
+              padding:         '6px 30px 6px 30px',
+              borderRadius:    6,
+              border:          `1px solid ${t.bordeNeutral.val}`,
+              backgroundColor: t.superficie.val,
+              color:           t.textoPrimario.val,
+              fontSize:        12,
+              fontFamily:      'inherit',
+              outline:         'none',
+              lineHeight:      1,
+            }}
+          />
+          {search && (
+            <button
+              onClick={() => { setSearch(''); setPage(1) }}
+              style={{
+                position:   'absolute',
+                right:      7,
+                top:        '50%',
+                transform:  'translateY(-50%)',
+                background: 'none',
+                border:     'none',
+                cursor:     'pointer',
+                padding:    2,
+                display:    'flex',
+                alignItems: 'center',
+                color:      t.textoMuted.val,
+              }}
+            >
+              <X size={11} strokeWidth={2.5} />
+            </button>
+          )}
         </div>
-      ) : (
-        <>
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 1060, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-              <colgroup>
-                {COLS.map((col) => (
-                  <col key={col.label} style={{ width: col.width ?? undefined }} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr>
-                  {COLS.map((col) => (
-                    <th key={col.label} style={{ ...th, textAlign: col.align ?? 'left' }}>
-                      {col.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, idx) => (
-                  <tr
-                    key={row.id}
-                    className="table-row"
-                    role="row"
-                    aria-rowindex={idx + 1}
-                    onClick={onRowClick ? () => onRowClick(row.id) : undefined}
-                    style={onRowClick ? { cursor: 'pointer' } : undefined}
-                  >
-                    <td style={td}>
-                      <span style={{ fontWeight: 500 }}>{row.cliente}</span>
-                    </td>
-                    <td style={{ ...td, color: t.textoMuted.val }}>{row.cancha}</td>
-                    <td style={{ ...td, color: t.textoMuted.val }}>{row.diayhorario}</td>
-                    <td style={td}>
-                      <StatusChip status={row.estado} />
-                    </td>
-                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.cash > 0
-                        ? fmt(row.cash)
-                        : <span style={{ color: t.textoInactivo.val }}>—</span>
-                      }
-                    </td>
-                    <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.online > 0
-                        ? fmt(row.online)
-                        : <span style={{ color: t.textoInactivo.val }}>—</span>
-                      }
-                    </td>
-                    <td style={td}>
-                      <PaymentTypeBadge type={row.paymentType} />
-                    </td>
-                    <td style={{ ...td, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {fmt(row.total)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
 
-          <div style={{
-            padding:        '10px 16px',
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'space-between',
-            borderTop:      `1px solid ${t.divisor.val}`,
-            flexShrink:     0,
-          }}>
-            <span style={{ fontSize: 12, color: t.textoMuted.val }}>
-              {totalRows} movimiento{totalRows !== 1 ? 's' : ''}
-            </span>
-            <Pagination page={page} totalPages={totalPages} onPageChange={onPageChange} />
-          </div>
-        </>
-      )}
+        {/* Status filter */}
+        {showStatusFilter && (
+          <Select
+            value={statusFilter}
+            onChange={v => { setStatusFilter(v as ReservationStatus | 'todas'); setPage(1) }}
+            options={STATUS_OPTIONS}
+            chevronColor={statusFilter !== 'todas' ? t.verdeCanchaProfundo.val : undefined}
+            style={{
+              ...selectStyle,
+              border:          statusFilter !== 'todas'
+                ? `1.5px solid ${t.verdeCancha.val}`
+                : `1.5px solid ${t.bordeNeutral.val}`,
+              backgroundColor: statusFilter !== 'todas' ? t.verdeCanchaActivo.val : t.superficie.val,
+              color:           statusFilter !== 'todas' ? t.verdeCanchaProfundo.val : t.textoPrimario.val,
+            }}
+          />
+        )}
+
+      </div>
+
+      {/* Table + footer */}
+      {sorted.length === 0 ? (
+            <div style={{
+              flex:           1,
+              display:        'flex',
+              flexDirection:  'column',
+              alignItems:     'center',
+              justifyContent: 'center',
+              gap:            8,
+              textAlign:      'center',
+              padding:        '48px 24px',
+            }}>
+              <span style={{ fontSize: 14, color: t.textoMuted.val, fontWeight: 400 }}>
+                {hasActiveFilters
+                  ? 'Sin resultados para los filtros aplicados.'
+                  : 'Sin movimientos para este período.'}
+              </span>
+              {hasActiveFilters ? (
+                <button
+                  onClick={clearFilters}
+                  style={{
+                    marginTop:       2,
+                    padding:         '5px 14px',
+                    borderRadius:    6,
+                    border:          `1px solid ${t.bordeNeutral.val}`,
+                    backgroundColor: 'transparent',
+                    color:           t.textoMuted.val,
+                    fontSize:        12,
+                    cursor:          'pointer',
+                    fontFamily:      'inherit',
+                  }}
+                >
+                  Limpiar filtros
+                </button>
+              ) : (
+                <span style={{ fontSize: 12, color: t.textoInactivo.val }}>
+                  Probá cambiando el período o la cancha.
+                </span>
+              )}
+            </div>
+          ) : (
+            <>
+              <div style={{ flex: 1, overflow: 'auto' }}>
+                <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                  <colgroup>
+                    {resolvedCols.map(col => (
+                      <col key={col.key} style={{ width: col.width }} />
+                    ))}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      {resolvedCols.map(col => {
+                        const isSorted = sortKey === col.key
+                        const SortIcon = isSorted
+                          ? (sortDir === 'asc' ? ArrowUp : ArrowDown)
+                          : ArrowUpDown
+                        return (
+                          <th
+                            key={col.key}
+                            onClick={() => handleSort(col.key)}
+                            style={{ ...th, textAlign: col.align ?? 'left' }}
+                          >
+                            <div style={{
+                              display:        col.align === 'right' ? 'inline-flex' : 'inline-flex',
+                              alignItems:     'center',
+                              justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start',
+                              gap:            4,
+                              width:          '100%',
+                            }}>
+                              {col.label}
+                              <SortIcon
+                                size={10}
+                                strokeWidth={isSorted ? 2.5 : 2}
+                                style={{ opacity: isSorted ? 1 : 0.35, flexShrink: 0 }}
+                              />
+                            </div>
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((row, idx) => (
+                      <tr
+                        key={row.id}
+                        className="table-row"
+                        role="row"
+                        aria-rowindex={idx + 1}
+                        onClick={onRowClick ? () => onRowClick(row.id) : undefined}
+                        style={onRowClick ? { cursor: 'pointer' } : undefined}
+                      >
+                        <td style={td}>
+                          <span style={{ fontWeight: 500 }}>{row.cliente}</span>
+                        </td>
+                        <td style={{ ...td, color: t.textoMuted.val }}>{row.cancha}</td>
+                        <td style={{ ...td, color: t.textoMuted.val }}>{row.diayhorario}</td>
+                        <td style={td}><StatusChip status={row.estado} /></td>
+                        <td style={{ ...td, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {fmt(row.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{
+                padding:        '9px 14px',
+                display:        'flex',
+                alignItems:     'center',
+                justifyContent: 'space-between',
+                borderTop:      `1px solid ${t.divisor.val}`,
+                flexShrink:     0,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 12, color: t.textoMuted.val }}>
+                    {totalResults}{' '}
+                    {noun ?? 'movimiento'}{totalResults !== 1 ? 's' : ''}
+                    {hasActiveFilters && ' · filtrados'}
+                  </span>
+                  <Select
+                    value={String(pageSize)}
+                    onChange={v => { setPageSize(Number(v)); setPage(1) }}
+                    options={PAGE_SIZES.map(s => ({ value: String(s), label: `${s} por página` }))}
+                    style={selectStyle}
+                  />
+                </div>
+                <Pagination page={safePage} totalPages={totalPages} onPageChange={setPage} />
+              </div>
+            </>
+          )}
     </div>
   )
 }

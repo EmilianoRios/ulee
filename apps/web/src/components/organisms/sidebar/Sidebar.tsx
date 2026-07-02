@@ -15,6 +15,8 @@ import {
   Settings,
   MapPin,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Lock,
   type LucideIcon,
@@ -99,7 +101,6 @@ const OWNER_NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Canchas',  href: '/canchas',  icon: LayoutGrid },
       { label: 'Finanzas', href: '/finanzas', icon: Wallet },
-      { label: 'Clientes', href: '/clientes', icon: Users },
     ],
   },
   {
@@ -535,7 +536,7 @@ function buildEmployeeSections(allowedModules: ModuleSlug[]): NavSection[] {
   }
   if (moduleSet.has('courts'))    gestion.push({ label: MODULE_REGISTRY.courts.label,    href: '/canchas',  icon: LayoutGrid })
   if (moduleSet.has('finances'))  gestion.push({ label: MODULE_REGISTRY.finances.label,  href: '/finanzas', icon: Wallet     })
-  if (moduleSet.has('customers')) gestion.push({ label: MODULE_REGISTRY.customers.label, href: '/clientes', icon: Users      })
+  // customers module hidden until implemented
 
   // Find first allowed config:* slug (in display order) to deep-link directly
   const configSlugOrder: ModuleSlug[] = ['config:general', 'config:horarios', 'config:precios', 'config:feriados']
@@ -799,6 +800,37 @@ export function Sidebar() {
           zIndex:          10,
         }}
       />
+
+      {/* ── Collapse button ────────────────────────────────────────────────── */}
+      <button
+        type="button"
+        aria-label={collapsed ? 'Expandir menú' : 'Compactar menú'}
+        onClick={() => setWidth((w) => (w <= COLLAPSED + 2 ? EXPANDED : COLLAPSED))}
+        onMouseEnter={() => setHandleHover(true)}
+        onMouseLeave={() => setHandleHover(false)}
+        style={{
+          position:        'absolute',
+          top:             '50%',
+          right:           -13,
+          width:           22,
+          height:          60,
+          borderRadius:    11,
+          backgroundColor: C.surface,
+          border:          `1px solid ${C.border}`,
+          display:         'flex',
+          alignItems:      'center',
+          justifyContent:  'center',
+          transform:       'translateY(-50%)',
+          boxShadow:       '0 1px 3px rgba(0,0,0,0.12)',
+          cursor:          'pointer',
+          padding:         0,
+          zIndex:          12,
+        }}
+      >
+        {collapsed
+          ? <ChevronRight size={14} strokeWidth={2.5} color={C.textMuted} />
+          : <ChevronLeft  size={14} strokeWidth={2.5} color={C.textMuted} />}
+      </button>
     </div>
   )
 }

@@ -1,18 +1,22 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { Lock, Download, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Lock, Download, ChevronLeft, ChevronRight, CreditCard, Banknote, Wallet, Clock, TrendingUp } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
 import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
+import { Select } from '@/components/atoms/select/Select'
 import { useActiveVenue } from '@/context/active-venue'
+import { applyEffectiveStatus } from '@/lib/convex/status-map'
 import type { Id } from '@canchero/backend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Period = 'dia' | 'semana' | 'mes'
+
+type StatusTab = 'todas' | 'pendientes' | 'señadas' | 'jugadas' | 'pagadas'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -22,7 +26,23 @@ const PERIOD_OPTIONS: { id: Period; label: string }[] = [
   { id: 'mes',    label: 'Mes'    },
 ]
 
-const PAGE_SIZE = 8
+const TAB_FILTER: Record<StatusTab, FinanceRowShape['status'][]> = {
+  todas:      [],
+  pendientes: ['pending'],
+  señadas:    ['deposit_paid'],
+  jugadas:    ['played'],
+  pagadas:    ['paid'],
+}
+
+const TAB_LABELS: Record<StatusTab, string> = {
+  todas:      'Todas',
+  pendientes: 'Pendientes',
+  señadas:    'Señadas',
+  jugadas:    'Jugadas',
+  pagadas:    'Pagadas',
+}
+
+const STATUS_TABS: StatusTab[] = ['todas', 'pendientes', 'señadas', 'jugadas', 'pagadas']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -102,17 +122,14 @@ type FinanceRowShape = {
   totalAmount:  number
 }
 
-function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
-  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short' })
+function toUnifiedRow(row: FinanceRowShape, now: Date): UnifiedRow {
+  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', timeZone: 'UTC' })
   return {
     id:          row._id,
     cliente:     row.clientName,
     cancha:      row.courtName,
     diayhorario: `${dayLabel} ${row.startTime} – ${row.endTime}`,
-    estado:      row.status,
-    online:      row.online,
-    cash:        row.cash,
-    paymentType: row.paymentType,
+    estado:      applyEffectiveStatus(row.status, row.date, row.startTime, row.endTime, now),
     total:       row.total,
   }
 }
@@ -139,7 +156,7 @@ export default function FinanzasPage() {
   const [period,        setPeriod]        = useState<Period>('mes')
   const [offset,        setOffset]        = useState(0)
   const [cancha,        setCancha]        = useState('todas')
-  const [page,          setPage]          = useState(1)
+  const [activeTab,     setActiveTab]     = useState<StatusTab>('todas')
   const [showExportTip, setShowExportTip] = useState(false)
   const [tipPos,        setTipPos]        = useState({ top: 0, left: 0 })
   const exportRef = useRef<HTMLButtonElement>(null)
@@ -156,10 +173,21 @@ export default function FinanzasPage() {
 
   const isLoading = activeVenueId !== null && allRows === undefined
 
+  const now = new Date()
+
   // Client-side cancha filter
-  const filtered = (allRows ?? []).filter(
+  const canchaFiltered = (allRows ?? []).filter(
     (r) => cancha === 'todas' || r.courtName === cancha
   )
+
+  // Status tab filter — applies only to the table, not the KPIs
+  const filtered = canchaFiltered.filter((r) => {
+    if (activeTab === 'todas') return true
+    if (activeTab === 'jugadas') {
+      return applyEffectiveStatus(r.status, r.date, r.startTime, r.endTime, now) === 'played'
+    }
+    return TAB_FILTER[activeTab].includes(r.status)
+  })
 
   // Unique cancha names derived from live data.
   // Always include the currently selected cancha so the select stays consistent
@@ -168,20 +196,20 @@ export default function FinanzasPage() {
   if (cancha !== 'todas') canchaOptionsSet.add(cancha)
   const canchaOptions = [...canchaOptionsSet].sort()
 
-  // KPIs — derived client-side from filtered rows
-  const totalOnline   = filtered.reduce((s, r) => s + r.online, 0)
-  const totalCash     = filtered.reduce((s, r) => s + r.cash,   0)
-  const totalSenias   = filtered.reduce((s, r) => s + r.depositTotal, 0)
-  const totalGeneral  = filtered.reduce((s, r) => s + r.total,  0)
-  const totalACobrar  = filtered
+  // KPIs — derived client-side from cancha-filtered rows (unaffected by status tab)
+  const totalOnline   = canchaFiltered.reduce((s, r) => s + r.online, 0)
+  const totalCash     = canchaFiltered.reduce((s, r) => s + r.cash,   0)
+  const totalSenias   = canchaFiltered.reduce((s, r) => s + r.depositTotal, 0)
+  const totalGeneral  = canchaFiltered.reduce((s, r) => s + r.total,  0)
+  const totalACobrar  = canchaFiltered
     .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid' || r.status === 'on_court')
     .reduce((s, r) => s + (r.totalAmount - r.total), 0)
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toUnifiedRow)
+  const allMappedRows = filtered.map((r) => toUnifiedRow(r, now))
 
-  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setPage(1); setCancha('todas') }, [])
-  const handleCancha = useCallback((c: string)  => { setCancha(c);  setPage(1) }, [])
+  const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setCancha('todas') }, [])
+  const handleCancha = useCallback((c: string)  => { setCancha(c) }, [])
+  const handleTabChange = useCallback((tab: StatusTab) => { setActiveTab(tab) }, [])
 
   const handleExportClick = useCallback(() => {
     if (exportRef.current) {
@@ -192,12 +220,12 @@ export default function FinanzasPage() {
     setTimeout(() => setShowExportTip(false), 2000)
   }, [])
 
-  const KPIS = [
-    { value: fmt(totalOnline),   label: 'Mercado Pago' },
-    { value: fmt(totalCash),     label: 'Efectivo'     },
-    { value: fmt(totalSenias),   label: 'Señas'        },
-    { value: fmt(totalACobrar),  label: 'A Cobrar'     },
-    { value: fmt(totalGeneral),  label: 'Total', bold: true },
+  const kpis = [
+    { icon: CreditCard, label: 'Mercado Pago', value: fmt(totalOnline),   ruleColor: 'oklch(56% 0.15 155)',   color: undefined as string | undefined },
+    { icon: Banknote,   label: 'Efectivo',      value: fmt(totalCash),    ruleColor: 'oklch(56% 0.15 155)',   color: undefined as string | undefined },
+    { icon: Wallet,     label: 'Señas',         value: fmt(totalSenias),  ruleColor: 'oklch(56% 0.07 155)', color: undefined as string | undefined },
+    { icon: Clock,      label: 'A cobrar',      value: fmt(totalACobrar), ruleColor: 'oklch(56% 0.07 155)', color: undefined as string | undefined },
+    { icon: TrendingUp, label: 'Total',         value: fmt(totalGeneral), ruleColor: 'oklch(56% 0.15 155)', color: 'oklch(56% 0.15 155)' },
   ]
 
   const strip = (
@@ -228,7 +256,7 @@ export default function FinanzasPage() {
             Finanzas
           </span>
           <button
-            onClick={() => { setOffset(o => o - 1); setPage(1) }}
+            onClick={() => { setOffset(o => o - 1) }}
             aria-label="Período anterior"
             style={{
               width:           32,
@@ -261,7 +289,7 @@ export default function FinanzasPage() {
           </span>
 
           <button
-            onClick={() => { setOffset(o => o + 1); setPage(1) }}
+            onClick={() => { setOffset(o => o + 1) }}
             aria-label="Período siguiente"
             style={{
               width:           32,
@@ -282,7 +310,7 @@ export default function FinanzasPage() {
 
           {offset !== 0 && (
             <button
-              onClick={() => { setOffset(0); setPage(1) }}
+              onClick={() => { setOffset(0) }}
               style={{
                 padding:         '6px 14px',
                 borderRadius:    6,
@@ -341,44 +369,26 @@ export default function FinanzasPage() {
           </div>
 
           {/* Cancha select */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <select
-              value={cancha}
-              onChange={(e) => handleCancha(e.target.value)}
-              style={{
-                appearance:       'none',
-                WebkitAppearance: 'none',
-                backgroundColor:  'transparent',
-                border:           `1px solid ${D.border}`,
-                borderRadius:     6,
-                color:            D.text,
-                fontSize:         12,
-                fontWeight:       500,
-                padding:          '5px 28px 5px 10px',
-                cursor:           'pointer',
-                outline:          'none',
-                fontFamily:       'inherit',
-                lineHeight:       1,
-              }}
-            >
-              <option style={{ background: 'oklch(22% 0.024 228)' }} value="todas">Todas las canchas</option>
-              {canchaOptions.map((c) => (
-                <option key={c} style={{ background: 'oklch(22% 0.024 228)' }} value={c}>{c}</option>
-              ))}
-            </select>
-            <ChevronDown
-              size={12}
-              strokeWidth={2.5}
-              style={{
-                position:      'absolute',
-                right:         8,
-                top:           '50%',
-                transform:     'translateY(-50%)',
-                color:         D.textMuted,
-                pointerEvents: 'none',
-              }}
-            />
-          </div>
+          <Select
+            value={cancha}
+            onChange={handleCancha}
+            options={[
+              { value: 'todas', label: 'Todas las canchas' },
+              ...canchaOptions.map((c) => ({ value: c, label: c })),
+            ]}
+            borderColor={D.border}
+            focusColor="oklch(56% 0.15 155)"
+            chevronColor={D.textMuted}
+            style={{
+              width:           'auto',
+              backgroundColor: 'transparent',
+              borderRadius:    6,
+              color:           D.text,
+              fontSize:        12,
+              fontWeight:      500,
+              padding:         '5px 28px 5px 10px',
+            }}
+          />
 
           {/* Export button — premium locked */}
           <button
@@ -407,39 +417,6 @@ export default function FinanzasPage() {
           </button>
         </div>
       </div>
-
-      {/* KPI strip */}
-      <div className="strip-scroll" style={{
-        height:       52,
-        display:      'flex',
-        alignItems:   'center',
-        padding:      '0 32px',
-        borderBottom: `1px solid ${t.divisor.val}`,
-        overflowX:    'auto',
-      }}>
-        {KPIS.map((kpi, i) => (
-          <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            {i > 0 && (
-              <div style={{ width: 1, height: 32, backgroundColor: t.divisor.val, margin: '0 28px', flexShrink: 0 }} />
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, userSelect: 'none' }}>
-              <span style={{
-                fontSize:           20,
-                fontWeight:         kpi.bold ? 700 : 600,
-                color:              kpi.bold ? t.verdeCanchaProfundo.val : t.textoPrimario.val,
-                lineHeight:         1,
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing:      '-0.01em',
-              }}>
-                {kpi.value}
-              </span>
-              <span style={{ fontSize: 11, color: t.textoMuted.val, lineHeight: 1 }}>
-                {kpi.label}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
     </>
   )
 
@@ -448,11 +425,81 @@ export default function FinanzasPage() {
       <ModuleLayout strip={strip}>
         <div style={{
           height:        '100%',
-          padding:       '12px 32px',
+          padding:       '14px 32px',
           boxSizing:     'border-box',
           display:       'flex',
           flexDirection: 'column',
+          gap:           14,
         }}>
+          {/* KPI strip */}
+          <div style={{
+            flexShrink:      0,
+            borderRadius:    7,
+            border:          `1px solid ${t.bordeNeutral.val}`,
+            overflow:        'hidden',
+            backgroundColor: 'oklch(28% 0.035 228)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'stretch', padding: '26px 44px', gap: 0 }}>
+              {kpis.map((kpi, i) => {
+                const Icon = kpi.icon
+                return (
+                  <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {i > 0 && <div style={{ alignSelf: 'stretch', borderLeft: '1px dashed oklch(97% 0.006 220 / 18%)', margin: '0 35px', flexShrink: 0 }} />}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon size={17} strokeWidth={2} style={{ color: 'oklch(56% 0.15 155)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 500, color: 'oklch(75% 0.02 228)', lineHeight: 1, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                          {kpi.label}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize:           kpi.label === 'Total' ? 31 : 29,
+                        fontWeight:         700,
+                        color:              kpi.color ?? 'oklch(97% 0.006 220)',
+                        lineHeight:         1,
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing:      '-0.015em',
+                      }}>
+                        {kpi.value}
+                      </span>
+                      <div style={{ width: 29, height: 3, borderRadius: 2, backgroundColor: kpi.ruleColor }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            {STATUS_TABS.map((tab) => {
+              const isActive = activeTab === tab
+              return (
+                <button
+                  key={tab}
+                  onClick={() => handleTabChange(tab)}
+                  style={{
+                    padding:         '6px 16px',
+                    borderRadius:    7,
+                    border:          isActive
+                      ? `1px solid ${t.verdeCancha.val}`
+                      : `1px solid ${t.bordeNeutral.val}`,
+                    backgroundColor: isActive ? t.verdeCanchaFondo.val : 'transparent',
+                    color:           isActive ? t.verdeCanchaProfundo.val : t.textoMuted.val,
+                    fontSize:        12,
+                    fontWeight:      isActive ? 600 : 400,
+                    cursor:          'pointer',
+                    lineHeight:      1,
+                    fontFamily:      'inherit',
+                    transition:      'all 100ms ease-out',
+                  }}
+                >
+                  {TAB_LABELS[tab]}
+                </button>
+              )
+            })}
+          </div>
+
           {isLoading ? (
             <div style={{
               display:        'flex',
@@ -466,11 +513,10 @@ export default function FinanzasPage() {
             </div>
           ) : (
             <UnifiedReservationTable
-              rows={pageRows}
-              page={page}
-              totalPages={totalPages}
-              totalRows={filtered.length}
-              onPageChange={setPage}
+              rows={allMappedRows}
+              totalColumnLabel="Cobrado"
+              noun="movimiento"
+              showStatusFilter={false}
             />
           )}
         </div>

@@ -21,6 +21,12 @@ colors:
   borde-neutral: "oklch(86% 0.016 222)"
   divisor: "oklch(88% 0.014 222)"
   fondo-hover: "oklch(89% 0.020 224)"
+  kpi-strip-fondo: "oklch(28% 0.035 228)"
+  kpi-strip-verde-acento: "oklch(56% 0.15 155)"
+  kpi-strip-verde-suave: "oklch(56% 0.07 155)"
+  kpi-strip-texto-claro: "oklch(97% 0.006 220)"
+  kpi-strip-label-claro: "oklch(75% 0.02 228)"
+  kpi-strip-divisor-claro: "oklch(97% 0.006 220 / 18%)"
 typography:
   display:
     fontFamily: "Poppins, system-ui, sans-serif"
@@ -144,10 +150,22 @@ Dos familias de acento y una base neutral. El verde confirma, los tonos cálidos
 - **Divisor** (`oklch(88% 0.014 222)`): Divisores entre secciones. Un paso más claro que el borde.
 - **Fondo Hover** (`oklch(89% 0.020 224)`): Fondo para ítems de navegación en hover. Familia azul-gris, claramente distinto del verde activo.
 
+### KPI Strip (Contextual Dark — excepción sancionada)
+El strip de KPIs (Reservas, Finanzas, Canchas) es la única superficie de la app con fondo oscuro fuera del sidebar header. Nació de iterar en vivo hasta encontrar el punto que no se sintiera "hero-metric" (número gigante en caja de ícono) ni "SaaS azul-blanco" ni "gris sucio" — un `color-mix` naive entre dos colores de luminosidad muy distinta interpola por una zona desaturada intermedia y siempre lee sucio; los tonos de abajo están **autorados directamente en OKLCH**, no mezclados.
+
+- **KPI Strip Fondo** (`oklch(28% 0.035 228)`): Navy oscuro, misma familia de hue que Cabecera Oscura (228) pero autorado aparte, no derivado de ella por mezcla. Ancla visual que hace eco del header sin duplicarlo.
+- **KPI Strip Verde Acento** (`oklch(56% 0.15 155)`): Ícono y valor destacado (Facturado, Total) sobre el fondo oscuro. Mismo hue que Verde Cancha, pero autorado con luminosidad media (56%) para leerse con autoridad sin llegar a neón — el error inicial fue un verde muy claro y saturado (`78% L`) que sí leía neón sobre navy.
+- **KPI Strip Verde Suave** (`oklch(56% 0.07 155)`): Misma luminosidad que el acento, menos croma. Diferencia jerarquía por saturación, no por acercarse al blanco — para métricas "pendientes/en curso" (Pendiente de cobro, Señas, A cobrar) que necesitan leerse como la misma familia pero con menos peso.
+- **KPI Strip Texto Claro** (`oklch(97% 0.006 220)`): Valor por defecto (no destacado) sobre el fondo oscuro.
+- **KPI Strip Label Claro** (`oklch(75% 0.02 228)`): Label uppercase sobre el fondo oscuro.
+- **KPI Strip Divisor Claro** (`oklch(97% 0.006 220 / 18%)`): Línea punteada entre métricas, translúcida sobre el navy.
+
 ### Named Rules
 **The Two-Family Rule.** El verde confirma acción y selección. Los tonos cálidos establecen identidad y jerarquía. Estas dos familias no se sustituyen entre sí. Un estado de confirmación nunca es cálido; un heading nunca es verde.
 
 **The No-Black Rule.** Sin negro puro, sin blanco puro. Cada neutral está teñido hacia la familia azul-gris (cromatismo 0.010–0.024). Los neutrales teñidos mantienen la paleta coherente bajo distintas calibraciones de monitor.
+
+**The No-Naive-Mix Rule.** Nunca usar `color-mix()` entre dos colores de luminosidad muy distinta para generar un tinte de fondo — interpola por una zona desaturada y lee sucio. Autorar el tono final directamente en OKLCH (luminosidad + croma + hue elegidos a mano), como ya hacían Verde Cancha Fondo y Acento Terraza Claro antes de esta regla, y como hace ahora KPI Strip Fondo.
 
 ## 3. Typography
 
@@ -221,6 +239,16 @@ Las cards existen para entradas de reservas y listados de canchas, contextos don
 - **Active:** Fondo Verde Cancha Activo (`oklch(85% 0.058 155)`), texto Verde Cancha Profundo (`oklch(32% 0.17 155)`). Sin stripe de borde izquierdo.
 - **Mobile:** El sidebar colapsa a una barra de navegación inferior en viewports pequeños (no implementado aún).
 
+### KPI Strip
+Franja de métricas al tope de Reservas, Finanzas y Canchas. Reemplaza el patrón hero-metric (caja de ícono + número de 44px) prohibido en este documento.
+
+- **Fondo:** `kpi-strip-fondo` (navy oscuro autorado, ver sección 2). Único lugar de la app con esta excepción al fondo claro — ver Do's and Don'ts.
+- **Layout por métrica:** ícono inline junto al label (nunca en caja separada) → valor en negrita debajo → una barra de color de 3px de alto bajo el valor, en vez de icon-box o border-left de acento.
+- **Tipografía:** label uppercase 12.5px/500 en `kpi-strip-label-claro`; valor 29px/700 (31px para la métrica de cierre, ej. "Total") en `kpi-strip-texto-claro` por defecto, o `kpi-strip-verde-acento` cuando la métrica es la cifra principal confirmada (Facturado, Total, Ingresos hoy).
+- **Color por métrica:** `kpi-strip-verde-acento` para confirmado/cerrado, `kpi-strip-verde-suave` para pendiente/en curso — la jerarquía se expresa en croma, no en acercarse al blanco.
+- **Divisores:** línea punteada vertical entre métricas en `kpi-strip-divisor-claro`, nunca sólida ni como accent stripe.
+- **Íconos:** 17px, siempre en `kpi-strip-verde-acento`, nunca dos conceptos distintos comparten el mismo ícono entre páginas hermanas (ej. no reusar `Banknote` para "Efectivo" y "Pendiente de cobro" a la vez).
+
 ### Sidebar Header (Signature Component)
 El sidebar header es el elemento visualmente más distintivo de la implementación actual. Fondo navy oscuro, texto claro para el nombre de la sede, subtexto muted para el subtítulo, un ícono teal-verde a 68% de luminosidad (`oklch(68% 0.16 155)`). El avatar usa la familia verde: fondo `verde-cancha-fondo`, texto `oklch(28% 0.14 155)`.
 
@@ -240,7 +268,7 @@ Este componente rompe deliberadamente el patrón flat-claro del resto de la app:
 ### Don't:
 - **Don't** usar una paleta azul-blanca. Si una pantalla se lee como "SaaS dashboard genérico" solo por la paleta, falló. La familia dual cálida + verde es lo que hace reconocible a Canchero.
 - **Don't** construir layouts hero-metric: número grande, label pequeño, stats de soporte, acento con gradiente. Ese patrón está prohibido. Un dueño de cancha lee su lista de reservas, no una torre de KPIs.
-- **Don't** usar dark mode ni estética de herramienta de monitoreo (paleta Grafana, PagerDuty). Canchero es para uso diurno en la oficina del complejo. Claro, cálido, limpio.
+- **Don't** usar dark mode ni estética de herramienta de monitoreo (paleta Grafana, PagerDuty). Canchero es para uso diurno en la oficina del complejo. Claro, cálido, limpio. **Excepción sancionada:** el KPI Strip (sección 5) usa fondo oscuro deliberadamente, decisión explícita del dueño del producto tras iterar en vivo — no extender este tratamiento a otras superficies sin la misma validación.
 - **Don't** usar gradientes neon, tipografía jersey/Impact, ni colores de camiseta de equipo. El producto es para operadores de complejos deportivos, no para una campaña de marca deportiva. Nada debe sentirse como una camiseta de fútbol.
 - **Don't** usar `border-left` mayor a 1px como stripe de acento de color en ítems de nav, cards ni callouts. Reescribir con tinte de fondo o borde completo.
 - **Don't** aplicar `background-clip: text` con un gradiente. Todo el texto es un color sólido único.

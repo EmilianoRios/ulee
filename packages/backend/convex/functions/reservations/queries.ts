@@ -1,8 +1,10 @@
 import { query } from '../../_generated/server'
+import type { QueryCtx } from '../../_generated/server'
 import { v } from 'convex/values'
 import { paginationOptsValidator } from 'convex/server'
 import { getCurrentUser } from '../../lib/auth'
 import { addDays } from '../../lib/schedule'
+import { minutesToTime } from '../../lib/time'
 import type { Doc, Id } from '../../_generated/dataModel'
 
 // ---------------------------------------------------------------------------
@@ -10,14 +12,16 @@ import type { Doc, Id } from '../../_generated/dataModel'
 // ---------------------------------------------------------------------------
 
 export interface ReservationRow {
-  _id:         Id<'reservations'>
-  clientName:  string
-  courtName:   string   // denormalized — resolved via court lookup
-  startTime:   string
-  endTime:     string
-  date:        string
-  status:      Doc<'reservations'>['status']
-  totalAmount: number
+  _id:           Id<'reservations'>
+  courtId:       Id<'courts'>
+  clientName:    string
+  courtName:     string   // denormalized — resolved via court lookup
+  startTime:     string
+  endTime:       string
+  date:          string
+  status:        Doc<'reservations'>['status']
+  totalAmount:   number
+  depositAmount?: number
 }
 
 export interface CalReservation {
@@ -85,14 +89,16 @@ export const listByVenueAndDate = query({
     )
 
     const page: ReservationRow[] = paginationResult.page.map((r) => ({
-      _id:         r._id,
-      clientName:  r.clientName,
-      courtName:   courtMap.get(r.courtId) ?? '',
-      startTime:   r.startTime,
-      endTime:     r.endTime,
-      date:        r.date,
-      status:      r.status,
-      totalAmount: r.totalAmount,
+      _id:           r._id,
+      courtId:       r.courtId,
+      clientName:    r.clientName,
+      courtName:     courtMap.get(r.courtId) ?? '',
+      startTime:     minutesToTime(r.startTime),
+      endTime:       minutesToTime(r.endTime),
+      date:          r.date,
+      status:        r.status,
+      totalAmount:   r.totalAmount,
+      depositAmount: r.depositAmount,
     }))
 
     return { ...paginationResult, page }
@@ -186,6 +192,48 @@ export const countActiveByVenueAndDate = query({
   },
 })
 
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+async function computeReservationStats(
+  ctx: QueryCtx,
+  venueId: Id<'venues'>,
+  reservations: Doc<'reservations'>[],
+): Promise<ReservationStats> {
+  const totalRevenue = reservations.reduce((s, r) => s + r.totalAmount, 0)
+  // pendingCount: any reservation where money is still owed (including played — game over, uncollected)
+  const pendingCount = reservations.filter(
+    (r) => r.status === 'pending' || r.status === 'deposit_paid' || r.status === 'on_court' || r.status === 'played'
+  ).length
+  // pendingAmount: sum of the actual saldo owed, not totalAmount.
+  // For deposit_paid/played with a deposit: saldo = totalAmount - depositAmount.
+  // For pending/on_court with no deposit: full totalAmount.
+  const pendingAmount = reservations
+    .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid' || r.status === 'on_court')
+    .reduce((s, r) => {
+      const saldo = r.depositAmount != null ? Math.max(0, r.totalAmount - r.depositAmount) : r.totalAmount
+      return s + saldo
+    }, 0)
+
+  const courts = await ctx.db
+    .query('courts')
+    .withIndex('by_venueId', (q) => q.eq('venueId', venueId))
+    .collect()
+
+  const activeCourts = courts.filter((c) => c.status === 'active').length
+  const totalCourts  = courts.length
+
+  return {
+    count:         reservations.length,
+    totalRevenue,
+    pendingCount,
+    pendingAmount,
+    activeCourts,
+    totalCourts,
+  }
+}
+
 export const statsByVenueAndDate = query({
   args: {
     venueId: v.id('venues'),
@@ -201,30 +249,68 @@ export const statsByVenueAndDate = query({
       )
       .collect()
 
-    const totalRevenue = reservations.reduce((s, r) => s + r.totalAmount, 0)
-    const pendingCount = reservations.filter(
-      (r) => r.status === 'pending' || r.status === 'deposit_paid' || r.status === 'on_court'
-    ).length
-    const pendingAmount = reservations
-      .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid')
-      .reduce((s, r) => s + r.totalAmount, 0)
+    return computeReservationStats(ctx, args.venueId, reservations)
+  },
+})
 
-    const courts = await ctx.db
-      .query('courts')
-      .withIndex('by_venueId', (q) => q.eq('venueId', args.venueId))
+export const statsByVenueAndPeriod = query({
+  args: {
+    venueId:   v.id('venues'),
+    startDate: v.string(),
+    endDate:   v.string(),
+  },
+  handler: async (ctx, args): Promise<ReservationStats> => {
+    await getCurrentUser(ctx)
+
+    const reservations = await ctx.db
+      .query('reservations')
+      .withIndex('by_venueId_date', (q) =>
+        q.eq('venueId', args.venueId)
+         .gte('date', args.startDate)
+         .lte('date', args.endDate)
+      )
       .collect()
 
-    const activeCourts = courts.filter((c) => c.status === 'active').length
-    const totalCourts  = courts.length
+    return computeReservationStats(ctx, args.venueId, reservations)
+  },
+})
 
-    return {
-      count:         reservations.length,
-      totalRevenue,
-      pendingCount,
-      pendingAmount,
-      activeCourts,
-      totalCourts,
-    }
+export const listByVenueAndPeriod = query({
+  args: {
+    venueId:  v.id('venues'),
+    dateFrom: v.string(),
+    dateTo:   v.string(),
+  },
+  handler: async (ctx, args): Promise<ReservationRow[]> => {
+    await getCurrentUser(ctx)
+
+    const reservations = await ctx.db
+      .query('reservations')
+      .withIndex('by_venueId_date', (q) =>
+        q.eq('venueId', args.venueId)
+         .gte('date', args.dateFrom)
+         .lte('date', args.dateTo)
+      )
+      .collect()
+
+    const courtIds = [...new Set(reservations.map((r) => r.courtId))]
+    const courts = await Promise.all(courtIds.map((id) => ctx.db.get(id)))
+    const courtMap = new Map(
+      courts.filter(Boolean).map((c) => [c!._id, c!.name])
+    )
+
+    return reservations.map((r) => ({
+      _id:           r._id,
+      courtId:       r.courtId,
+      clientName:    r.clientName,
+      courtName:     courtMap.get(r.courtId) ?? '',
+      startTime:     minutesToTime(r.startTime),
+      endTime:       minutesToTime(r.endTime),
+      date:          r.date,
+      status:        r.status,
+      totalAmount:   r.totalAmount,
+      depositAmount: r.depositAmount,
+    }))
   },
 })
 

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as cron from "../cron.js";
 import type * as functions_courts_mutations from "../functions/courts/mutations.js";
 import type * as functions_courts_queries from "../functions/courts/queries.js";
 import type * as functions_finances_index from "../functions/finances/index.js";
@@ -41,6 +42,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  cron: typeof cron;
   "functions/courts/mutations": typeof functions_courts_mutations;
   "functions/courts/queries": typeof functions_courts_queries;
   "functions/finances/index": typeof functions_finances_index;

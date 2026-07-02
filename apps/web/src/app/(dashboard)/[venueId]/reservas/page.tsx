@@ -1,26 +1,67 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Plus, ChevronDown } from 'lucide-react'
+import { Plus, CalendarDays, TrendingUp, Banknote, LayoutGrid } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation, useConvexAuth } from 'convex/react'
-import { useRouter } from 'next/navigation'
 import { api } from '@canchero/backend'
 import type { Id } from '@canchero/backend'
+import { minutesToTime } from '@canchero/backend'
 import { UnifiedReservationTable, type UnifiedRow } from '@/components/organisms/unified-reservation-table'
 import { ModuleLayout } from '@/components/templates/module-layout'
+import { Select } from '@/components/atoms/select/Select'
 import { ReservationSlideOver } from '@/components/organisms/reservation-slide-over'
 import type { ReservationBackendStatus, ReservationUpdateFields, SeriesUpdateFields } from '@/components/organisms/reservation-slide-over'
 import type { CalendarReservation, Court } from '@/components/atoms/reservation-card'
+import { NewEntrySlideOver } from '@/components/organisms/new-entry-slide-over'
 import { useActiveVenue } from '@/context/active-venue'
-import { statusToCalendarState } from '@/lib/convex/status-map'
+import { statusToCalendarState, applyEffectiveStatus } from '@/lib/convex/status-map'
+import { resolveDateFilter, type DateFilter } from '@/lib/dates'
+import type { ReservationRow } from '@canchero/backend'
 import type { Doc } from '@canchero/backend'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type StatusTab = 'todas' | 'pendientes' | 'señadas' | 'jugadas' | 'pagadas'
+
+const TAB_FILTER: Record<StatusTab, Doc<'reservations'>['status'][]> = {
+  todas:      [],
+  pendientes: ['pending'],
+  señadas:    ['deposit_paid'],
+  jugadas:    ['played'],
+  pagadas:    ['paid'],
+}
+
+const TAB_LABELS: Record<StatusTab, string> = {
+  todas:      'Todas',
+  pendientes: 'Pendientes',
+  señadas:    'Señadas',
+  jugadas:    'Jugadas',
+  pagadas:    'Pagadas',
+}
+
+const STATUS_TABS: StatusTab[] = ['todas', 'pendientes', 'señadas', 'jugadas', 'pagadas']
+
+const DATE_FILTER_LABELS: Record<DateFilter, string> = {
+  hoy:    'Hoy',
+  manana: 'Mañana',
+  semana: 'Esta semana',
+}
+
+const DATE_FILTERS: DateFilter[] = ['hoy', 'manana', 'semana']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Today's date as "YYYY-MM-DD" (client-side UTC-3 approximation). */
-function todayDate(): string {
-  return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
+function toUnifiedRow(row: ReservationRow, now: Date): UnifiedRow {
+  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', timeZone: 'UTC' })
+  return {
+    id:          row._id,
+    cliente:     row.clientName,
+    cancha:      row.courtName,
+    diayhorario: `${dayLabel} ${row.startTime} – ${row.endTime}`,
+    estado:      applyEffectiveStatus(row.status, row.date, row.startTime, row.endTime, now),
+    total:       row.totalAmount,
+  }
 }
 
 function timeToMins(t: string): number {
@@ -28,74 +69,21 @@ function timeToMins(t: string): number {
   return (h ?? 0) * 60 + (m ?? 0)
 }
 
-const TODAY = todayDate()
-const PAGE_SIZE = 8
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type FinanceRowShape = {
-  _id:          Id<'reservations'>
-  clientName:   string
-  courtId:      Id<'courts'>
-  courtName:    string
-  clientPhone:  string
-  date:         string
-  startTime:    string
-  endTime:      string
-  online:       number
-  cash:         number
-  total:        number
-  totalAmount:  number
-  depositTotal: number
-  paymentType:  'deposit' | 'balance' | 'full' | 'mixed' | 'none'
-  status:       Doc<'reservations'>['status']
-}
-
-type StatusTab = 'todas' | 'pendientes' | 'señadas' | 'pagadas'
-
-const TAB_FILTER: Record<StatusTab, Doc<'reservations'>['status'][]> = {
-  todas:      [],
-  pendientes: ['pending'],
-  señadas:    ['deposit_paid'],
-  pagadas:    ['paid', 'played'],
-}
-
-const TAB_LABELS: Record<StatusTab, string> = {
-  todas:      'Todas',
-  pendientes: 'Pendientes',
-  señadas:    'Señadas',
-  pagadas:    'Pagadas',
-}
-
-const STATUS_TABS: StatusTab[] = ['todas', 'pendientes', 'señadas', 'pagadas']
-
-function toUnifiedRow(row: FinanceRowShape): UnifiedRow {
-  const dayLabel = new Date(row.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short' })
-  return {
-    id:          row._id,
-    cliente:     row.clientName,
-    cancha:      row.courtName,
-    diayhorario: `${dayLabel} ${row.startTime} – ${row.endTime}`,
-    estado:      row.status,
-    online:      row.online,
-    cash:        row.cash,
-    paymentType: row.paymentType,
-    total:       row.total,
-  }
-}
-
-function toCalendarReservation(row: FinanceRowShape): CalendarReservation {
+function toCalendarReservation(row: ReservationRow, now: Date): CalendarReservation {
+  const effectiveStatus = applyEffectiveStatus(row.status, row.date, row.startTime, row.endTime, now)
   return {
     id:            row._id,
     courtId:       row.courtId as string,
     clientName:    row.clientName,
-    phone:         row.clientPhone || undefined,
+    phone:         undefined,
     startTime:     timeToMins(row.startTime),
     endTime:       timeToMins(row.endTime),
     date:          row.date,
-    state:         statusToCalendarState(row.status),
+    state:         statusToCalendarState(effectiveStatus),
     amount:        row.totalAmount,
-    depositAmount: row.depositTotal > 0 ? row.depositTotal : undefined,
+    depositAmount: row.depositAmount,
+    wasFullyPaid:  effectiveStatus === 'paid',
   }
 }
 
@@ -117,93 +105,117 @@ export default function ReservasPage() {
   const t                = useTheme()
   const { activeVenueId } = useActiveVenue()
   const { isAuthenticated } = useConvexAuth()
-  const router   = useRouter()
   const canQuery = isAuthenticated && activeVenueId !== null
 
   const [cancha,        setCancha]        = useState('todas')
-  const [page,          setPage]          = useState(1)
   const [activeTab,     setActiveTab]     = useState<StatusTab>('todas')
-  const [selectedRow,   setSelectedRow]   = useState<FinanceRowShape | null>(null)
+  const [selectedRow,   setSelectedRow]   = useState<ReservationRow | null>(null)
   const [paymentError,  setPaymentError]  = useState<string | null>(null)
+  const [dateFilter,    setDateFilter]    = useState<DateFilter>('hoy')
+  const [newEntryOpen,  setNewEntryOpen]  = useState(false)
 
-  // ── Mutations (mirroring calendario/page.tsx) ─────────────────────────────
+  // ── Mutations ────────────────────────────────────────────────────────────────
   const updateStatus      = useMutation(api.functions.reservations.mutations.updateStatus)
   const updateReservation = useMutation(api.functions.reservations.mutations.updateReservation)
   const deleteReservation = useMutation(api.functions.reservations.mutations.deleteReservation)
   const cancelSeries      = useMutation(api.functions.reservations.series.cancelSeries)
   const modifySeries      = useMutation(api.functions.reservations.series.modifySeries)
 
-  // Finance rows for today
+  // ── Derived date range ────────────────────────────────────────────────────
+  const { dateFrom, dateTo, filterStartDate } = resolveDateFilter(dateFilter)
+
+  // ── Queries ───────────────────────────────────────────────────────────────
   const allRows = useQuery(
-    api.functions.finances.queries.listByVenueAndPeriod,
-    canQuery ? { venueId: activeVenueId, dateFrom: TODAY, dateTo: TODAY } : 'skip'
+    api.functions.reservations.queries.listByVenueAndPeriod,
+    canQuery ? { venueId: activeVenueId, dateFrom, dateTo } : 'skip'
   )
 
-  // Courts — needed by ReservationSlideOver
   const courtsRaw = useQuery(
     api.functions.courts.queries.listByVenue,
     canQuery ? { venueId: activeVenueId } : 'skip'
   )
 
-  const isLoading = activeVenueId !== null && allRows === undefined
-
-  // Stats strip
-  const stats = useQuery(
-    api.functions.reservations.queries.statsByVenueAndDate,
-    canQuery ? { venueId: activeVenueId, date: TODAY } : 'skip'
+  const venueRaw = useQuery(
+    api.functions.venues.queries.getById,
+    canQuery ? { venueId: activeVenueId } : 'skip'
   )
 
-  // Client-side cancha filter
+  const stats = useQuery(
+    api.functions.reservations.queries.statsByVenueAndPeriod,
+    canQuery ? { venueId: activeVenueId, startDate: dateFrom, endDate: dateTo } : 'skip'
+  )
+
+  const isLoading = activeVenueId !== null && allRows === undefined
+  const now = new Date()
+
+  // ── Venue pricing ─────────────────────────────────────────────────────────
+  const venuePricePerHour      = venueRaw?.pricingConfig?.pricePerHour
+  const venueNightRate         = venueRaw?.pricingConfig?.nightRatePrice
+  const venueNightRateStart    = venueRaw?.pricingConfig?.nightRateStart !== undefined
+    ? minutesToTime(venueRaw.pricingConfig.nightRateStart)
+    : undefined
+  const venueDepositPercentage = venueRaw?.pricingConfig?.depositPercentage ?? 50
+
+  // ── Client-side filters ───────────────────────────────────────────────────
   const canchaFiltered = (allRows ?? []).filter(
     (r) => cancha === 'todas' || r.courtName === cancha
   )
 
-  // Client-side tab filter applied after cancha filter
-  const filtered = canchaFiltered.filter(
-    (r) => activeTab === 'todas' || TAB_FILTER[activeTab].includes(r.status)
-  )
+  const filtered = canchaFiltered.filter((r) => {
+    if (activeTab === 'todas') return true
+    if (activeTab === 'jugadas') {
+      return applyEffectiveStatus(r.status, r.date, r.startTime, r.endTime, now) === 'played'
+    }
+    return TAB_FILTER[activeTab].includes(r.status)
+  })
 
   const canchaOptionsSet = new Set((allRows ?? []).map((r) => r.courtName).filter(Boolean))
   if (cancha !== 'todas') canchaOptionsSet.add(cancha)
   const canchaOptions = [...canchaOptionsSet].sort()
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(toUnifiedRow)
+  const allMappedRows = filtered.map((r) => toUnifiedRow(r, now))
 
   const courts: Court[] = courtsRaw?.map((c) => ({
-    id:            c._id as string,
-    name:          c.name,
-    priceOverride: c.priceOverride ?? undefined,
+    id:   c._id as string,
+    name: c.name,
   })) ?? []
 
-  // ── Stats values (with loading fallback) ──────────────────────────────────
-  const statsStrip: { value: string; label: string; delta?: string; positive?: boolean }[] = [
+  // ── Stats strip ───────────────────────────────────────────────────────────
+  const kpis = [
     {
-      value: stats !== undefined ? String(stats.count) : '...',
-      label: 'reservas hoy',
+      icon:      CalendarDays,
+      label:     'Reservas',
+      value:     stats !== undefined ? String(stats.count) : '...',
+      ruleColor: 'oklch(56% 0.15 155)',
+      color:     undefined as string | undefined,
     },
     {
-      value: stats !== undefined
-        ? `$${stats.totalRevenue.toLocaleString('es-AR')}`
-        : '...',
-      label: 'esta semana',
+      icon:      TrendingUp,
+      label:     'Facturado',
+      value:     stats !== undefined ? `$${stats.totalRevenue.toLocaleString('es-AR')}` : '...',
+      ruleColor: 'oklch(56% 0.15 155)',
+      color:     stats !== undefined ? 'oklch(56% 0.15 155)' : undefined,
     },
     {
-      value: stats !== undefined ? String(stats.pendingCount) : '...',
-      label: 'pagos pendientes',
+      icon:      Banknote,
+      label:     'Pendiente de cobro',
+      value:     stats !== undefined ? `$${stats.pendingAmount.toLocaleString('es-AR')}` : '...',
+      ruleColor: 'oklch(56% 0.07 155)',
+      color:     undefined as string | undefined,
     },
     {
-      value: stats !== undefined
-        ? `${stats.activeCourts} de ${stats.totalCourts}`
-        : '...',
-      label: 'canchas activas',
+      icon:      LayoutGrid,
+      label:     'Canchas activas',
+      value:     stats !== undefined ? `${stats.activeCourts} de ${stats.totalCourts}` : '...',
+      ruleColor: 'oklch(56% 0.15 155)',
+      color:     undefined as string | undefined,
     },
   ]
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
 
   const handleRowClick = useCallback((id: string) => {
-    const row = (allRows ?? []).find((r) => r._id === id) as FinanceRowShape | undefined
+    const row = (allRows ?? []).find((r) => r._id === id)
     if (row) setSelectedRow(row)
   }, [allRows])
 
@@ -266,145 +278,127 @@ export default function ReservasPage() {
 
   const handleTabChange = useCallback((tab: StatusTab) => {
     setActiveTab(tab)
-    setPage(1)
   }, [])
 
   // ─────────────────────────────────────────────────────────────────────────
 
   const strip = (
     <>
-      {/* Dark header: module identity + cancha filter + primary action */}
+      {/* Dark header: module identity + cancha filter + date filter + primary action */}
       <div style={{
-        height:          56,
         display:         'flex',
-        alignItems:      'center',
-        justifyContent:  'space-between',
-        padding:         '0 32px',
+        flexDirection:   'column',
         backgroundColor: t.cabeceraOscura.val,
       }}>
-        {/* Left: title + cancha filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{
-            fontSize:      15,
-            fontWeight:    600,
-            color:         D.text,
-            letterSpacing: '-0.01em',
-            lineHeight:    1,
-            userSelect:    'none',
-          }}>
-            Reservas
-          </span>
+        {/* Row 1: title + cancha dropdown + nueva reserva button */}
+        <div style={{
+          height:         56,
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'space-between',
+          padding:        '0 32px',
+        }}>
+          {/* Left: title + cancha filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{
+              fontSize:      15,
+              fontWeight:    600,
+              color:         D.text,
+              letterSpacing: '-0.01em',
+              lineHeight:    1,
+              userSelect:    'none',
+            }}>
+              Reservas
+            </span>
 
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <select
+            <Select
               value={cancha}
-              onChange={(e) => { setCancha(e.target.value); setPage(1) }}
+              onChange={setCancha}
+              options={[
+                { value: 'todas', label: 'Todas las canchas' },
+                ...canchaOptions.map((c) => ({ value: c, label: c })),
+              ]}
+              borderColor={D.border}
+              focusColor="oklch(56% 0.15 155)"
+              chevronColor={D.textMuted}
               style={{
-                appearance:       'none',
-                WebkitAppearance: 'none',
-                backgroundColor:  'transparent',
-                border:           `1px solid ${D.border}`,
-                borderRadius:     6,
-                color:            D.text,
-                fontSize:         12,
-                fontWeight:       500,
-                padding:          '5px 28px 5px 10px',
-                cursor:           'pointer',
-                outline:          'none',
-                fontFamily:       'inherit',
-                lineHeight:       1,
-              }}
-            >
-              <option style={{ background: 'oklch(22% 0.024 228)' }} value="todas">Todas las canchas</option>
-              {canchaOptions.map((c) => (
-                <option key={c} style={{ background: 'oklch(22% 0.024 228)' }} value={c}>{c}</option>
-              ))}
-            </select>
-            <ChevronDown
-              size={12}
-              strokeWidth={2.5}
-              style={{
-                position:      'absolute',
-                right:         8,
-                top:           '50%',
-                transform:     'translateY(-50%)',
-                color:         D.textMuted,
-                pointerEvents: 'none',
+                width:           'auto',
+                backgroundColor: 'transparent',
+                borderRadius:    6,
+                color:           D.text,
+                fontSize:        12,
+                fontWeight:      500,
+                padding:         '5px 28px 5px 10px',
               }}
             />
           </div>
-        </div>
 
-        {/* Right: Nueva reserva button */}
-        <button
-          style={{
-            display:         'flex',
-            alignItems:      'center',
-            gap:             6,
-            padding:         '6px 14px',
-            borderRadius:    7,
-            border:          'none',
-            backgroundColor: t.verdeCancha.val,
-            color:           'oklch(98% 0.004 155)',
-            fontSize:        12,
-            fontWeight:      500,
-            cursor:          'pointer',
-            lineHeight:      1,
-            fontFamily:      'inherit',
-          }}
-          onClick={() => router.push('/calendario')}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
-        >
-          <Plus size={13} strokeWidth={2.5} />
-          Nueva reserva
-        </button>
-      </div>
-
-      {/* Info strip: stat row on light background */}
-      <div className="strip-scroll" style={{
-        height:       52,
-        display:      'flex',
-        alignItems:   'center',
-        padding:      '0 32px',
-        borderBottom: `1px solid ${t.divisor.val}`,
-        overflowX:    'auto',
-      }}>
-        {statsStrip.map((stat, i) => (
-          <div key={stat.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            {i > 0 && (
-              <div style={{ width: 1, height: 32, backgroundColor: t.divisor.val, margin: '0 28px', flexShrink: 0 }} />
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, userSelect: 'none' }}>
-              <span style={{
-                fontSize:           20,
-                fontWeight:         700,
-                color:              t.textoPrimario.val,
-                lineHeight:         1,
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing:      '-0.01em',
-              }}>
-                {stat.value}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 11, color: t.textoMuted.val, lineHeight: 1 }}>
-                  {stat.label}
-                </span>
-                {stat.delta && (
-                  <span style={{
-                    fontSize:   11,
-                    fontWeight: 500,
-                    lineHeight: 1,
-                    color:      stat.positive ? t.verdeCancha.val : 'oklch(55% 0.20 25)',
-                  }}>
-                    {stat.delta}
-                  </span>
-                )}
-              </div>
+          {/* Right: date filter buttons + Nueva reserva button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Date filter group */}
+            <div style={{
+              display:         'flex',
+              backgroundColor: D.toggleBg,
+              borderRadius:    7,
+              padding:         3,
+              gap:             2,
+              border:          `1px solid ${D.border}`,
+            }}>
+              {DATE_FILTERS.map((df) => {
+                const isActive = dateFilter === df
+                return (
+                  <button
+                    key={df}
+                    onClick={() => { setDateFilter(df) }}
+                    style={{
+                      padding:         '5px 12px',
+                      borderRadius:    5,
+                      border:          'none',
+                      cursor:          'pointer',
+                      fontSize:        12,
+                      fontWeight:      isActive ? 600 : 400,
+                      backgroundColor: isActive ? D.toggleOn : 'transparent',
+                      color:           isActive ? D.text : D.toggleOff,
+                      transition:      'all 100ms ease-out',
+                      userSelect:      'none',
+                      lineHeight:      1,
+                      fontFamily:      'inherit',
+                    }}
+                  >
+                    {DATE_FILTER_LABELS[df]}
+                  </button>
+                )
+              })}
             </div>
+
+            {/* Nueva reserva */}
+            <button
+              style={{
+                display:         'flex',
+                alignItems:      'center',
+                gap:             6,
+                padding:         '6px 14px',
+                borderRadius:    7,
+                border:          'none',
+                backgroundColor: t.verdeCancha.val,
+                color:           'oklch(98% 0.004 155)',
+                fontSize:        12,
+                fontWeight:      500,
+                cursor:          'pointer',
+                lineHeight:      1,
+                fontFamily:      'inherit',
+              }}
+              onClick={() => setNewEntryOpen(true)}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCanchaProfundo.val }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = t.verdeCancha.val }}
+            >
+              <Plus size={13} strokeWidth={2.5} />
+              Nueva reserva
+            </button>
           </div>
-        ))}
+        </div>
       </div>
+
     </>
   )
 
@@ -413,12 +407,51 @@ export default function ReservasPage() {
       <ModuleLayout strip={strip}>
         <div style={{
           height:        '100%',
-          padding:       '12px 32px',
+          padding:       '14px 32px',
           boxSizing:     'border-box',
           display:       'flex',
           flexDirection: 'column',
-          gap:           12,
+          gap:           14,
         }}>
+          {/* KPI strip */}
+          <div style={{
+            flexShrink:      0,
+            borderRadius:    7,
+            border:          `1px solid ${t.bordeNeutral.val}`,
+            overflow:        'hidden',
+            backgroundColor: 'oklch(28% 0.035 228)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'stretch', padding: '26px 44px', gap: 0 }}>
+              {kpis.map((kpi, i) => {
+                const Icon = kpi.icon
+                return (
+                  <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {i > 0 && <div style={{ alignSelf: 'stretch', borderLeft: '1px dashed oklch(97% 0.006 220 / 18%)', margin: '0 35px', flexShrink: 0 }} />}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon size={17} strokeWidth={2} style={{ color: 'oklch(56% 0.15 155)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 500, color: 'oklch(75% 0.02 228)', lineHeight: 1, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                          {kpi.label}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize:           29,
+                        fontWeight:         700,
+                        color:              kpi.color ?? 'oklch(97% 0.006 220)',
+                        lineHeight:         1,
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing:      '-0.015em',
+                      }}>
+                        {kpi.value}
+                      </span>
+                      <div style={{ width: 29, height: 3, borderRadius: 2, backgroundColor: kpi.ruleColor }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
             {STATUS_TABS.map((tab) => {
@@ -473,19 +506,18 @@ export default function ReservasPage() {
             </div>
           ) : (
             <UnifiedReservationTable
-              rows={pageRows}
-              page={page}
-              totalPages={totalPages}
-              totalRows={filtered.length}
-              onPageChange={setPage}
+              rows={allMappedRows}
               onRowClick={handleRowClick}
+              totalColumnLabel="Importe"
+              noun="reserva"
+              showStatusFilter={false}
             />
           )}
         </div>
       </ModuleLayout>
 
       <ReservationSlideOver
-        reservation={selectedRow ? toCalendarReservation(selectedRow) : null}
+        reservation={selectedRow ? toCalendarReservation(selectedRow, now) : null}
         courts={courts}
         onClose={handleCloseSlideOver}
         onUpdateStatus={handleUpdateStatus}
@@ -493,6 +525,18 @@ export default function ReservasPage() {
         onDelete={handleDelete}
         onCancelSeries={handleCancelSeries}
         onModifySeries={handleModifySeries}
+      />
+
+      <NewEntrySlideOver
+        open={newEntryOpen}
+        courts={courts}
+        initialDate={new Date(filterStartDate + 'T12:00:00')}
+        venueId={activeVenueId}
+        venuePricePerHour={venuePricePerHour}
+        venueNightRate={venueNightRate}
+        venueNightRateStart={venueNightRateStart}
+        venueDepositPercentage={venueDepositPercentage}
+        onClose={() => setNewEntryOpen(false)}
       />
     </>
   )
