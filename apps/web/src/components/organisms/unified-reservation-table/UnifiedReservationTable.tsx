@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useTheme } from 'tamagui'
-import { Search, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Search, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, X } from 'lucide-react'
 import { Pagination } from '../../molecules/pagination'
 import { StatusChip } from '../../atoms/status-chip'
 import type { ReservationStatus } from '../../atoms/status-chip'
@@ -92,7 +92,6 @@ export function UnifiedReservationTable({
   const [sortDir,      setSortDir]      = useState<SortDir>('asc')
   const [page,         setPage]         = useState(1)
   const [pageSize,     setPageSize]     = useState(defaultPageSize)
-  const [collapsed,    setCollapsed]    = useState(false)
 
   // Reset to page 1 when the parent passes new rows (tab/cancha/date filter changed)
   useEffect(() => { setPage(1) }, [rows])
@@ -193,8 +192,8 @@ export function UnifiedReservationTable({
       flex:            1,
       minHeight:       0,
       borderRadius:    7,
-      border:          collapsed ? 'none' : `1px solid ${t.bordeNeutral.val}`,
-      backgroundColor: collapsed ? 'transparent' : t.superficieContenido.val,
+      border:          `1px solid ${t.bordeNeutral.val}`,
+      backgroundColor: t.superficieContenido.val,
       overflow:        'hidden',
       display:         'flex',
       flexDirection:   'column',
@@ -205,7 +204,7 @@ export function UnifiedReservationTable({
         alignItems:      'center',
         gap:             8,
         padding:         '9px 12px',
-        borderBottom:    collapsed ? 'none' : `1px solid ${t.bordeNeutral.val}`,
+        borderBottom:    `1px solid ${t.bordeNeutral.val}`,
         flexShrink:      0,
         flexWrap:        'wrap',
         backgroundColor: 'transparent',
@@ -299,63 +298,10 @@ export function UnifiedReservationTable({
           </div>
         )}
 
-        {/* Page size */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <select
-            value={pageSize}
-            onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
-            style={selectStyle}
-          >
-            {PAGE_SIZES.map(s => (
-              <option key={s} value={s}>{s} por página</option>
-            ))}
-          </select>
-          <ChevronDown
-            size={11}
-            strokeWidth={2.5}
-            style={{
-              position:      'absolute',
-              right:         8,
-              top:           '50%',
-              transform:     'translateY(-50%)',
-              pointerEvents: 'none',
-              color:         t.textoMuted.val,
-            }}
-          />
-        </div>
-
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          style={{
-            display:         'flex',
-            alignItems:      'center',
-            gap:             4,
-            padding:         '6px 11px',
-            borderRadius:    6,
-            border:          `1px solid ${t.bordeNeutral.val}`,
-            backgroundColor: 'transparent',
-            color:           t.textoMuted.val,
-            fontSize:        12,
-            fontWeight:      500,
-            cursor:          'pointer',
-            fontFamily:      'inherit',
-            lineHeight:      1,
-            flexShrink:      0,
-            transition:      'background-color 100ms ease-out',
-          }}
-        >
-          {collapsed
-            ? <><ChevronDown size={12} strokeWidth={2} /> Expandir</>
-            : <><ChevronUp   size={12} strokeWidth={2} /> Contraer</>
-          }
-        </button>
       </div>
 
       {/* Table + footer */}
-      {!collapsed && (
-        <>
-          {sorted.length === 0 ? (
+      {sorted.length === 0 ? (
             <div style={{
               flex:           1,
               display:        'flex',
@@ -468,17 +414,40 @@ export function UnifiedReservationTable({
                 borderTop:      `1px solid ${t.divisor.val}`,
                 flexShrink:     0,
               }}>
-                <span style={{ fontSize: 12, color: t.textoMuted.val }}>
-                  {totalResults}{' '}
-                  {noun ?? 'movimiento'}{totalResults !== 1 ? 's' : ''}
-                  {hasActiveFilters && ' · filtrados'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 12, color: t.textoMuted.val }}>
+                    {totalResults}{' '}
+                    {noun ?? 'movimiento'}{totalResults !== 1 ? 's' : ''}
+                    {hasActiveFilters && ' · filtrados'}
+                  </span>
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <select
+                      value={pageSize}
+                      onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+                      style={selectStyle}
+                    >
+                      {PAGE_SIZES.map(s => (
+                        <option key={s} value={s}>{s} por página</option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={11}
+                      strokeWidth={2.5}
+                      style={{
+                        position:      'absolute',
+                        right:         8,
+                        top:           '50%',
+                        transform:     'translateY(-50%)',
+                        pointerEvents: 'none',
+                        color:         t.textoMuted.val,
+                      }}
+                    />
+                  </div>
+                </div>
                 <Pagination page={safePage} totalPages={totalPages} onPageChange={setPage} />
               </div>
             </>
           )}
-        </>
-      )}
     </div>
   )
 }

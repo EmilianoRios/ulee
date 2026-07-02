@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Plus, ChevronDown } from 'lucide-react'
+import { Plus, ChevronDown, CalendarDays, TrendingUp, Banknote, LayoutGrid } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
@@ -180,32 +180,34 @@ export default function ReservasPage() {
   })) ?? []
 
   // ── Stats strip ───────────────────────────────────────────────────────────
-  const statsStrip: { value: string; label: string; delta?: string; positive?: boolean; color?: string }[] = [
+  const kpis = [
     {
-      value: stats !== undefined ? String(stats.count) : '...',
-      label: 'reservas',
+      icon:      CalendarDays,
+      label:     'Reservas',
+      value:     stats !== undefined ? String(stats.count) : '...',
+      ruleColor: 'oklch(56% 0.15 155)',
+      color:     undefined as string | undefined,
     },
     {
-      value: stats !== undefined
-        ? `$${stats.totalRevenue.toLocaleString('es-AR')}`
-        : '...',
-      label: 'facturado',
-      color: stats !== undefined ? t.verdeCanchaProfundo.val : undefined,
+      icon:      TrendingUp,
+      label:     'Facturado',
+      value:     stats !== undefined ? `$${stats.totalRevenue.toLocaleString('es-AR')}` : '...',
+      ruleColor: 'oklch(56% 0.15 155)',
+      color:     stats !== undefined ? 'oklch(56% 0.15 155)' : undefined,
     },
     {
-      value: stats !== undefined
-        ? `$${stats.pendingAmount.toLocaleString('es-AR')}`
-        : '...',
-      label: stats !== undefined && stats.pendingCount > 0
-        ? `por cobrar · ${stats.pendingCount} pendiente${stats.pendingCount !== 1 ? 's' : ''}`
-        : 'por cobrar',
-      color: stats !== undefined && stats.pendingAmount > 0 ? t.acentoTerraza.val : undefined,
+      icon:      Banknote,
+      label:     'Pendiente de cobro',
+      value:     stats !== undefined ? `$${stats.pendingAmount.toLocaleString('es-AR')}` : '...',
+      ruleColor: 'oklch(56% 0.07 155)',
+      color:     undefined as string | undefined,
     },
     {
-      value: stats !== undefined
-        ? `${stats.activeCourts} de ${stats.totalCourts}`
-        : '...',
-      label: 'canchas activas',
+      icon:      LayoutGrid,
+      label:     'Canchas activas',
+      value:     stats !== undefined ? `${stats.activeCourts} de ${stats.totalCourts}` : '...',
+      ruleColor: 'oklch(56% 0.15 155)',
+      color:     undefined as string | undefined,
     },
   ]
 
@@ -414,51 +416,6 @@ export default function ReservasPage() {
         </div>
       </div>
 
-      {/* KPI strip */}
-      <div className="strip-scroll" style={{
-        display:         'flex',
-        alignItems:      'center',
-        padding:         '28px 40px',
-        borderBottom:    `1px solid ${t.divisor.val}`,
-        backgroundColor: t.superficieContenido.val,
-        overflowX:       'auto',
-        gap:             0,
-      }}>
-        {statsStrip.map((stat, i) => (
-          <div key={stat.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            {i > 0 && (
-              <div style={{ width: 1, height: 56, backgroundColor: t.divisor.val, margin: '0 44px', flexShrink: 0 }} />
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, userSelect: 'none' }}>
-              <span style={{
-                fontSize:           38,
-                fontWeight:         700,
-                color:              stat.color ?? t.textoPrimario.val,
-                lineHeight:         1,
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing:      '-0.025em',
-              }}>
-                {stat.value}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: t.textoMuted.val, lineHeight: 1 }}>
-                  {stat.label}
-                </span>
-                {stat.delta && (
-                  <span style={{
-                    fontSize:   11,
-                    fontWeight: 500,
-                    lineHeight: 1,
-                    color:      stat.positive ? t.verdeCancha.val : 'oklch(55% 0.20 25)',
-                  }}>
-                    {stat.delta}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
     </>
   )
 
@@ -473,6 +430,45 @@ export default function ReservasPage() {
           flexDirection: 'column',
           gap:           14,
         }}>
+          {/* KPI strip */}
+          <div style={{
+            flexShrink:      0,
+            borderRadius:    7,
+            border:          `1px solid ${t.bordeNeutral.val}`,
+            overflow:        'hidden',
+            backgroundColor: 'oklch(28% 0.035 228)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'stretch', padding: '26px 44px', gap: 0 }}>
+              {kpis.map((kpi, i) => {
+                const Icon = kpi.icon
+                return (
+                  <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {i > 0 && <div style={{ alignSelf: 'stretch', borderLeft: '1px dashed oklch(97% 0.006 220 / 18%)', margin: '0 35px', flexShrink: 0 }} />}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon size={17} strokeWidth={2} style={{ color: 'oklch(56% 0.15 155)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 500, color: 'oklch(75% 0.02 228)', lineHeight: 1, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                          {kpi.label}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize:           29,
+                        fontWeight:         700,
+                        color:              kpi.color ?? 'oklch(97% 0.006 220)',
+                        lineHeight:         1,
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing:      '-0.015em',
+                      }}>
+                        {kpi.value}
+                      </span>
+                      <div style={{ width: 29, height: 3, borderRadius: 2, backgroundColor: kpi.ruleColor }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
             {STATUS_TABS.map((tab) => {

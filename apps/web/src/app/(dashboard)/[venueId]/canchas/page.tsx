@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, LayoutGrid, CheckCircle2, CalendarDays, TrendingUp } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useMutation, useConvexAuth } from 'convex/react'
 import { api, FREE_LIMITS } from '@canchero/backend'
@@ -15,15 +15,18 @@ import type { Id } from '@canchero/backend'
 
 // ─── Stats derivation ─────────────────────────────────────────────────────────
 
+const GREEN_ACCENT = 'oklch(56% 0.15 155)'
+const GREEN_SOFT    = 'oklch(56% 0.07 155)'
+
 function deriveStats(courts: Court[]) {
   const active   = courts.filter((c) => c.status === 'active').length
   const turnos   = courts.reduce((s, c) => s + c.todayTurnos, 0)
   const ingresos = courts.reduce((s, c) => s + c.todayRevenue, 0)
   return [
-    { value: String(courts.length),                        label: 'canchas totales' },
-    { value: String(active),                               label: 'activas hoy'     },
-    { value: String(turnos),                               label: 'turnos hoy'      },
-    { value: `$${ingresos.toLocaleString('es-AR')}`,       label: 'ingresos hoy'   },
+    { icon: LayoutGrid,    label: 'Canchas totales', value: String(courts.length), ruleColor: GREEN_ACCENT, color: undefined as string | undefined },
+    { icon: CheckCircle2,  label: 'Activas hoy',      value: String(active),        ruleColor: active === courts.length ? GREEN_ACCENT : GREEN_SOFT, color: undefined as string | undefined },
+    { icon: CalendarDays,  label: 'Turnos hoy',       value: String(turnos),        ruleColor: GREEN_ACCENT, color: undefined as string | undefined },
+    { icon: TrendingUp,    label: 'Ingresos hoy',     value: `$${ingresos.toLocaleString('es-AR')}`, ruleColor: GREEN_ACCENT, color: GREEN_ACCENT },
   ]
 }
 
@@ -153,39 +156,6 @@ export default function CanchasPage() {
           Nueva cancha
         </PlanLimitButton>
       </div>
-
-      {/* Stats strip */}
-      <div className="strip-scroll" style={{
-        height:       52,
-        display:      'flex',
-        alignItems:   'center',
-        padding:      '0 32px',
-        borderBottom: `1px solid ${t.divisor.val}`,
-        overflowX:    'auto',
-      }}>
-        {STATS.map((stat, i) => (
-          <div key={stat.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            {i > 0 && (
-              <div style={{ width: 1, height: 32, backgroundColor: t.divisor.val, margin: '0 28px', flexShrink: 0 }} />
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, userSelect: 'none' }}>
-              <span style={{
-                fontSize:           20,
-                fontWeight:         700,
-                color:              t.textoPrimario.val,
-                lineHeight:         1,
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing:      '-0.01em',
-              }}>
-                {stat.value}
-              </span>
-              <span style={{ fontSize: 11, color: t.textoMuted.val, lineHeight: 1 }}>
-                {stat.label}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
     </>
   )
 
@@ -213,11 +183,51 @@ export default function CanchasPage() {
       <ModuleLayout strip={strip}>
         <div style={{
           height:        '100%',
-          padding:       '12px 32px',
+          padding:       '14px 32px',
           boxSizing:     'border-box',
           display:       'flex',
           flexDirection: 'column',
+          gap:           14,
         }}>
+          {/* KPI strip */}
+          <div style={{
+            flexShrink:      0,
+            borderRadius:    7,
+            border:          `1px solid ${t.bordeNeutral.val}`,
+            overflow:        'hidden',
+            backgroundColor: 'oklch(28% 0.035 228)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'stretch', padding: '26px 44px', gap: 0 }}>
+              {STATS.map((kpi, i) => {
+                const Icon = kpi.icon
+                return (
+                  <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {i > 0 && <div style={{ alignSelf: 'stretch', borderLeft: '1px dashed oklch(97% 0.006 220 / 18%)', margin: '0 35px', flexShrink: 0 }} />}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon size={17} strokeWidth={2} style={{ color: 'oklch(56% 0.15 155)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 500, color: 'oklch(75% 0.02 228)', lineHeight: 1, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                          {kpi.label}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize:           29,
+                        fontWeight:         700,
+                        color:              kpi.color ?? 'oklch(97% 0.006 220)',
+                        lineHeight:         1,
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing:      '-0.015em',
+                      }}>
+                        {kpi.value}
+                      </span>
+                      <div style={{ width: 29, height: 3, borderRadius: 2, backgroundColor: kpi.ruleColor }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
           <CourtsTable
             courts={courts}
             onEdit={setEditing}

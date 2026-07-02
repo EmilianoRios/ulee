@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { Lock, Download, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Lock, Download, ChevronDown, ChevronLeft, ChevronRight, CreditCard, Banknote, Wallet, Clock, TrendingUp } from 'lucide-react'
 import { useTheme } from 'tamagui'
 import { useQuery, useConvexAuth } from 'convex/react'
 import { api } from '@canchero/backend'
@@ -15,6 +15,8 @@ import type { Id } from '@canchero/backend'
 
 type Period = 'dia' | 'semana' | 'mes'
 
+type StatusTab = 'todas' | 'pendientes' | 'señadas' | 'jugadas' | 'pagadas'
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PERIOD_OPTIONS: { id: Period; label: string }[] = [
@@ -22,6 +24,24 @@ const PERIOD_OPTIONS: { id: Period; label: string }[] = [
   { id: 'semana', label: 'Semana' },
   { id: 'mes',    label: 'Mes'    },
 ]
+
+const TAB_FILTER: Record<StatusTab, FinanceRowShape['status'][]> = {
+  todas:      [],
+  pendientes: ['pending'],
+  señadas:    ['deposit_paid'],
+  jugadas:    ['played'],
+  pagadas:    ['paid'],
+}
+
+const TAB_LABELS: Record<StatusTab, string> = {
+  todas:      'Todas',
+  pendientes: 'Pendientes',
+  señadas:    'Señadas',
+  jugadas:    'Jugadas',
+  pagadas:    'Pagadas',
+}
+
+const STATUS_TABS: StatusTab[] = ['todas', 'pendientes', 'señadas', 'jugadas', 'pagadas']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -135,6 +155,7 @@ export default function FinanzasPage() {
   const [period,        setPeriod]        = useState<Period>('mes')
   const [offset,        setOffset]        = useState(0)
   const [cancha,        setCancha]        = useState('todas')
+  const [activeTab,     setActiveTab]     = useState<StatusTab>('todas')
   const [showExportTip, setShowExportTip] = useState(false)
   const [tipPos,        setTipPos]        = useState({ top: 0, left: 0 })
   const exportRef = useRef<HTMLButtonElement>(null)
@@ -151,10 +172,21 @@ export default function FinanzasPage() {
 
   const isLoading = activeVenueId !== null && allRows === undefined
 
+  const now = new Date()
+
   // Client-side cancha filter
-  const filtered = (allRows ?? []).filter(
+  const canchaFiltered = (allRows ?? []).filter(
     (r) => cancha === 'todas' || r.courtName === cancha
   )
+
+  // Status tab filter — applies only to the table, not the KPIs
+  const filtered = canchaFiltered.filter((r) => {
+    if (activeTab === 'todas') return true
+    if (activeTab === 'jugadas') {
+      return applyEffectiveStatus(r.status, r.date, r.startTime, r.endTime, now) === 'played'
+    }
+    return TAB_FILTER[activeTab].includes(r.status)
+  })
 
   // Unique cancha names derived from live data.
   // Always include the currently selected cancha so the select stays consistent
@@ -163,20 +195,20 @@ export default function FinanzasPage() {
   if (cancha !== 'todas') canchaOptionsSet.add(cancha)
   const canchaOptions = [...canchaOptionsSet].sort()
 
-  // KPIs — derived client-side from filtered rows
-  const totalOnline   = filtered.reduce((s, r) => s + r.online, 0)
-  const totalCash     = filtered.reduce((s, r) => s + r.cash,   0)
-  const totalSenias   = filtered.reduce((s, r) => s + r.depositTotal, 0)
-  const totalGeneral  = filtered.reduce((s, r) => s + r.total,  0)
-  const totalACobrar  = filtered
+  // KPIs — derived client-side from cancha-filtered rows (unaffected by status tab)
+  const totalOnline   = canchaFiltered.reduce((s, r) => s + r.online, 0)
+  const totalCash     = canchaFiltered.reduce((s, r) => s + r.cash,   0)
+  const totalSenias   = canchaFiltered.reduce((s, r) => s + r.depositTotal, 0)
+  const totalGeneral  = canchaFiltered.reduce((s, r) => s + r.total,  0)
+  const totalACobrar  = canchaFiltered
     .filter((r) => r.status === 'pending' || r.status === 'played' || r.status === 'deposit_paid' || r.status === 'on_court')
     .reduce((s, r) => s + (r.totalAmount - r.total), 0)
 
-  const now           = new Date()
   const allMappedRows = filtered.map((r) => toUnifiedRow(r, now))
 
   const handlePeriod = useCallback((p: Period) => { setPeriod(p); setOffset(0); setCancha('todas') }, [])
   const handleCancha = useCallback((c: string)  => { setCancha(c) }, [])
+  const handleTabChange = useCallback((tab: StatusTab) => { setActiveTab(tab) }, [])
 
   const handleExportClick = useCallback(() => {
     if (exportRef.current) {
@@ -187,12 +219,12 @@ export default function FinanzasPage() {
     setTimeout(() => setShowExportTip(false), 2000)
   }, [])
 
-  const KPIS: { value: string; label: string; bold?: boolean; color?: string }[] = [
-    { value: fmt(totalOnline),   label: 'Mercado Pago' },
-    { value: fmt(totalCash),     label: 'efectivo'     },
-    { value: fmt(totalSenias),   label: 'señas'        },
-    { value: fmt(totalACobrar),  label: 'a cobrar',    color: totalACobrar > 0 ? t.acentoTerraza.val : undefined },
-    { value: fmt(totalGeneral),  label: 'total',       bold: true },
+  const kpis = [
+    { icon: CreditCard, label: 'Mercado Pago', value: fmt(totalOnline),   ruleColor: 'oklch(56% 0.15 155)',   color: undefined as string | undefined },
+    { icon: Banknote,   label: 'Efectivo',      value: fmt(totalCash),    ruleColor: 'oklch(56% 0.15 155)',   color: undefined as string | undefined },
+    { icon: Wallet,     label: 'Señas',         value: fmt(totalSenias),  ruleColor: 'oklch(56% 0.07 155)', color: undefined as string | undefined },
+    { icon: Clock,      label: 'A cobrar',      value: fmt(totalACobrar), ruleColor: 'oklch(56% 0.07 155)', color: undefined as string | undefined },
+    { icon: TrendingUp, label: 'Total',         value: fmt(totalGeneral), ruleColor: 'oklch(56% 0.15 155)', color: 'oklch(56% 0.15 155)' },
   ]
 
   const strip = (
@@ -402,48 +434,6 @@ export default function FinanzasPage() {
           </button>
         </div>
       </div>
-
-      {/* KPI strip */}
-      <div className="strip-scroll" style={{
-        display:         'flex',
-        alignItems:      'center',
-        padding:         '28px 40px',
-        borderBottom:    `1px solid ${t.divisor.val}`,
-        backgroundColor: t.superficieContenido.val,
-        overflowX:       'auto',
-        gap:             0,
-      }}>
-        {KPIS.map((kpi, i) => {
-          const isLast = i === KPIS.length - 1
-          return (
-            <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              {i > 0 && (
-                <div style={{ width: 1, height: 56, backgroundColor: t.divisor.val, margin: `0 ${isLast ? 48 : 44}px`, flexShrink: 0 }} />
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, userSelect: 'none' }}>
-                <span style={{
-                  fontSize:           isLast ? 44 : 38,
-                  fontWeight:         700,
-                  color:              kpi.color ?? (isLast ? t.verdeCanchaProfundo.val : t.textoPrimario.val),
-                  lineHeight:         1,
-                  fontVariantNumeric: 'tabular-nums',
-                  letterSpacing:      '-0.025em',
-                }}>
-                  {kpi.value}
-                </span>
-                <span style={{
-                  fontSize:   12,
-                  fontWeight: isLast ? 600 : 500,
-                  color:      isLast ? t.verdeCanchaProfundo.val : t.textoMuted.val,
-                  lineHeight: 1,
-                }}>
-                  {kpi.label}
-                </span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
     </>
   )
 
@@ -458,6 +448,75 @@ export default function FinanzasPage() {
           flexDirection: 'column',
           gap:           14,
         }}>
+          {/* KPI strip */}
+          <div style={{
+            flexShrink:      0,
+            borderRadius:    7,
+            border:          `1px solid ${t.bordeNeutral.val}`,
+            overflow:        'hidden',
+            backgroundColor: 'oklch(28% 0.035 228)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'stretch', padding: '26px 44px', gap: 0 }}>
+              {kpis.map((kpi, i) => {
+                const Icon = kpi.icon
+                return (
+                  <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {i > 0 && <div style={{ alignSelf: 'stretch', borderLeft: '1px dashed oklch(97% 0.006 220 / 18%)', margin: '0 35px', flexShrink: 0 }} />}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon size={17} strokeWidth={2} style={{ color: 'oklch(56% 0.15 155)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 500, color: 'oklch(75% 0.02 228)', lineHeight: 1, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                          {kpi.label}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize:           kpi.label === 'Total' ? 31 : 29,
+                        fontWeight:         700,
+                        color:              kpi.color ?? 'oklch(97% 0.006 220)',
+                        lineHeight:         1,
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing:      '-0.015em',
+                      }}>
+                        {kpi.value}
+                      </span>
+                      <div style={{ width: 29, height: 3, borderRadius: 2, backgroundColor: kpi.ruleColor }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            {STATUS_TABS.map((tab) => {
+              const isActive = activeTab === tab
+              return (
+                <button
+                  key={tab}
+                  onClick={() => handleTabChange(tab)}
+                  style={{
+                    padding:         '6px 16px',
+                    borderRadius:    7,
+                    border:          isActive
+                      ? `1px solid ${t.verdeCancha.val}`
+                      : `1px solid ${t.bordeNeutral.val}`,
+                    backgroundColor: isActive ? t.verdeCanchaFondo.val : 'transparent',
+                    color:           isActive ? t.verdeCanchaProfundo.val : t.textoMuted.val,
+                    fontSize:        12,
+                    fontWeight:      isActive ? 600 : 400,
+                    cursor:          'pointer',
+                    lineHeight:      1,
+                    fontFamily:      'inherit',
+                    transition:      'all 100ms ease-out',
+                  }}
+                >
+                  {TAB_LABELS[tab]}
+                </button>
+              )
+            })}
+          </div>
+
           {isLoading ? (
             <div style={{
               display:        'flex',
@@ -473,6 +532,8 @@ export default function FinanzasPage() {
             <UnifiedReservationTable
               rows={allMappedRows}
               totalColumnLabel="Cobrado"
+              noun="movimiento"
+              showStatusFilter={false}
             />
           )}
         </div>
