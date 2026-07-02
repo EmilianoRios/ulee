@@ -15,6 +15,8 @@ import {
   Settings,
   MapPin,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Lock,
   type LucideIcon,
@@ -798,6 +800,37 @@ export function Sidebar() {
           zIndex:          10,
         }}
       />
+
+      {/* ── Collapse button ────────────────────────────────────────────────── */}
+      <button
+        type="button"
+        aria-label={collapsed ? 'Expandir menú' : 'Compactar menú'}
+        onClick={() => setWidth((w) => (w <= COLLAPSED + 2 ? EXPANDED : COLLAPSED))}
+        onMouseEnter={() => setHandleHover(true)}
+        onMouseLeave={() => setHandleHover(false)}
+        style={{
+          position:        'absolute',
+          top:             '50%',
+          right:           -13,
+          width:           22,
+          height:          60,
+          borderRadius:    11,
+          backgroundColor: C.surface,
+          border:          `1px solid ${C.border}`,
+          display:         'flex',
+          alignItems:      'center',
+          justifyContent:  'center',
+          transform:       'translateY(-50%)',
+          boxShadow:       '0 1px 3px rgba(0,0,0,0.12)',
+          cursor:          'pointer',
+          padding:         0,
+          zIndex:          12,
+        }}
+      >
+        {collapsed
+          ? <ChevronRight size={14} strokeWidth={2.5} color={C.textMuted} />
+          : <ChevronLeft  size={14} strokeWidth={2.5} color={C.textMuted} />}
+      </button>
     </div>
   )
 }
